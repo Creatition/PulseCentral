@@ -140,6 +140,9 @@ const isValidAddress = addr => /^0x[0-9a-fA-F]{40}$/.test(addr);
 /** Wrapped PLS (WPLS) contract address — used to look up the PLS/USD price */
 const WPLS_ADDRESS = '0xa1077a294dde1b09bb078844df40758a5D0f9a27';
 
+/** Fallback logo URL for WPLS/PLS when DexScreener doesn't return one */
+const WPLS_LOGO_FALLBACK = 'https://dd.dexscreener.com/ds-data/tokens/pulsechain/0xa1077a294dde1b09bb078844df40758a5d0f9a27.png';
+
 /** Build a token logo element (img if URL available, placeholder otherwise) */
 function buildTokenLogo(logoUrl, symbol) {
   if (logoUrl) {
@@ -576,7 +579,11 @@ async function loadPortfolio(address) {
     const activeTokens = tokens.filter(t => t.balance > 0);
 
     // Fetch DEX price data for all token contract addresses
+    // Always include WPLS so we can get the PLS/USD price and logo
     const addresses = activeTokens.map(t => t.contractAddress);
+    if (!addresses.some(a => a.toLowerCase() === WPLS_ADDRESS.toLowerCase())) {
+      addresses.push(WPLS_ADDRESS);
+    }
     const pairMap   = await API.getPairsByAddresses(addresses);
 
     // Enrich tokens with price data
@@ -596,7 +603,7 @@ async function loadPortfolio(address) {
     // Compute total value (PLS value approximated from WPLS pair if available)
     const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5d0f9a27');
     const plsPrice  = Number(wplsPair?.priceUsd || 0);
-    const plsLogoUrl = wplsPair?.info?.imageUrl || null;
+    const plsLogoUrl = wplsPair?.info?.imageUrl || WPLS_LOGO_FALLBACK;
     const plsPairAddress = wplsPair?.pairAddress || null;
     const plsValue  = plsBalance * plsPrice;
     const totalUsd  = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
@@ -651,6 +658,8 @@ function renderPortfolioSummary(totalUsd, tokenCount, plsBalance, plsPrice) {
   $('summary-total-label').textContent = summaryShowPls ? 'Total Value (PLS)' : 'Total Value (USD)';
   const toggle = $('summary-currency-toggle');
   if (toggle) toggle.textContent = summaryShowPls ? 'USD' : 'PLS';
+
+  $('summary-total-pls').textContent  = plsPrice > 0 ? fmt.pls(summaryTotalPls) : '—';
 
   $('summary-token-count').textContent  = tokenCount;
   $('summary-pls-balance').textContent  = fmt.balance(plsBalance) + ' PLS';
@@ -1639,7 +1648,11 @@ async function loadGroupPortfolio(group) {
     const activeTokens = [...tokenMap.values()];
 
     // Fetch DEX price data
+    // Always include WPLS so we can get the PLS/USD price and logo
     const addresses = activeTokens.map(t => t.contractAddress);
+    if (!addresses.some(a => a.toLowerCase() === WPLS_ADDRESS.toLowerCase())) {
+      addresses.push(WPLS_ADDRESS);
+    }
     const pairMap   = await API.getPairsByAddresses(addresses);
 
     // Enrich with price data
@@ -1657,7 +1670,7 @@ async function loadGroupPortfolio(group) {
 
     const wplsPair = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
     const plsPrice = Number(wplsPair?.priceUsd || 0);
-    const plsLogoUrl = wplsPair?.info?.imageUrl || null;
+    const plsLogoUrl = wplsPair?.info?.imageUrl || WPLS_LOGO_FALLBACK;
     const plsPairAddress = wplsPair?.pairAddress || null;
     const plsValue = totalPlsBalance * plsPrice;
     const totalUsd = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
