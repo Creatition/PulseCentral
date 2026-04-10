@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="PulseCentral – Track your PulseChain portfolio, market prices, and trending tokens." />
+  <title>PulseCentral – PulseChain Portfolio Tracker</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-pulse">Pulse</span><span class="logo-central">Central</span>
+      </div>
+      <nav class="tab-nav" role="tablist" aria-label="Main navigation">
+        <button class="tab-btn active" data-tab="portfolio" role="tab" aria-selected="true" aria-controls="tab-portfolio">
+          <span class="tab-icon">💼</span> Portfolio
+        </button>
+        <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
+          <span class="tab-icon">📊</span> Markets
+        </button>
+        <button class="tab-btn" data-tab="trending" role="tab" aria-selected="false" aria-controls="tab-trending">
+          <span class="tab-icon">🔥</span> Trending
+        </button>
+        <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
+          <span class="tab-icon">⭐</span> Watchlist
+        </button>
+        <button class="tab-btn" data-tab="profits" role="tab" aria-selected="false" aria-controls="tab-profits">
+          <span class="tab-icon">📈</span> Profits
+        </button>
+        <button class="tab-btn" data-tab="about" role="tab" aria-selected="false" aria-controls="tab-about">
+          <span class="tab-icon">ℹ️</span> About
+        </button>
+      </nav>
+      <div class="header-right">
+        <div class="theme-picker" role="group" aria-label="Choose color theme">
+          <span class="theme-label">Theme</span>
+          <button class="theme-swatch" data-theme="pulsechain" title="PulseChain" aria-label="PulseChain theme"></button>
+          <button class="theme-swatch" data-theme="hex"        title="HEX"        aria-label="HEX theme"></button>
+          <button class="theme-swatch" data-theme="pulsex"     title="PulseX"     aria-label="PulseX theme"></button>
+          <button class="theme-swatch" data-theme="incentive"  title="Incentive"  aria-label="Incentive theme"></button>
+        </div>
+        <span class="network-badge">⛓ PulseChain</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+
+    <!-- ── PORTFOLIO TAB ── -->
+    <section id="tab-portfolio" class="tab-panel active" role="tabpanel" aria-labelledby="btn-portfolio">
+      <div class="section-header">
+        <h1>Portfolio Tracker</h1>
+        <p class="section-subtitle">Enter a PulseChain wallet address to view its holdings and estimated value.</p>
+      </div>
+
+      <div class="wallet-search-bar">
+        <input
+          id="wallet-input"
+          type="text"
+          class="wallet-input"
+          placeholder="0x… PulseChain wallet address"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="42"
+          aria-label="Wallet address"
+        />
+        <button id="load-portfolio-btn" class="btn btn-primary">
+          <span id="load-portfolio-btn-text">Load Portfolio</span>
+          <span id="load-portfolio-spinner" class="spinner hidden" aria-hidden="true"></span>
+        </button>
+        <button id="save-wallet-btn" class="btn btn-save-wallet" title="Save wallet to Watchlist" aria-label="Save wallet to Watchlist">
+          ☆ Save
+        </button>
+      </div>
+
+      <div id="portfolio-error" class="error-banner hidden" role="alert"></div>
+
+      <!-- Summary cards -->
+      <div id="portfolio-summary" class="summary-cards hidden">
+        <div class="summary-card">
+          <span class="summary-label">Total Value (USD)</span>
+          <span class="summary-value" id="summary-total-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Tokens Held</span>
+          <span class="summary-value" id="summary-token-count">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">PLS Balance</span>
+          <span class="summary-value" id="summary-pls-balance">—</span>
+        </div>
+      </div>
+
+      <!-- Token holdings table -->
+      <div id="portfolio-table-wrap" class="table-wrap hidden">
+        <table class="data-table" id="portfolio-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Token</th>
+              <th>Symbol</th>
+              <th class="align-right">Balance</th>
+              <th class="align-right">Price (USD)</th>
+              <th class="align-right">Value (USD)</th>
+              <th class="align-right">24 h %</th>
+            </tr>
+          </thead>
+          <tbody id="portfolio-tbody">
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty state -->
+      <div class="empty-state" id="portfolio-empty">
+        <div class="empty-icon">💼</div>
+        <h2>No portfolio loaded</h2>
+        <p>Enter a PulseChain wallet address above to get started.</p>
+      </div>
+    </section>
+
+    <!-- ── MARKETS TAB ── -->
+    <section id="tab-markets" class="tab-panel" role="tabpanel" aria-labelledby="btn-markets">
+      <div class="section-header">
+        <h1>Markets</h1>
+        <p class="section-subtitle">Live prices for top PulseChain tokens sourced from DEX pairs.</p>
+      </div>
+
+      <div class="markets-toolbar">
+        <input id="market-search" type="search" class="search-input" placeholder="🔍 Search token…" aria-label="Search token" />
+        <button id="markets-refresh-btn" class="btn btn-secondary" aria-label="Refresh market data">
+          ↻ Refresh
+        </button>
+      </div>
+
+      <p class="dex-attribution">
+        Prices &amp; pairs sourced from
+        <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+      </p>
+
+      <div id="markets-error" class="error-banner hidden" role="alert"></div>
+
+      <div id="markets-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading market data"></div>
+        <p>Loading market data…</p>
+      </div>
+
+      <div id="markets-table-wrap" class="table-wrap hidden">
+        <table class="data-table" id="markets-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Token</th>
+              <th>Symbol</th>
+              <th class="align-right sortable" data-sort="price">Price (USD)</th>
+              <th class="align-right sortable" data-sort="change">24 h %</th>
+              <th class="align-right sortable" data-sort="volume">Volume 24 h</th>
+              <th class="align-right sortable" data-sort="liquidity">Liquidity</th>
+              <th class="align-center" aria-label="Watch"></th>
+            </tr>
+          </thead>
+          <tbody id="markets-tbody">
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── TRENDING TAB ── -->
+    <section id="tab-trending" class="tab-panel" role="tabpanel" aria-labelledby="btn-trending">
+      <div class="section-header">
+        <h1>Trending</h1>
+        <p class="section-subtitle">Hot tokens on PulseChain DEXes right now.</p>
+      </div>
+
+      <p class="dex-attribution">
+        Trending pairs sourced from
+        <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+      </p>
+
+      <div id="trending-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading trending data"></div>
+        <p>Loading trending tokens…</p>
+      </div>
+
+      <div id="trending-error" class="error-banner hidden" role="alert"></div>
+
+      <div id="trending-grid" class="trending-grid hidden"></div>
+    </section>
+
+    <!-- ── WATCHLIST TAB ── -->
+    <section id="tab-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="btn-watchlist">
+      <div class="section-header">
+        <h1>Watchlist</h1>
+        <p class="section-subtitle">Your saved wallets and tokens — stored locally in your browser.</p>
+      </div>
+
+      <!-- Saved wallets -->
+      <div class="watchlist-section">
+        <h2 class="watchlist-section-title">
+          💼 Saved Wallets
+          <span class="watchlist-count" id="wl-wallet-count">0</span>
+        </h2>
+        <div id="wl-wallets-empty" class="wl-empty">
+          No wallets saved yet. Enter an address in the Portfolio tab and click <strong>☆ Save</strong>.
+        </div>
+        <ul id="wl-wallets-list" class="wl-wallet-list" aria-label="Saved wallets"></ul>
+      </div>
+
+      <!-- Watched tokens -->
+      <div class="watchlist-section">
+        <h2 class="watchlist-section-title">
+          ⭐ Watched Tokens
+          <span class="watchlist-count" id="wl-token-count">0</span>
+          <button id="wl-refresh-btn" class="btn btn-secondary btn-sm" aria-label="Refresh token prices">↻ Refresh prices</button>
+        </h2>
+        <div id="wl-tokens-empty" class="wl-empty">
+          No tokens watched yet. Click the <strong>☆</strong> star in the Markets tab to watch a token.
+        </div>
+
+        <div id="wl-tokens-loading" class="loading-wrap hidden">
+          <div class="pulse-loader" aria-label="Loading token prices"></div>
+          <p>Loading prices…</p>
+        </div>
+
+        <div id="wl-tokens-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Symbol</th>
+                <th class="align-right">Price (USD)</th>
+                <th class="align-right">24 h %</th>
+                <th class="align-right">Volume 24 h</th>
+                <th class="align-center" aria-label="Remove"></th>
+              </tr>
+            </thead>
+            <tbody id="wl-tokens-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PROFITS TAB ── -->
+    <section id="tab-profits" class="tab-panel" role="tabpanel" aria-labelledby="btn-profits">
+      <div class="section-header">
+        <h1>Profits Tracker</h1>
+        <p class="section-subtitle">Log your buys and sells to track realized and unrealized P&amp;L in both USD and PLS.</p>
+      </div>
+
+      <div class="profits-toolbar">
+        <button id="add-trade-btn" class="btn btn-primary">＋ Add Trade</button>
+        <button id="export-csv-btn" class="btn btn-secondary">⬇ Export CSV</button>
+      </div>
+
+      <div id="profits-error" class="error-banner hidden" role="alert"></div>
+
+      <!-- Summary cards -->
+      <div class="summary-cards" id="profits-summary">
+        <div class="summary-card">
+          <span class="summary-label">Realized P&amp;L (USD)</span>
+          <span class="summary-value" id="profits-realized-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Realized P&amp;L (PLS)</span>
+          <span class="summary-value" id="profits-realized-pls">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Unrealized P&amp;L (USD)</span>
+          <span class="summary-value" id="profits-unrealized-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Tokens Tracked</span>
+          <span class="summary-value" id="profits-token-count">—</span>
+        </div>
+      </div>
+
+      <!-- Per-token breakdown -->
+      <div class="profits-section">
+        <h2 class="profits-section-title">Per-Token Summary</h2>
+        <div id="profits-token-empty" class="wl-empty">
+          No trades logged yet. Click <strong>＋ Add Trade</strong> to record your first trade.
+        </div>
+        <div id="profits-token-loading" class="loading-wrap hidden">
+          <div class="pulse-loader" aria-label="Fetching live prices"></div>
+          <p>Fetching live prices…</p>
+        </div>
+        <div id="profits-token-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th class="align-right">Invested (PLS)</th>
+                <th class="align-right">Invested (USD)</th>
+                <th class="align-right">Returned (PLS)</th>
+                <th class="align-right">Returned (USD)</th>
+                <th class="align-right">Realized P&amp;L (USD)</th>
+                <th class="align-right">Realized P&amp;L (PLS)</th>
+                <th class="align-right">Unrealized (USD)</th>
+                <th class="align-right">Return %</th>
+              </tr>
+            </thead>
+            <tbody id="profits-token-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Trade log -->
+      <div class="profits-section">
+        <h2 class="profits-section-title">
+          Trade Log
+          <span class="watchlist-count" id="profits-trade-count">0</span>
+        </h2>
+        <div id="profits-log-empty" class="wl-empty">
+          No trades recorded yet. Click <strong>＋ Add Trade</strong> to get started.
+        </div>
+        <div id="profits-log-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Token</th>
+                <th>Type</th>
+                <th class="align-right">Token Amount</th>
+                <th class="align-right">PLS Amount</th>
+                <th class="align-right">USD Value</th>
+                <th>Notes</th>
+                <th class="align-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="profits-log-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ABOUT TAB ── -->
+    <section id="tab-about" class="tab-panel" role="tabpanel" aria-labelledby="btn-about">
+      <div class="section-header">
+        <h1>About PulseCentral</h1>
+        <p class="section-subtitle">Your open-source PulseChain portfolio tracker.</p>
+      </div>
+
+      <div class="about-content">
+        <div class="about-card">
+          <h2>🚀 What is PulseCentral?</h2>
+          <p>
+            PulseCentral is a free, open-source portfolio and market tracker for
+            <strong>PulseChain</strong> — the EVM-compatible blockchain launched by
+            Richard Heart. Inspired by <em>plsfolio.com</em>, PulseCentral lets you:
+          </p>
+          <ul>
+            <li>Track any PulseChain wallet's token holdings and total USD value.</li>
+            <li>Browse live market prices for popular PulseChain tokens.</li>
+            <li>Discover trending tokens on PulseChain DEXes.</li>
+          </ul>
+        </div>
+
+        <div class="about-card">
+          <h2>⛓ Data Sources</h2>
+          <ul>
+            <li>
+              <strong>Wallet balances</strong> — PulseChain Scan API
+              (<a href="https://scan.pulsechain.com" target="_blank" rel="noopener">scan.pulsechain.com</a>)
+            </li>
+            <li>
+              <strong>Token prices &amp; DEX data</strong> — DexScreener API
+              (<a href="https://dexscreener.com" target="_blank" rel="noopener">dexscreener.com</a>)
+            </li>
+          </ul>
+        </div>
+
+        <div class="about-card">
+          <h2>📋 Upcoming Features</h2>
+          <ul>
+            <li>Multi-wallet aggregation</li>
+            <li>Historical portfolio chart</li>
+            <li>NFT tab</li>
+            <li>DeFi / farming positions tab</li>
+            <li>Price alerts</li>
+          </ul>
+        </div>
+
+        <div class="about-card">
+          <h2>⚠️ Disclaimer</h2>
+          <p>
+            PulseCentral is provided for informational purposes only and does not
+            constitute financial advice. Prices are fetched from third-party APIs and
+            may not be perfectly accurate. Always do your own research (DYOR).
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="site-footer">
+    <p>
+      PulseCentral &copy; 2024 — built for the PulseChain community &nbsp;|&nbsp;
+      Data: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a> &amp;
+      <a href="https://scan.pulsechain.com" target="_blank" rel="noopener">PulseChain Scan</a>
+    </p>
+  </footer>
+
+  <!-- ===== ADD / EDIT TRADE MODAL ===== -->
+  <div id="trade-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="trade-modal-title">Add Trade</h2>
+        <button id="trade-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="trade-form" class="modal-body" novalidate>
+        <input type="hidden" id="trade-id" />
+
+        <!-- Token address -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="trade-token-address">Token Contract Address *</label>
+            <input id="trade-token-address" type="text" class="form-input"
+              placeholder="0x… or pick a known token" autocomplete="off"
+              list="known-tokens-datalist" spellcheck="false" maxlength="42" />
+            <datalist id="known-tokens-datalist"></datalist>
+          </div>
+        </div>
+
+        <!-- Symbol + Name -->
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label for="trade-token-symbol">Symbol *</label>
+            <input id="trade-token-symbol" type="text" class="form-input" placeholder="e.g. PLSX" maxlength="20" />
+          </div>
+          <div class="form-group">
+            <label for="trade-token-name">Name</label>
+            <input id="trade-token-name" type="text" class="form-input" placeholder="e.g. PulseX" maxlength="60" />
+          </div>
+        </div>
+
+        <!-- Type + Date -->
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label>Trade Type *</label>
+            <div class="trade-type-toggle">
+              <label class="trade-type-opt">
+                <input type="radio" name="trade-type" value="buy" checked /> Buy
+              </label>
+              <label class="trade-type-opt">
+                <input type="radio" name="trade-type" value="sell" /> Sell
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="trade-date">Date &amp; Time *</label>
+            <input id="trade-date" type="datetime-local" class="form-input" />
+          </div>
+        </div>
+
+        <!-- Token amount + PLS amount + USD value -->
+        <div class="form-row form-row-3">
+          <div class="form-group">
+            <label for="trade-token-amount">Token Amount *</label>
+            <input id="trade-token-amount" type="number" class="form-input" placeholder="0" min="0" step="any" />
+          </div>
+          <div class="form-group">
+            <label for="trade-pls-amount">PLS Amount *</label>
+            <input id="trade-pls-amount" type="number" class="form-input" placeholder="0" min="0" step="any" />
+          </div>
+          <div class="form-group">
+            <label for="trade-usd-value">USD Value</label>
+            <div class="input-with-btn">
+              <input id="trade-usd-value" type="number" class="form-input" placeholder="0.00" min="0" step="any" />
+              <button type="button" id="fetch-price-btn" class="btn btn-secondary btn-sm" title="Fetch current price from DexScreener and multiply by token amount">↻</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="trade-notes">Notes</label>
+            <input id="trade-notes" type="text" class="form-input" placeholder="Optional notes…" maxlength="200" />
+          </div>
+        </div>
+
+        <!-- Form error -->
+        <div id="trade-form-error" class="trade-form-error hidden" role="alert"></div>
+
+        <!-- Footer buttons -->
+        <div class="modal-footer">
+          <button type="button" id="trade-modal-cancel" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="trade-modal-submit" class="btn btn-primary">Save Trade</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/trades.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
