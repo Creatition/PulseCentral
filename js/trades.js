@@ -42,8 +42,9 @@ const TradesDB = (() => {
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* ignore */ }
   }
 
+  let _idCounter = 0;
   function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    return Date.now().toString(36) + (++_idCounter).toString(36) + Math.random().toString(36).slice(2, 5);
   }
 
   function getTrades() {

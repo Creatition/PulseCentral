@@ -94,20 +94,20 @@ const fmt = {
     return n.toFixed(2) + ' PLS';
   },
 
-  /** Format a signed USD profit/loss value (e.g. +$15.00 or −$3.50) */
+  /** Format a signed USD profit/loss value (e.g. +$15.00 or -$3.50) */
   signedUsd(val) {
     const n = Number(val);
     if (isNaN(n)) return '—';
-    const sign = n >= 0 ? '+' : '−';
+    const sign = n >= 0 ? '+' : '-';
     const abs  = Math.abs(n);
     return sign + '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   },
 
-  /** Format a signed PLS profit/loss value (e.g. +2M PLS or −500K PLS) */
+  /** Format a signed PLS profit/loss value (e.g. +2M PLS or -500K PLS) */
   signedPls(val) {
     const n = Number(val);
     if (isNaN(n)) return '—';
-    const sign = n >= 0 ? '+' : '−';
+    const sign = n >= 0 ? '+' : '-';
     const abs  = Math.abs(n);
     let body;
     if (abs >= 1e9)      body = (abs / 1e9).toFixed(2) + 'B';
