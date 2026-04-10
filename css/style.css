@@ -565,6 +565,43 @@ li + li { margin-top: 0.35rem; }
   font-size: 0.78rem;
 }
 
+/* ── Markets sub-tab navigation ── */
+.markets-sub-nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+
+.markets-sub-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: -2px;
+  padding: 0.6rem 1.1rem;
+  transition: color var(--transition), border-color var(--transition);
+}
+.markets-sub-btn:hover {
+  color: var(--text);
+}
+.markets-sub-btn.active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+.markets-sub-panel {
+  display: none;
+}
+.markets-sub-panel.active {
+  display: block;
+}
+
 /* ── Markets toolbar ── */
 .markets-toolbar {
   display: flex;
