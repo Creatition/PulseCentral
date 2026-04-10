@@ -26,6 +26,9 @@
         <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
           <span class="tab-icon">📊</span> Markets
         </button>
+        <button class="tab-btn" data-tab="trending" role="tab" aria-selected="false" aria-controls="tab-trending">
+          <span class="tab-icon">🔥</span> Trending
+        </button>
         <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
           <span class="tab-icon">⭐</span> Watchlist
         </button>
@@ -232,95 +235,55 @@
       </div>
     </section>
 
-    <!-- ── MARKETS TAB (with sub-tabs: Markets | Trending | New Tokens) ── -->
+    <!-- ── MARKETS TAB ── -->
     <section id="tab-markets" class="tab-panel" role="tabpanel" aria-labelledby="btn-markets">
-
-      <!-- Sub-tab navigation -->
-      <nav class="markets-sub-nav" role="tablist" aria-label="Markets sub-navigation">
-        <button class="markets-sub-btn active" data-subtab="markets-list" role="tab" aria-selected="true">
-          📊 Markets
-        </button>
-        <button class="markets-sub-btn" data-subtab="trending" role="tab" aria-selected="false">
-          🔥 Trending
-        </button>
-        <button class="markets-sub-btn" data-subtab="new-tokens" role="tab" aria-selected="false">
-          🆕 New Tokens
-        </button>
-      </nav>
-
-      <!-- ── Markets List sub-panel ── -->
-      <div id="subtab-markets-list" class="markets-sub-panel active">
-        <div class="section-header">
-          <h1>Markets</h1>
-          <p class="section-subtitle">Top 100 PulseChain tokens by volume sourced from DEX pairs.</p>
-        </div>
-
-        <div class="markets-toolbar">
-          <input id="market-search" type="search" class="search-input" placeholder="🔍 Search token…" aria-label="Search token" />
-          <button id="markets-refresh-btn" class="btn btn-secondary" aria-label="Refresh market data">
-            ↻ Refresh
-          </button>
-        </div>
-
-        <p class="dex-attribution">
-          Prices &amp; pairs sourced from
-          <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
-        </p>
-
-        <div id="markets-error" class="error-banner hidden" role="alert"></div>
-
-        <div id="markets-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading market data"></div>
-          <p>Loading market data…</p>
-        </div>
-
-        <div id="markets-grid" class="markets-grid hidden"></div>
+      <div class="section-header">
+        <h1>Markets</h1>
+        <p class="section-subtitle">Top 100 PulseChain tokens by volume sourced from DEX pairs.</p>
       </div>
 
-      <!-- ── Trending sub-panel ── -->
-      <div id="subtab-trending" class="markets-sub-panel">
-        <div class="section-header">
-          <h1>Trending</h1>
-          <p class="section-subtitle">Hot tokens on PulseChain DEXes right now — ranked by 6-hour activity.</p>
-        </div>
-
-        <p class="dex-attribution">
-          Trending pairs sourced from
-          <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
-        </p>
-
-        <div id="trending-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading trending data"></div>
-          <p>Loading trending tokens…</p>
-        </div>
-
-        <div id="trending-error" class="error-banner hidden" role="alert"></div>
-
-        <div id="trending-grid" class="trending-grid hidden"></div>
+      <div class="markets-toolbar">
+        <input id="market-search" type="search" class="search-input" placeholder="🔍 Search token…" aria-label="Search token" />
+        <button id="markets-refresh-btn" class="btn btn-secondary" aria-label="Refresh market data">
+          ↻ Refresh
+        </button>
       </div>
 
-      <!-- ── New Tokens sub-panel ── -->
-      <div id="subtab-new-tokens" class="markets-sub-panel">
-        <div class="section-header">
-          <h1>New Tokens</h1>
-          <p class="section-subtitle">Recently listed PulseChain tokens with profiles on DexScreener — sorted by newest first.</p>
-        </div>
+      <p class="dex-attribution">
+        Prices &amp; pairs sourced from
+        <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
+      </p>
 
-        <p class="dex-attribution">
-          New token pairs sourced from
-          <a href="https://dexscreener.com/pulsechain?rankBy=pairAge&amp;order=asc&amp;profile=1" target="_blank" rel="noopener">DexScreener</a>
-        </p>
+      <div id="markets-error" class="error-banner hidden" role="alert"></div>
 
-        <div id="new-tokens-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading new tokens"></div>
-          <p>Loading new tokens…</p>
-        </div>
-
-        <div id="new-tokens-error" class="error-banner hidden" role="alert"></div>
-
-        <div id="new-tokens-grid" class="trending-grid hidden"></div>
+      <div id="markets-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading market data"></div>
+        <p>Loading market data…</p>
       </div>
 
+      <div id="markets-grid" class="markets-grid hidden"></div>
+    </section>
+
+    <!-- ── TRENDING TAB ── -->
+    <section id="tab-trending" class="tab-panel" role="tabpanel" aria-labelledby="btn-trending">
+      <div class="section-header">
+        <h1>Trending</h1>
+        <p class="section-subtitle">Hot tokens on PulseChain DEXes right now — ranked by 6-hour activity.</p>
+      </div>
+
+      <p class="dex-attribution">
+        Trending pairs sourced from
+        <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
+      </p>
+
+      <div id="trending-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading trending data"></div>
+        <p>Loading trending tokens…</p>
+      </div>
+
+      <div id="trending-error" class="error-banner hidden" role="alert"></div>
+
+      <div id="trending-grid" class="trending-grid hidden"></div>
     </section>
 
     <!-- ── WATCHLIST TAB ── -->

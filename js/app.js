@@ -183,8 +183,6 @@ const tabPanels = document.querySelectorAll('.tab-panel');
 let activeTab = 'home';
 let marketsLoaded   = false;
 let trendingLoaded  = false;
-let newTokensLoaded = false;
-let activeMarketsSubtab = 'markets-list';
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -193,27 +191,6 @@ tabBtns.forEach(btn => {
 // Logo click → home
 const logoEl = document.querySelector('.logo');
 if (logoEl) logoEl.addEventListener('click', () => switchTab('home'));
-
-// Markets sub-tab switching
-document.querySelectorAll('.markets-sub-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchMarketsSubtab(btn.dataset.subtab));
-});
-
-function switchMarketsSubtab(name) {
-  activeMarketsSubtab = name;
-  document.querySelectorAll('.markets-sub-btn').forEach(b => {
-    const active = b.dataset.subtab === name;
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-selected', active);
-  });
-  document.querySelectorAll('.markets-sub-panel').forEach(p => {
-    p.classList.toggle('active', p.id === `subtab-${name}`);
-  });
-
-  if (name === 'markets-list' && !marketsLoaded)  loadMarkets();
-  if (name === 'trending'     && !trendingLoaded) loadTrending();
-  if (name === 'new-tokens'   && !newTokensLoaded) loadNewTokens();
-}
 
 function switchTab(name) {
   activeTab = name;
@@ -225,12 +202,8 @@ function switchTab(name) {
   tabPanels.forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
 
   if (name === 'home'      && !homeLoaded)    loadHomeTab();
-  if (name === 'markets') {
-    // Load the currently active sub-tab data on first visit
-    if (activeMarketsSubtab === 'markets-list' && !marketsLoaded)  loadMarkets();
-    if (activeMarketsSubtab === 'trending'     && !trendingLoaded) loadTrending();
-    if (activeMarketsSubtab === 'new-tokens'   && !newTokensLoaded) loadNewTokens();
-  }
+  if (name === 'markets'   && !marketsLoaded)  loadMarkets();
+  if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
   if (name === 'portfolio') {
     renderSavedWalletsInPortfolio();
@@ -1055,108 +1028,7 @@ function renderTrendingGrid(pairs) {
   });
 }
 
-/* ── New Tokens tab ─────────────────────────────────────── */
-
-async function loadNewTokens() {
-  newTokensLoaded = true;
-  setHidden($('new-tokens-error'), true);
-  setHidden($('new-tokens-grid'), true);
-  setVisible($('new-tokens-loading'), true);
-
-  try {
-    const pairs = await API.getNewTokenPairs();
-    renderNewTokensGrid(pairs.slice(0, 100));
-    setHidden($('new-tokens-loading'), true);
-    setVisible($('new-tokens-grid'), true);
-  } catch (err) {
-    setHidden($('new-tokens-loading'), true);
-    $('new-tokens-error').textContent = `Error loading new tokens: ${err.message}`;
-    setVisible($('new-tokens-error'), true);
-  }
-}
-
-function renderNewTokensGrid(pairs) {
-  const grid = $('new-tokens-grid');
-  grid.innerHTML = '';
-
-  pairs.forEach((pair) => {
-    const token   = pair.baseToken || {};
-    const logoUrl = pair.info?.imageUrl || null;
-    const { text: changeText, cls: changeCls } = fmt.change(pair.priceChange?.h24);
-    const mcap    = pair.marketCap || pair.fdv;
-
-    const card = document.createElement('div');
-    card.className = 'trending-card';
-
-    const header = document.createElement('div');
-    header.className = 'trending-card-header';
-
-    const logoEl = buildTokenLogo(logoUrl, token.symbol);
-    logoEl.style.cssText = 'width:36px;height:36px;border-radius:50%;flex-shrink:0';
-    if (logoEl.tagName === 'IMG') {
-      logoEl.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0';
-    }
-
-    const nameWrap = document.createElement('div');
-    const nameEl = document.createElement('div');
-    nameEl.className = 'trending-name';
-    nameEl.textContent = token.name || token.symbol || '—';
-    const symEl = document.createElement('div');
-    symEl.className = 'trending-symbol';
-    symEl.textContent = token.symbol || '—';
-    nameWrap.append(nameEl, symEl);
-
-    header.append(logoEl, nameWrap);
-
-    const priceEl = document.createElement('div');
-    priceEl.className = 'trending-price';
-    priceEl.textContent = fmt.price(pair.priceUsd);
-
-    const meta = document.createElement('div');
-    meta.className = 'trending-meta';
-    const changeSpan = document.createElement('span');
-    changeSpan.className = changeCls;
-    changeSpan.textContent = changeText;
-    const volSpan = document.createElement('span');
-    volSpan.textContent = `Vol ${fmt.large(pair.volume?.h24)}`;
-    const mcapSpan = document.createElement('span');
-    mcapSpan.textContent = `MCap ${fmt.large(mcap)}`;
-    const liqSpan = document.createElement('span');
-    liqSpan.textContent = `Liq ${fmt.large(pair.liquidity?.usd)}`;
-
-    // Show when the pair was created if available
-    let ageSpan = null;
-    if (pair.pairCreatedAt) {
-      ageSpan = document.createElement('span');
-      const created = new Date(pair.pairCreatedAt);
-      const diffMs = Date.now() - created.getTime();
-      const diffH  = Math.floor(diffMs / 3600000);
-      const diffD  = Math.floor(diffH / 24);
-      ageSpan.textContent = diffD > 0
-        ? `Listed ${diffD}d ago`
-        : diffH > 0
-          ? `Listed ${diffH}h ago`
-          : 'Listed < 1h ago';
-    }
-
-    meta.append(changeSpan, volSpan, mcapSpan, liqSpan);
-    if (ageSpan) meta.append(ageSpan);
-
-    const badge = document.createElement('div');
-    badge.className = 'trending-badge';
-    badge.textContent = '🆕 New';
-
-    card.append(header, priceEl, meta, badge);
-
-    if (pair.pairAddress) {
-      card.addEventListener('click', () => {
-        window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
-      });
-    }
-
-    grid.appendChild(card);
-  });
-}
+/* ── Watchlist module ────────────────────────────────────── */
 
 /**
  * All watchlist state lives in localStorage under 'pc-watchlist'.

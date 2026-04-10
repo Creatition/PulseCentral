@@ -525,47 +525,7 @@ const API = (() => {
   }
 
   /**
-   * Fetch new PulseChain token pairs — profile tokens sorted by creation date (newest first).
-   * Mirrors: https://dexscreener.com/pulsechain?rankBy=pairAge&order=asc&profile=1
-   * Only tokens that have a DexScreener profile are included (profile=1).
-   * Results are deduplicated by token address (one entry per token).
-   * @returns {Promise<object[]>}
-   */
-  async function getNewTokenPairs() {
-    // Fetch only profile tokens (profile=1 in DexScreener terms)
-    const profileAddresses = [];
-    try {
-      const profiles = await fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1');
-      (profiles || [])
-        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-        .forEach(p => profileAddresses.push(p.tokenAddress));
-    } catch (_) {
-      // Non-fatal – return empty if profiles unavailable
-    }
-
-    if (profileAddresses.length === 0) return [];
-
-    // Deduplicate addresses
-    const seen = new Set();
-    const uniqueAddresses = [];
-    for (const addr of profileAddresses) {
-      const lower = addr.toLowerCase();
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        uniqueAddresses.push(addr);
-      }
-    }
-
-    const rawMap = await getPairsByAddresses(uniqueAddresses);
-
-    // Sort by pairCreatedAt descending (newest first); pairs without a date go last
-    return [...rawMap.values()].sort((a, b) => {
-      const aTime = a.pairCreatedAt || 0;
-      const bTime = b.pairCreatedAt || 0;
-      return bTime - aTime;
-    });
-  }
-
+   * Fetch pair data for the well-known token list (Markets tab warm-up).
    * @returns {Promise<object[]>}
    */
   async function getKnownTokenPairs() {
@@ -608,7 +568,6 @@ const API = (() => {
     getPairsByAddresses,
     getTopPulsechainPairs,
     getTrendingPairs,
-    getNewTokenPairs,
     getKnownTokenPairs,
     getCoreCoinPairs,
     parseWalletTrades,
