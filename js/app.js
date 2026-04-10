@@ -195,7 +195,8 @@ tabBtns.forEach(btn => {
 });
 
 // Logo click → home
-document.querySelector('.logo').addEventListener('click', () => switchTab('home'));
+const logoEl = document.querySelector('.logo');
+if (logoEl) logoEl.addEventListener('click', () => switchTab('home'));
 
 function switchTab(name) {
   activeTab = name;
