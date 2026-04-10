@@ -398,8 +398,10 @@ const API = (() => {
 
   /**
    * Fetch trending PulseChain pairs, sorted by 6-hour transaction activity
-   * (a proxy for DexScreener's trendingScoreH6).
-   * Mirrors: https://dexscreener.com/pulsechain?rankBy=trendingScoreH6&order=desc
+   * as an approximation of trending tokens.  Note: this is not an exact replica
+   * of DexScreener's proprietary trendingScoreH6 — it uses (h6 buys + h6 sells)
+   * as a publicly available proxy that correlates with recent trading momentum.
+   * Mirrors the spirit of: https://dexscreener.com/pulsechain?rankBy=trendingScoreH6&order=desc
    * @returns {Promise<object[]>}
    */
   async function getTrendingPairs() {

@@ -826,10 +826,10 @@ function renderTrendingGrid(pairs) {
     const nameWrap = document.createElement('div');
     const rankName = document.createElement('div');
     rankName.className = 'trending-name';
-    rankName.textContent = escHtml(token.name || token.symbol || '—');
+    rankName.textContent = token.name || token.symbol || '—';
     const symEl = document.createElement('div');
     symEl.className = 'trending-symbol';
-    symEl.textContent = escHtml(token.symbol || '—');
+    symEl.textContent = token.symbol || '—';
     nameWrap.append(rankName, symEl);
 
     header.append(logoEl, nameWrap);
