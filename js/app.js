@@ -194,6 +194,9 @@ tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
+// Logo click → home
+document.querySelector('.logo').addEventListener('click', () => switchTab('home'));
+
 function switchTab(name) {
   activeTab = name;
   tabBtns.forEach(b => {
