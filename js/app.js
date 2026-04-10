@@ -440,6 +440,7 @@ let cachedPlsBalance = 0;
 let cachedPlsPrice   = 0;
 let cachedPlsLogoUrl = null;       // logo URL for native PLS (from WPLS pair)
 let cachedPlsPairAddress = null;   // pair address for native PLS (from WPLS pair)
+let currentLoadedAddress = null;   // lowercase address whose portfolio is currently loaded
 
 $('hide-small-balances').addEventListener('change', e => {
   hideSmallBalances = e.target.checked;
@@ -487,8 +488,19 @@ saveWalletBtn.addEventListener('click', () => {
   }
   if (Watchlist.hasWallet(addr)) {
     Watchlist.removeWallet(addr);
+    // Hide chart if the removed wallet was the one being charted
+    if (currentPortfolioHistoryKey === addr.toLowerCase()) {
+      hidePortfolioChart();
+    }
   } else {
     Watchlist.addWallet(addr);
+    // Take a snapshot immediately if this wallet's portfolio is already loaded
+    if (currentLoadedAddress === addr.toLowerCase() && (cachedPortfolioTokens.length > 0 || cachedPlsBalance > 0)) {
+      const totalUsd = cachedPortfolioTokens.reduce((s, t) => s + t.value, 0) + cachedPlsBalance * cachedPlsPrice;
+      const totalPls = cachedPlsPrice > 0 ? totalUsd / cachedPlsPrice : 0;
+      PortfolioHistory.addSnapshot(addr.toLowerCase(), totalUsd, totalPls);
+      renderPortfolioChart(addr.toLowerCase());
+    }
   }
   updateSaveWalletBtn();
   renderSavedWalletsInPortfolio();
@@ -517,6 +529,7 @@ async function loadPortfolio(address) {
   setHidden($('portfolio-table-wrap'), true);
   setVisible($('portfolio-empty'), true);
   setHidden($('group-context-banner'), true);
+  hidePortfolioChart();
 
   try {
     // Fetch PLS balance and token list in parallel
@@ -560,6 +573,7 @@ async function loadPortfolio(address) {
     cachedPlsPrice        = plsPrice;
     cachedPlsLogoUrl      = plsLogoUrl;
     cachedPlsPairAddress  = plsPairAddress;
+    currentLoadedAddress  = address.toLowerCase();
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, plsBalance, plsPrice);
     renderPortfolioTable(enriched, plsBalance, plsPrice, plsLogoUrl, plsPairAddress);
@@ -568,6 +582,14 @@ async function loadPortfolio(address) {
     setVisible($('portfolio-summary'), true);
     setVisible($('portfolio-toolbar'), true);
     setVisible($('portfolio-table-wrap'), true);
+
+    // Snapshot and show chart if wallet is saved
+    if (Watchlist.hasWallet(address)) {
+      const historyKey = address.toLowerCase();
+      const totalPls   = plsPrice > 0 ? totalUsd / plsPrice : 0;
+      PortfolioHistory.addSnapshot(historyKey, totalUsd, totalPls);
+      renderPortfolioChart(historyKey);
+    }
   } catch (err) {
     showPortfolioError(`Error loading portfolio: ${err.message}`);
   } finally {
@@ -1038,6 +1060,409 @@ const PortfolioGroups = (() => {
   return { getGroups, addGroup, updateGroup, removeGroup, getGroup };
 })();
 
+/* ── Portfolio History module ────────────────────────────── */
+
+/**
+ * Stores daily portfolio value snapshots in localStorage.
+ * Key shape: address (lowercase) for single wallets, 'group:<id>' for groups.
+ * Storage shape: { [key]: [{date:'YYYY-MM-DD', usd:number, pls:number}] }
+ */
+const PortfolioHistory = (() => {
+  const KEY           = 'pc-portfolio-history';
+  const MAX_SNAPSHOTS = 365;
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return {};
+  }
+
+  function save(data) {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  }
+
+  /** Store one snapshot per calendar day; overwrites today's if it already exists. */
+  function addSnapshot(key, totalUsd, totalPls) {
+    const data  = load();
+    // Use local calendar date (not UTC) to avoid day-offset errors near midnight
+    const d     = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!data[key]) data[key] = [];
+    // Overwrite existing snapshot for today
+    data[key] = data[key].filter(s => s.date !== today);
+    data[key].push({ date: today, usd: totalUsd, pls: totalPls });
+    data[key].sort((a, b) => a.date.localeCompare(b.date));
+    if (data[key].length > MAX_SNAPSHOTS) data[key] = data[key].slice(-MAX_SNAPSHOTS);
+    save(data);
+  }
+
+  function getHistory(key) {
+    return (load()[key] || []).slice();
+  }
+
+  function clearHistory(key) {
+    const data = load();
+    delete data[key];
+    save(data);
+  }
+
+  return { addSnapshot, getHistory, clearHistory };
+})();
+
+/* ── Portfolio History chart state ───────────────────────── */
+
+let currentPortfolioHistoryKey = null;
+let chartCurrency  = 'usd';
+let chartTimeframe = 'daily';
+
+// SVG coordinate system constants
+const CHART_W   = 720;
+const CHART_H   = 280;
+const CHART_PAD = { top: 24, right: 24, bottom: 48, left: 80 };
+const CHART_CW  = CHART_W - CHART_PAD.left - CHART_PAD.right;
+const CHART_CH  = CHART_H - CHART_PAD.top  - CHART_PAD.bottom;
+
+// Counter used to create unique gradient IDs across chart redraws
+let chartGradCounter = 0;
+
+// Wire chart toggle buttons
+document.querySelectorAll('[data-chart-currency]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    chartCurrency = btn.dataset.chartCurrency;
+    document.querySelectorAll('[data-chart-currency]').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+    if (currentPortfolioHistoryKey) renderPortfolioChart(currentPortfolioHistoryKey);
+  });
+});
+
+document.querySelectorAll('[data-chart-timeframe]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    chartTimeframe = btn.dataset.chartTimeframe;
+    document.querySelectorAll('[data-chart-timeframe]').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+    if (currentPortfolioHistoryKey) renderPortfolioChart(currentPortfolioHistoryKey);
+  });
+});
+
+/** Aggregate history snapshots for a given time frame. */
+function aggregateByTimeframe(history, timeframe) {
+  if (timeframe === 'daily') {
+    return history.slice(-30);
+  }
+  if (timeframe === 'weekly') {
+    const byWeek = new Map();
+    for (const snap of history) {
+      const weekKey = getISOWeekStart(snap.date);
+      byWeek.set(weekKey, snap); // keep the latest snapshot for each week
+    }
+    return [...byWeek.values()].slice(-13);
+  }
+  if (timeframe === 'monthly') {
+    const byMonth = new Map();
+    for (const snap of history) {
+      const monthKey = snap.date.slice(0, 7); // YYYY-MM
+      byMonth.set(monthKey, snap);
+    }
+    return [...byMonth.values()].slice(-13);
+  }
+  return history;
+}
+
+/** Return the YYYY-MM-DD of the Monday that starts the ISO week containing dateStr. */
+function getISOWeekStart(dateStr) {
+  const d   = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay(); // 0=Sun … 6=Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Format a date string for the X-axis label. */
+function formatChartDateLabel(dateStr, timeframe) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  if (timeframe === 'monthly') {
+    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+  }
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+/** Format a Y-axis value label (compact, no tiny decimal noise). */
+function formatChartYLabel(value, currency) {
+  if (currency === 'pls') {
+    const n = Number(value);
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+    return n.toFixed(0);
+  }
+  const n = Number(value);
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+  return '$' + n.toFixed(2);
+}
+
+/** Show or hide the portfolio chart section with a given history key. */
+function renderPortfolioChart(historyKey) {
+  currentPortfolioHistoryKey = historyKey;
+  const section = $('portfolio-chart-section');
+  const notice  = $('portfolio-chart-notice');
+  const outer   = $('portfolio-chart-outer');
+  const history = PortfolioHistory.getHistory(historyKey);
+
+  setVisible(section, true);
+
+  if (history.length === 0) {
+    notice.textContent = 'No history yet. Your portfolio value will be tracked each time you load this wallet.';
+    setVisible(notice, true);
+    setHidden(outer, true);
+    return;
+  }
+
+  if (history.length === 1) {
+    const snap = history[0];
+    const val  = chartCurrency === 'usd' ? fmt.usd(snap.usd) : fmt.pls(snap.pls);
+    notice.textContent =
+      `First snapshot saved on ${formatChartDateLabel(snap.date, 'daily')}: ${val}. ` +
+      'Load your portfolio on another day to start seeing the chart.';
+    setVisible(notice, true);
+    setHidden(outer, true);
+    return;
+  }
+
+  const points = aggregateByTimeframe(history, chartTimeframe);
+
+  if (points.length < 2) {
+    notice.textContent = 'Not enough data for this time frame yet. Try the Daily view.';
+    setVisible(notice, true);
+    setHidden(outer, true);
+    return;
+  }
+
+  setHidden(notice, true);
+  setVisible(outer, true);
+  drawHistoryChart(points);
+}
+
+/** Hide the chart section and clear the current history key. */
+function hidePortfolioChart() {
+  setHidden($('portfolio-chart-section'), true);
+  currentPortfolioHistoryKey = null;
+}
+
+/** Draw (or redraw) the SVG line chart for the given data points. */
+function drawHistoryChart(points) {
+  const svgEl  = $('portfolio-history-svg');
+  const svgNS  = 'http://www.w3.org/2000/svg';
+  svgEl.innerHTML = ''; // clear previous render
+
+  const values   = points.map(p => chartCurrency === 'usd' ? p.usd : p.pls);
+  const minV     = Math.min(...values);
+  const maxV     = Math.max(...values);
+  const rawRange = maxV - minV;
+  const padding  = rawRange > 0 ? rawRange * 0.12 : (maxV > 0 ? maxV * 0.15 : 1);
+  const yMin     = Math.max(0, minV - padding);
+  const yMax     = maxV + padding;
+  const yRange   = yMax - yMin || 1;
+
+  const toX = i => CHART_PAD.left + (points.length > 1 ? (i / (points.length - 1)) * CHART_CW : CHART_CW / 2);
+  const toY = v => CHART_PAD.top  + (1 - (v - yMin) / yRange) * CHART_CH;
+
+  // ── Gradient definition ────────────────────────────────────
+  const defs   = document.createElementNS(svgNS, 'defs');
+  const gradId = 'phg' + (++chartGradCounter);
+  const grad   = document.createElementNS(svgNS, 'linearGradient');
+  grad.id = gradId;
+  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+  grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+  const stop1 = document.createElementNS(svgNS, 'stop');
+  stop1.setAttribute('offset', '0%');
+  stop1.setAttribute('stop-color', 'var(--primary)');
+  stop1.setAttribute('stop-opacity', '0.30');
+  const stop2 = document.createElementNS(svgNS, 'stop');
+  stop2.setAttribute('offset', '100%');
+  stop2.setAttribute('stop-color', 'var(--primary)');
+  stop2.setAttribute('stop-opacity', '0');
+  grad.append(stop1, stop2);
+  defs.appendChild(grad);
+  svgEl.appendChild(defs);
+
+  // ── Y-axis grid lines + labels (5 ticks) ───────────────────
+  const Y_TICKS = 5;
+  for (let i = 0; i <= Y_TICKS; i++) {
+    const v   = yMin + (i / Y_TICKS) * yRange;
+    const y   = toY(v);
+
+    const gridLine = document.createElementNS(svgNS, 'line');
+    gridLine.setAttribute('x1', CHART_PAD.left);
+    gridLine.setAttribute('x2', CHART_W - CHART_PAD.right);
+    gridLine.setAttribute('y1', y); gridLine.setAttribute('y2', y);
+    gridLine.setAttribute('stroke', 'var(--border-light)');
+    gridLine.setAttribute('stroke-width', '0.5');
+    gridLine.setAttribute('stroke-dasharray', '3 3');
+    svgEl.appendChild(gridLine);
+
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', CHART_PAD.left - 6);
+    label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('fill', 'var(--text-muted)');
+    label.setAttribute('font-size', '11');
+    label.textContent = formatChartYLabel(v, chartCurrency);
+    svgEl.appendChild(label);
+  }
+
+  // ── X-axis labels ──────────────────────────────────────────
+  const maxLabels = 7;
+  const xStep     = Math.max(1, Math.ceil(points.length / maxLabels));
+  const labelIdxs = [];
+  for (let i = 0; i < points.length; i += xStep) labelIdxs.push(i);
+  if (!labelIdxs.includes(points.length - 1)) labelIdxs.push(points.length - 1);
+
+  labelIdxs.forEach(i => {
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', toX(i).toFixed(1));
+    label.setAttribute('y', CHART_PAD.top + CHART_CH + 20);
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('fill', 'var(--text-muted)');
+    label.setAttribute('font-size', '11');
+    label.textContent = formatChartDateLabel(points[i].date, chartTimeframe);
+    svgEl.appendChild(label);
+  });
+
+  // ── Area fill and line path ────────────────────────────────
+  const pts = points.map((p, i) => [
+    toX(i),
+    toY(chartCurrency === 'usd' ? p.usd : p.pls),
+  ]);
+  const linePath = pts.map(([x, y], i) =>
+    `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+  ).join(' ');
+  const bottomY  = CHART_PAD.top + CHART_CH;
+  const areaPath = `${linePath} L${pts[pts.length - 1][0].toFixed(1)},${bottomY} L${pts[0][0].toFixed(1)},${bottomY} Z`;
+
+  const areaEl = document.createElementNS(svgNS, 'path');
+  areaEl.setAttribute('d', areaPath);
+  areaEl.setAttribute('fill', `url(#${gradId})`);
+  svgEl.appendChild(areaEl);
+
+  const lineEl = document.createElementNS(svgNS, 'path');
+  lineEl.setAttribute('d', linePath);
+  lineEl.setAttribute('fill', 'none');
+  lineEl.setAttribute('stroke', 'var(--primary)');
+  lineEl.setAttribute('stroke-width', '2.5');
+  lineEl.setAttribute('stroke-linecap', 'round');
+  lineEl.setAttribute('stroke-linejoin', 'round');
+  svgEl.appendChild(lineEl);
+
+  // ── Hover crosshair line ───────────────────────────────────
+  const hoverLine = document.createElementNS(svgNS, 'line');
+  hoverLine.id = 'chart-hover-line';
+  hoverLine.setAttribute('y1', CHART_PAD.top);
+  hoverLine.setAttribute('y2', CHART_PAD.top + CHART_CH);
+  hoverLine.setAttribute('stroke', 'var(--text-muted)');
+  hoverLine.setAttribute('stroke-width', '1');
+  hoverLine.setAttribute('stroke-dasharray', '4 2');
+  hoverLine.setAttribute('opacity', '0');
+  svgEl.appendChild(hoverLine);
+
+  // ── Data-point dots (hidden by default, revealed on hover) ─
+  const dotsGroup = document.createElementNS(svgNS, 'g');
+  dotsGroup.id = 'chart-dots';
+  pts.forEach(([x, y]) => {
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('cx', x.toFixed(1));
+    circle.setAttribute('cy', y.toFixed(1));
+    circle.setAttribute('r', '4');
+    circle.setAttribute('fill', 'var(--primary)');
+    circle.setAttribute('stroke', 'var(--bg-card)');
+    circle.setAttribute('stroke-width', '2');
+    circle.setAttribute('opacity', '0');
+    dotsGroup.appendChild(circle);
+  });
+  svgEl.appendChild(dotsGroup);
+
+  setupChartInteractivity(pts, points);
+}
+
+/** Attach mousemove / mouseleave handlers to the chart overlay for hover effects. */
+function setupChartInteractivity(pts, points) {
+  const overlay   = $('chart-hover-overlay');
+  const tooltip   = $('chart-tooltip');
+  const svgEl     = $('portfolio-history-svg');
+  const hoverLine = $('chart-hover-line');
+  const dotsGroup = $('chart-dots');
+  const dots      = Array.from(dotsGroup.children);
+
+  let activeIdx = -1;
+
+  overlay.onmousemove = e => {
+    const rect   = svgEl.getBoundingClientRect();
+    if (!rect.width) return;
+    // Scale mouse X position into SVG coordinate space
+    const scaleX = CHART_W / rect.width;
+    const mx     = (e.clientX - rect.left) * scaleX;
+
+    // Find the nearest data point by X coordinate
+    let nearestIdx  = 0;
+    let nearestDist = Infinity;
+    pts.forEach(([x], i) => {
+      const d = Math.abs(x - mx);
+      if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+    });
+
+    if (nearestIdx === activeIdx) return;
+    activeIdx = nearestIdx;
+
+    const [dotX, dotY] = pts[nearestIdx];
+    const snap = points[nearestIdx];
+
+    // Move crosshair
+    hoverLine.setAttribute('x1', dotX.toFixed(1));
+    hoverLine.setAttribute('x2', dotX.toFixed(1));
+    hoverLine.setAttribute('opacity', '1');
+
+    // Reveal active dot
+    dots.forEach((dot, i) => {
+      dot.setAttribute('opacity', i === nearestIdx ? '1' : '0');
+    });
+
+    // Build tooltip using DOM methods to avoid XSS risk
+    const dateStr = formatChartDateLabel(snap.date, chartTimeframe);
+    const valStr  = chartCurrency === 'usd' ? fmt.usd(snap.usd) : fmt.pls(snap.pls);
+    tooltip.textContent = '';
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'chart-tooltip-date';
+    dateSpan.textContent = dateStr;
+    const valSpan = document.createElement('span');
+    valSpan.className = 'chart-tooltip-val';
+    valSpan.textContent = valStr;
+    tooltip.append(dateSpan, valSpan);
+
+    // Position tooltip – flip to left side when near the right edge
+    const xPct = (dotX / CHART_W) * 100;
+    const yPct = (dotY / CHART_H) * 100;
+    tooltip.style.left      = xPct + '%';
+    tooltip.style.top       = yPct + '%';
+    tooltip.style.transform = nearestIdx > pts.length / 2
+      ? 'translate(calc(-100% - 10px), -50%)'
+      : 'translate(10px, -50%)';
+    setVisible(tooltip, true);
+  };
+
+  overlay.onmouseleave = () => {
+    activeIdx = -1;
+    hoverLine.setAttribute('opacity', '0');
+    dots.forEach(dot => dot.setAttribute('opacity', '0'));
+    setHidden(tooltip, true);
+  };
+}
+
 /* ── Portfolio Groups UI ─────────────────────────────────── */
 
 // In-modal address list being edited
@@ -1115,6 +1540,8 @@ async function loadGroupPortfolio(group) {
   setHidden($('portfolio-table-wrap'), true);
   setVisible($('portfolio-empty'), true);
   setHidden($('group-context-banner'), true);
+  hidePortfolioChart();
+  currentLoadedAddress = null;
 
   try {
     // Fetch PLS balance + token list for every address in the group in parallel
@@ -1172,6 +1599,12 @@ async function loadGroupPortfolio(group) {
     setHidden($('portfolio-empty'), true);
     setVisible($('portfolio-summary'), true);
     setVisible($('portfolio-table-wrap'), true);
+
+    // Snapshot history and show chart for this group
+    const historyKey = 'group:' + group.id;
+    const totalPls   = plsPrice > 0 ? totalUsd / plsPrice : 0;
+    PortfolioHistory.addSnapshot(historyKey, totalUsd, totalPls);
+    renderPortfolioChart(historyKey);
 
     // Show group context banner
     const banner    = $('group-context-banner');
