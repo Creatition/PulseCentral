@@ -40,6 +40,13 @@
 
 /* ── Theme: HEX – scarlet red / orange ── */
 [data-theme="hex"] {
+  --bg:            #0f0808;
+  --bg-surface:    #160c0c;
+  --bg-card:       #1e1010;
+  --bg-card-hover: #231313;
+  --border:        #301515;
+  --border-light:  #3d1a1a;
+
   --primary:       #e8002d;
   --primary-glow:  rgba(232, 0, 45, 0.27);
   --primary-dark:  #b30023;
@@ -52,6 +59,13 @@
 
 /* ── Theme: PulseX – green / red ── */
 [data-theme="pulsex"] {
+  --bg:            #080f0a;
+  --bg-surface:    #0c1610;
+  --bg-card:       #101e14;
+  --bg-card-hover: #142317;
+  --border:        #1a3020;
+  --border-light:  #203d28;
+
   --primary:       #00c853;
   --primary-glow:  rgba(0, 200, 83, 0.27);
   --primary-dark:  #007a33;
@@ -64,6 +78,13 @@
 
 /* ── Theme: Incentive – bright green / mint ── */
 [data-theme="incentive"] {
+  --bg:            #07100b;
+  --bg-surface:    #0b1810;
+  --bg-card:       #0e2015;
+  --bg-card-hover: #112518;
+  --border:        #183522;
+  --border-light:  #1e422a;
+
   --primary:       #00e676;
   --primary-glow:  rgba(0, 230, 118, 0.27);
   --primary-dark:  #00b248;
