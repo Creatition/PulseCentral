@@ -145,29 +145,48 @@ const API = (() => {
   }
 
   /**
-   * Fetch top PulseChain pairs by 24-hour volume from DexScreener.
-   * Used to populate the Markets and Trending tabs.
-   * @returns {Promise<object[]>} array of DexScreener pair objects
+   * Fetch top PulseChain pairs from DexScreener using parallel search terms
+   * to maximise token coverage. Results from known token addresses are merged in
+   * so core tokens always appear even if the search misses them.
+   * @returns {Promise<object[]>} array of DexScreener pair objects sorted by 24h volume
    */
   async function getTopPulsechainPairs() {
-    const url = `${DSX_BASE}/search/?q=pulsechain`;
-    const data = await fetchJSON(url);
-    const pairs = (data.pairs || []).filter(p => p.chainId === 'pulsechain');
+    // Run multiple searches in parallel for better coverage
+    const searchTerms = ['pulsechain', 'PLSX HEX', 'INC WPLS'];
 
-    // Deduplicate: keep most-liquid pair per base token
-    const seen = new Map();
-    for (const pair of pairs) {
-      const addr = pair.baseToken?.address?.toLowerCase();
-      if (!addr) continue;
-      const existing = seen.get(addr);
-      const liq = Number(pair.liquidity?.usd || 0);
-      if (!existing || liq > Number(existing.liquidity?.usd || 0)) {
-        seen.set(addr, pair);
+    const pairMap = new Map();
+
+    const searchResults = await Promise.allSettled(
+      searchTerms.map(q =>
+        fetchJSON(`${DSX_BASE}/search/?q=${encodeURIComponent(q)}`)
+      )
+    );
+
+    for (const result of searchResults) {
+      if (result.status !== 'fulfilled') continue;
+      const pairs = (result.value.pairs || []).filter(
+        p => p.chainId === 'pulsechain'
+      );
+      for (const pair of pairs) {
+        const addr = pair.baseToken?.address?.toLowerCase();
+        if (!addr) continue;
+        const liq = Number(pair.liquidity?.usd || 0);
+        const existing = pairMap.get(addr);
+        if (!existing || liq > Number(existing.liquidity?.usd || 0)) {
+          pairMap.set(addr, pair);
+        }
       }
     }
 
+    // Guarantee the well-known tokens are always represented
+    const knownAddresses = KNOWN_TOKENS.map(t => t.address);
+    const knownMap = await getPairsByAddresses(knownAddresses);
+    for (const [addr, pair] of knownMap) {
+      if (!pairMap.has(addr)) pairMap.set(addr, pair);
+    }
+
     // Sort by 24h volume descending
-    return [...seen.values()].sort(
+    return [...pairMap.values()].sort(
       (a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0)
     );
   }

@@ -31,6 +31,13 @@
         </button>
       </nav>
       <div class="header-right">
+        <div class="theme-picker" role="group" aria-label="Choose color theme">
+          <span class="theme-label">Theme</span>
+          <button class="theme-swatch" data-theme="pulsechain" title="PulseChain" aria-label="PulseChain theme"></button>
+          <button class="theme-swatch" data-theme="hex"        title="HEX"        aria-label="HEX theme"></button>
+          <button class="theme-swatch" data-theme="pulsex"     title="PulseX"     aria-label="PulseX theme"></button>
+          <button class="theme-swatch" data-theme="incentive"  title="Incentive"  aria-label="Incentive theme"></button>
+        </div>
         <span class="network-badge">⛓ PulseChain</span>
       </div>
     </div>
@@ -122,6 +129,11 @@
         </button>
       </div>
 
+      <p class="dex-attribution">
+        Prices &amp; pairs sourced from
+        <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+      </p>
+
       <div id="markets-error" class="error-banner hidden" role="alert"></div>
 
       <div id="markets-loading" class="loading-wrap">
@@ -154,6 +166,11 @@
         <h1>Trending</h1>
         <p class="section-subtitle">Hot tokens on PulseChain DEXes right now.</p>
       </div>
+
+      <p class="dex-attribution">
+        Trending pairs sourced from
+        <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+      </p>
 
       <div id="trending-loading" class="loading-wrap">
         <div class="pulse-loader" aria-label="Loading trending data"></div>
