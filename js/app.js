@@ -227,11 +227,16 @@ function autoLoadLastPortfolio() {
 
   if (last.startsWith('wallet:')) {
     const addr = last.slice('wallet:'.length);
+    const name = Watchlist.getWalletName(addr);
+    updateQuickSelectLabel(name ? `${name} (${addr.slice(0, 8)}…)` : addr);
     loadPortfolio(addr);
   } else if (last.startsWith('group:')) {
     const id    = last.slice('group:'.length);
     const group = PortfolioGroups.getGroup(id);
-    if (group) loadGroupPortfolio(group);
+    if (group) {
+      updateQuickSelectLabel(group.name);
+      loadGroupPortfolio(group);
+    }
   }
 }
 
@@ -625,7 +630,7 @@ async function loadPortfolio(address) {
     enriched.sort((a, b) => b.value - a.value);
 
     // Compute total value (PLS value approximated from WPLS pair if available)
-    const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5d0f9a27');
+    const wplsPair  = pairMap.get(WPLS_ADDRESS.toLowerCase());
     const plsPrice  = Number(wplsPair?.priceUsd || 0);
     const plsLogoUrl = wplsPair?.info?.imageUrl || WPLS_LOGO_FALLBACK;
     const plsPairAddress = wplsPair?.pairAddress || null;
@@ -1796,7 +1801,7 @@ async function loadGroupPortfolio(group) {
 
     enriched.sort((a, b) => b.value - a.value);
 
-    const wplsPair = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
+    const wplsPair = pairMap.get(WPLS_ADDRESS.toLowerCase());
     const plsPrice = Number(wplsPair?.priceUsd || 0);
     const plsLogoUrl = wplsPair?.info?.imageUrl || WPLS_LOGO_FALLBACK;
     const plsPairAddress = wplsPair?.pairAddress || null;
@@ -2026,6 +2031,25 @@ renderGroupsList();
 
 /* ── Portfolio Quick Select dropdown ─────────────────────── */
 
+/** Label shown in the placeholder option of the quick-select dropdown. */
+const QUICK_SELECT_DEFAULT = '— Select saved wallet or group —';
+let quickSelectLabel = QUICK_SELECT_DEFAULT;
+
+/**
+ * Update the placeholder option text in the quick-select dropdown to show
+ * the currently selected wallet/group, then reset the selection to that
+ * placeholder so it appears at the top of the list.
+ * @param {string} [text]  Display label; omit or pass falsy to restore default.
+ */
+function updateQuickSelectLabel(text) {
+  quickSelectLabel = text || QUICK_SELECT_DEFAULT;
+  const sel = $('portfolio-quick-select');
+  if (!sel) return;
+  const placeholder = sel.querySelector('option[value=""]');
+  if (placeholder) placeholder.textContent = quickSelectLabel;
+  sel.value = '';
+}
+
 /**
  * Populate the quick-select dropdown with saved wallets and groups.
  * Selecting a wallet fills the address input; selecting a group loads it directly.
@@ -2037,7 +2061,7 @@ function renderPortfolioQuickSelect() {
   const wallets = Watchlist.getWallets();
   const groups  = PortfolioGroups.getGroups();
 
-  sel.innerHTML = '<option value="">— Select saved wallet or group —</option>';
+  sel.innerHTML = `<option value="">${quickSelectLabel}</option>`;
 
   if (wallets.length > 0) {
     const og = document.createElement('optgroup');
@@ -2076,15 +2100,16 @@ $('portfolio-quick-select').addEventListener('change', e => {
     walletInput.value = addr;
     if (walletNameInput) walletNameInput.value = name || '';
     updateSaveWalletBtn();
+    updateQuickSelectLabel(name ? `${name} (${addr.slice(0, 8)}…)` : addr);
     loadPortfolio(addr);
   } else if (val.startsWith('group:')) {
     const id    = val.slice('group:'.length);
     const group = PortfolioGroups.getGroup(id);
-    if (group) loadGroupPortfolio(group);
+    if (group) {
+      updateQuickSelectLabel(group.name);
+      loadGroupPortfolio(group);
+    }
   }
-
-  // Reset dropdown to placeholder after action
-  e.target.value = '';
 });
 
 
