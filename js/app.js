@@ -791,7 +791,7 @@ async function loadTrending() {
 
   try {
     const pairs = await API.getTrendingPairs();
-    renderTrendingGrid(pairs.slice(0, 48));
+    renderTrendingGrid(pairs.slice(0, 100));
     setHidden($('trending-loading'), true);
     setVisible($('trending-grid'), true);
   } catch (err) {

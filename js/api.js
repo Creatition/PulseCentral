@@ -355,13 +355,23 @@ const API = (() => {
    * @returns {Promise<object[]>} array of DexScreener pair objects sorted by 24h volume
    */
   async function getTopPulsechainPairs() {
-    // Step 1: Fetch PulseChain token profiles (matches profile=1 filter)
+    // Step 1: Fetch PulseChain token profiles and boosted tokens for a wider address pool
     const profileAddresses = [];
     try {
-      const profiles = await fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1');
-      (profiles || [])
-        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-        .forEach(p => profileAddresses.push(p.tokenAddress));
+      const [profiles, boosts] = await Promise.allSettled([
+        fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
+        fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
+      ]);
+      if (profiles.status === 'fulfilled') {
+        (profiles.value || [])
+          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+          .forEach(p => profileAddresses.push(p.tokenAddress));
+      }
+      if (boosts.status === 'fulfilled') {
+        (boosts.value || [])
+          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+          .forEach(p => profileAddresses.push(p.tokenAddress));
+      }
     } catch (_) {
       // Non-fatal – fall back to KNOWN_TOKENS only
     }
@@ -407,10 +417,20 @@ const API = (() => {
   async function getTrendingPairs() {
     const profileAddresses = [];
     try {
-      const profiles = await fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1');
-      (profiles || [])
-        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-        .forEach(p => profileAddresses.push(p.tokenAddress));
+      const [profiles, boosts] = await Promise.allSettled([
+        fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
+        fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
+      ]);
+      if (profiles.status === 'fulfilled') {
+        (profiles.value || [])
+          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+          .forEach(p => profileAddresses.push(p.tokenAddress));
+      }
+      if (boosts.status === 'fulfilled') {
+        (boosts.value || [])
+          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+          .forEach(p => profileAddresses.push(p.tokenAddress));
+      }
     } catch (_) {
       // Non-fatal – fall back to KNOWN_TOKENS only
     }
