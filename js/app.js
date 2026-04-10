@@ -28,6 +28,8 @@ function applyTheme(name) {
   });
   const badge = document.querySelector('.network-badge');
   if (badge) badge.textContent = '⛓ ' + (THEME_NAMES[name] || name);
+  const themeLabel = document.getElementById('theme-label-name');
+  if (themeLabel) themeLabel.textContent = THEME_NAMES[name] || name;
 }
 
 // Restore saved theme (or default to pulsechain) before first paint
@@ -442,12 +444,28 @@ let cachedPlsLogoUrl = null;       // logo URL for native PLS (from WPLS pair)
 let cachedPlsPairAddress = null;   // pair address for native PLS (from WPLS pair)
 let currentLoadedAddress = null;   // lowercase address whose portfolio is currently loaded
 
+// Summary card total-value currency state
+let summaryTotalUsd = 0;
+let summaryTotalPls = 0;
+let summaryShowPls  = false;
+
 $('hide-small-balances').addEventListener('change', e => {
   hideSmallBalances = e.target.checked;
   if (cachedPortfolioTokens.length || cachedPlsBalance) {
     renderPortfolioTable(cachedPortfolioTokens, cachedPlsBalance, cachedPlsPrice, cachedPlsLogoUrl, cachedPlsPairAddress);
   }
 });
+
+// Summary card: toggle total value between USD and PLS
+const summaryCurrencyToggle = $('summary-currency-toggle');
+if (summaryCurrencyToggle) {
+  summaryCurrencyToggle.addEventListener('click', () => {
+    summaryShowPls = !summaryShowPls;
+    $('summary-total-usd').textContent   = summaryShowPls ? fmt.pls(summaryTotalPls) + ' PLS' : fmt.usd(summaryTotalUsd);
+    $('summary-total-label').textContent = summaryShowPls ? 'Total Value (PLS)' : 'Total Value (USD)';
+    summaryCurrencyToggle.textContent    = summaryShowPls ? 'USD' : 'PLS';
+  });
+}
 
 loadBtn.addEventListener('click', () => {
   const address = walletInput.value.trim();
@@ -598,7 +616,17 @@ async function loadPortfolio(address) {
 }
 
 function renderPortfolioSummary(totalUsd, tokenCount, plsBalance, plsPrice) {
-  $('summary-total-usd').textContent    = fmt.usd(totalUsd);
+  // Cache values so the currency toggle can switch without reloading
+  summaryTotalUsd = totalUsd;
+  summaryTotalPls = plsPrice > 0 ? totalUsd / plsPrice : 0;
+
+  $('summary-total-usd').textContent  = summaryShowPls
+    ? fmt.pls(summaryTotalPls) + ' PLS'
+    : fmt.usd(summaryTotalUsd);
+  $('summary-total-label').textContent = summaryShowPls ? 'Total Value (PLS)' : 'Total Value (USD)';
+  const toggle = $('summary-currency-toggle');
+  if (toggle) toggle.textContent = summaryShowPls ? 'USD' : 'PLS';
+
   $('summary-token-count').textContent  = tokenCount;
   $('summary-pls-balance').textContent  = fmt.balance(plsBalance) + ' PLS';
   if (plsPrice) {
@@ -1069,7 +1097,7 @@ const PortfolioGroups = (() => {
  */
 const PortfolioHistory = (() => {
   const KEY           = 'pc-portfolio-history';
-  const MAX_SNAPSHOTS = 365;
+  const MAX_SNAPSHOTS = 3650;
 
   function load() {
     try {

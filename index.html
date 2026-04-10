@@ -38,11 +38,11 @@
       </nav>
       <div class="header-right">
         <div class="theme-picker" role="group" aria-label="Choose color theme">
-          <span class="theme-label">Theme</span>
           <button class="theme-swatch" data-theme="pulsechain" title="PulseChain" aria-label="PulseChain theme"></button>
           <button class="theme-swatch" data-theme="hex"        title="HEX"        aria-label="HEX theme"></button>
           <button class="theme-swatch" data-theme="pulsex"     title="PulseX"     aria-label="PulseX theme"></button>
           <button class="theme-swatch" data-theme="incentive"  title="Incentive"  aria-label="Incentive theme"></button>
+          <span class="theme-label" id="theme-label-name">Theme</span>
         </div>
         <span class="network-badge">⛓ PulseChain</span>
       </div>
@@ -146,8 +146,9 @@
       <!-- Summary cards -->
       <div id="portfolio-summary" class="summary-cards hidden">
         <div class="summary-card">
-          <span class="summary-label">Total Value (USD)</span>
+          <span class="summary-label" id="summary-total-label">Total Value (USD)</span>
           <span class="summary-value" id="summary-total-usd">—</span>
+          <button class="summary-currency-toggle" id="summary-currency-toggle" title="Toggle USD / PLS" aria-label="Toggle total value currency">PLS</button>
         </div>
         <div class="summary-card">
           <span class="summary-label">Tokens Held</span>
