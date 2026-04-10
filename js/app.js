@@ -44,6 +44,9 @@ document.querySelectorAll('.theme-swatch').forEach(btn => {
 
 /* ── Formatters ─────────────────────────────────────────── */
 
+/** Unicode subscript digit characters 0–9, used for compact price notation */
+const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉';
+
 const fmt = {
   /** Format a USD price with smart decimal places.
    *  For very small prices (< 0.001) uses compact zero notation:
@@ -55,11 +58,10 @@ const fmt = {
     if (n >= 1)     return '$' + n.toFixed(4);
     if (n >= 0.001) return '$' + n.toFixed(6);
     // Compact zero notation for tiny prices
-    const SUB = '₀₁₂₃₄₅₆₇₈₉';
     const exp = Math.floor(Math.log10(n));
     const subscriptN = Math.abs(exp) - 2;
     const mantissa = n.toExponential(3).split('e')[0].replace('.', '').replace(/0+$/, '') || '0';
-    const subscript = String(subscriptN).split('').map(d => SUB[+d]).join('');
+    const subscript = String(subscriptN).split('').map(d => SUBSCRIPT_DIGITS[+d]).join('');
     return '$0.0' + subscript + mantissa;
   },
 
