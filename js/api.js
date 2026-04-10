@@ -37,12 +37,23 @@ const API = (() => {
    * `pairAddress` is the specific DEX pair contract to pull price data from.
    */
   const CORE_COINS = [
-    { symbol: 'PLS',  address: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', pairAddress: '0xe56043671df55de5cdf8459710433c10324de0ae' }, // address is WPLS (wrapped PLS)
+    { symbol: 'PLS',  address: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', pairAddress: '0xe56043671df55de5cdf8459710433c10324de0ae' }, // address is the WPLS wrapper contract
     { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9' },
     { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65' },
     { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa' },
     { symbol: 'PRVX', address: null,                                           pairAddress: '0x62f7d076c92db76cf84223b6309801ea461d7afe' },
   ];
+
+  /**
+   * Maps token address (lowercase) → designated pair address for each core coin
+   * that has a known token address. Used in getPairsByAddresses to pin the exact
+   * trading pair for Portfolio, Watchlist, Trades, and any other price lookup.
+   */
+  const CORE_PAIR_OVERRIDES = new Map(
+    CORE_COINS
+      .filter(c => c.address && c.pairAddress)
+      .map(c => [c.address.toLowerCase(), c.pairAddress])
+  );
 
   /* ── Helpers ────────────────────────────────────────────── */
 
@@ -337,6 +348,26 @@ const API = (() => {
       })
     );
 
+    // Override price data for core coins with their designated pair addresses.
+    // This ensures the correct pair is always used regardless of liquidity ranking.
+    const overrideTokenAddrs = addresses
+      .map(a => a.toLowerCase())
+      .filter(a => CORE_PAIR_OVERRIDES.has(a));
+
+    if (overrideTokenAddrs.length > 0) {
+      const pairAddrs = overrideTokenAddrs.map(a => CORE_PAIR_OVERRIDES.get(a));
+      try {
+        const url = `${DSX_BASE}/pairs/pulsechain/${pairAddrs.join(',')}`;
+        const data = await fetchJSON(url);
+        for (const pair of (data.pairs || [])) {
+          const tokenAddr = pair.baseToken?.address?.toLowerCase();
+          if (tokenAddr) pairMap.set(tokenAddr, pair);
+        }
+      } catch (err) {
+        console.warn('[PulseCentral] Core pair override fetch failed:', err);
+      }
+    }
+
     return pairMap;
   }
 
@@ -473,7 +504,7 @@ const API = (() => {
    * @returns {Promise<Array<{symbol: string, pair: object|null}>>}
    */
   async function getCoreCoinPairs() {
-    const pairAddresses = CORE_COINS.map(c => c.pairAddress);
+    const pairAddresses = CORE_COINS.map(c => c.pairAddress).filter(Boolean);
     const url = `${DSX_BASE}/pairs/pulsechain/${pairAddresses.join(',')}`;
 
     let pairsById = new Map();
