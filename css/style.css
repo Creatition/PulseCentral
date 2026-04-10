@@ -242,6 +242,12 @@ li + li { margin-top: 0.35rem; }
   flex-wrap: wrap;
 }
 
+.portfolio-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 /* ── Collapsible wallet address entry ── */
 .wallet-add-collapse {
   margin-bottom: 0.5rem;

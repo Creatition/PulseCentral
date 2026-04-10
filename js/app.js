@@ -208,6 +208,30 @@ function switchTab(name) {
   if (name === 'portfolio') {
     renderSavedWalletsInPortfolio();
     renderPortfolioQuickSelect();
+    autoLoadLastPortfolio();
+  }
+}
+
+/**
+ * Automatically load the last saved wallet or group when the portfolio tab is opened,
+ * but only once per session (the first time the portfolio tab is visited).
+ */
+let portfolioAutoLoaded = false;
+function autoLoadLastPortfolio() {
+  if (portfolioAutoLoaded) return;
+  portfolioAutoLoaded = true;
+
+  let last;
+  try { last = localStorage.getItem('pc-last-portfolio'); } catch { return; }
+  if (!last) return;
+
+  if (last.startsWith('wallet:')) {
+    const addr = last.slice('wallet:'.length);
+    loadPortfolio(addr);
+  } else if (last.startsWith('group:')) {
+    const id    = last.slice('group:'.length);
+    const group = PortfolioGroups.getGroup(id);
+    if (group) loadGroupPortfolio(group);
   }
 }
 
@@ -615,6 +639,9 @@ async function loadPortfolio(address) {
     cachedPlsLogoUrl      = plsLogoUrl;
     cachedPlsPairAddress  = plsPairAddress;
     currentLoadedAddress  = address.toLowerCase();
+
+    // Remember this wallet as the last loaded portfolio
+    try { localStorage.setItem('pc-last-portfolio', 'wallet:' + address.toLowerCase()); } catch { /* ignore */ }
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, plsBalance, plsPrice);
     renderPortfolioTable(enriched, plsBalance, plsPrice, plsLogoUrl, plsPairAddress);
@@ -1687,6 +1714,9 @@ async function loadGroupPortfolio(group) {
     const totalPls   = plsPrice > 0 ? totalUsd / plsPrice : 0;
     PortfolioHistory.addSnapshot(historyKey, totalUsd, totalPls);
     renderPortfolioChart(historyKey);
+
+    // Remember this group as the last loaded portfolio
+    try { localStorage.setItem('pc-last-portfolio', 'group:' + group.id); } catch { /* ignore */ }
 
     // Show group context banner
     const banner    = $('group-context-banner');
