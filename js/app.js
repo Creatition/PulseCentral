@@ -7,9 +7,16 @@
 
 const THEMES = ['pulsechain', 'hex', 'pulsex', 'incentive'];
 
+const THEME_NAMES = {
+  pulsechain: 'PulseChain',
+  hex: 'HEX',
+  pulsex: 'PulseX',
+  incentive: 'Incentive',
+};
+
 /**
  * Apply a named theme to the <html> element and persist it in localStorage.
- * Updates the active state of the swatch buttons.
+ * Updates the active state of the swatch buttons and the network badge label.
  * @param {string} name  One of: 'pulsechain' | 'hex' | 'pulsex' | 'incentive'
  */
 function applyTheme(name) {
@@ -19,6 +26,8 @@ function applyTheme(name) {
   document.querySelectorAll('.theme-swatch').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === name);
   });
+  const badge = document.querySelector('.network-badge');
+  if (badge) badge.textContent = '⛓ ' + (THEME_NAMES[name] || name);
 }
 
 // Restore saved theme (or default to pulsechain) before first paint
@@ -124,6 +133,12 @@ const $ = id => document.getElementById(id);
 const setHidden  = (el, hidden) => el.classList.toggle('hidden', hidden);
 const setVisible = (el, visible) => setHidden(el, !visible);
 
+/** Returns true if the given string is a valid EVM address (0x + 40 hex chars) */
+const isValidAddress = addr => /^0x[0-9a-fA-F]{40}$/.test(addr);
+
+/** Wrapped PLS (WPLS) contract address — used to look up the PLS/USD price */
+const WPLS_ADDRESS = '0xa1077a294dde1b09bb078844df40758a5D0f9a27';
+
 /** Build a token logo element (img if URL available, placeholder otherwise) */
 function buildTokenLogo(logoUrl, symbol) {
   if (logoUrl) {
@@ -161,7 +176,7 @@ function changeTd(pct) {
 const tabBtns   = document.querySelectorAll('.tab-btn');
 const tabPanels = document.querySelectorAll('.tab-panel');
 
-let activeTab = 'portfolio';
+let activeTab = 'home';
 let marketsLoaded   = false;
 let trendingLoaded  = false;
 
@@ -178,11 +193,214 @@ function switchTab(name) {
   });
   tabPanels.forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
 
+  if (name === 'home'      && !homeLoaded)    loadHomeTab();
   if (name === 'markets'   && !marketsLoaded)  loadMarkets();
   if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
   if (name === 'profits')                      renderProfitsTab();
 }
+
+/* ── Home tab (Landing Page) ─────────────────────────────── */
+
+let homeLoaded       = false;
+let homeRefreshTimer = null;
+
+/**
+ * Build an SVG sparkline from a DexScreener pair's priceChange data.
+ * Uses the h24, h6, h1, m5 change percentages to approximate 5 historical
+ * price points and draws a filled area + line chart.
+ * @param {object|null} pair  DexScreener pair object
+ * @returns {string}  SVG markup string
+ */
+function buildSparklineSvg(pair) {
+  const W = 200, H = 56;
+  const currentPrice = Number(pair?.priceUsd || 0);
+
+  if (!currentPrice) {
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="var(--border-light)" stroke-width="1.5" stroke-dasharray="4 3"/>
+    </svg>`;
+  }
+
+  // Reconstruct approximate price at each historical point (oldest → newest)
+  const pctChanges = [
+    Number(pair?.priceChange?.h24 || 0),
+    Number(pair?.priceChange?.h6  || 0),
+    Number(pair?.priceChange?.h1  || 0),
+    Number(pair?.priceChange?.m5  || 0),
+    0,
+  ];
+  const prices = pctChanges.map((c, i) => {
+    if (i === 4) return currentPrice;
+    const factor = 1 + c / 100;
+    return factor > 0.01 ? currentPrice / factor : currentPrice;
+  });
+
+  const minP  = Math.min(...prices);
+  const maxP  = Math.max(...prices);
+  const range = maxP - minP || currentPrice * 0.02;
+  const pad   = 6;
+
+  const pts = prices.map((p, i) => [
+    (i / (prices.length - 1)) * W,
+    H - pad - ((p - minP) / range) * (H - pad * 2),
+  ]);
+
+  const linePath = pts.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`
+  ).join(' ');
+
+  const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+
+  const isUp  = Number(pair?.priceChange?.h24 || 0) >= 0;
+  const color = isUp ? '#22c55e' : '#ef4444';
+  const gid   = `sg${Math.random().toString(36).slice(2, 8)}`;
+
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#${gid})"/>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/**
+ * Build a coin card DOM element for one core token.
+ * @param {string} symbol  Token symbol (e.g. 'WPLS')
+ * @param {object|null} pair  DexScreener pair object, or null if unavailable
+ * @returns {HTMLElement}
+ */
+function buildCoinCard(symbol, pair) {
+  const card = document.createElement('article');
+  card.className = 'coin-card';
+
+  const token     = pair?.baseToken || { symbol, name: symbol };
+  const price     = Number(pair?.priceUsd || 0);
+  const change24h = Number(pair?.priceChange?.h24 || 0);
+  const vol24h    = pair?.volume?.h24;
+  const liq       = pair?.liquidity?.usd;
+  const logoUrl   = pair?.info?.imageUrl || null;
+  const { text: changeText, cls: changeCls } = fmt.change(change24h);
+  const isUp      = change24h >= 0;
+
+  card.classList.toggle('coin-card-up',   isUp);
+  card.classList.toggle('coin-card-down', !isUp);
+
+  // Header: logo + name + 24h badge
+  const header = document.createElement('div');
+  header.className = 'coin-card-header';
+
+  const logoWrap = document.createElement('div');
+  logoWrap.className = 'coin-logo-wrap';
+  logoWrap.appendChild(buildTokenLogo(logoUrl, symbol));
+
+  const info = document.createElement('div');
+  info.className = 'coin-info';
+  info.innerHTML = `
+    <div class="coin-name">${escHtml(token.name || symbol)}</div>
+    <div class="coin-symbol">${escHtml(symbol)}</div>
+  `;
+
+  const changeBadge = document.createElement('div');
+  changeBadge.className = `coin-change ${changeCls}`;
+  changeBadge.textContent = changeText;
+
+  header.append(logoWrap, info, changeBadge);
+
+  // Price
+  const priceEl = document.createElement('div');
+  priceEl.className = 'coin-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
+
+  // Sparkline chart
+  const chart = document.createElement('div');
+  chart.className = 'coin-chart';
+  chart.innerHTML = buildSparklineSvg(pair);
+
+  // Stats row
+  const stats = document.createElement('div');
+  stats.className = 'coin-stats';
+  stats.innerHTML = `
+    <div class="coin-stat">
+      <span class="coin-stat-label">Vol 24h</span>
+      <span class="coin-stat-value">${fmt.large(vol24h)}</span>
+    </div>
+    <div class="coin-stat">
+      <span class="coin-stat-label">Liquidity</span>
+      <span class="coin-stat-value">${fmt.large(liq)}</span>
+    </div>
+  `;
+
+  card.append(header, priceEl, chart, stats);
+  return card;
+}
+
+/**
+ * Render all core coin cards into the home grid.
+ * @param {Array<{symbol: string, pair: object|null}>} coinData
+ */
+function renderHomeCoinCards(coinData) {
+  const grid = $('home-coins-grid');
+  grid.innerHTML = '';
+  coinData.forEach(({ symbol, pair }) => {
+    grid.appendChild(buildCoinCard(symbol, pair));
+  });
+}
+
+/**
+ * Load core coin data and display it on the Home tab.
+ * Also starts the 60-second auto-refresh timer.
+ */
+async function loadHomeTab() {
+  homeLoaded = true;
+  if (homeRefreshTimer) clearInterval(homeRefreshTimer);
+
+  setHidden($('home-error'), true);
+  setVisible($('home-loading'), true);
+  setHidden($('home-coins-grid'), true);
+  setHidden($('home-footer'), true);
+
+  try {
+    const coinData = await API.getCoreCoinPairs();
+    renderHomeCoinCards(coinData);
+    updateHomeTimestamp();
+    setHidden($('home-loading'), true);
+    setVisible($('home-coins-grid'), true);
+    setVisible($('home-footer'), true);
+
+    // Auto-refresh prices every 60 seconds
+    homeRefreshTimer = setInterval(async () => {
+      try {
+        const fresh = await API.getCoreCoinPairs();
+        renderHomeCoinCards(fresh);
+        updateHomeTimestamp();
+      } catch (err) {
+        console.error('[PulseCentral] Home auto-refresh failed:', err);
+      }
+    }, 60_000);
+  } catch (err) {
+    setHidden($('home-loading'), true);
+    $('home-error').textContent = `Error loading market data: ${err.message}`;
+    setVisible($('home-error'), true);
+  }
+}
+
+function updateHomeTimestamp() {
+  const el = $('home-last-updated');
+  if (el) el.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+$('home-refresh-btn').addEventListener('click', () => {
+  homeLoaded = false;
+  loadHomeTab();
+});
+
+// Auto-load the home tab on first page load
+loadHomeTab();
 
 /* ── Portfolio tab ──────────────────────────────────────── */
 
@@ -191,13 +409,25 @@ const loadBtnTxt = $('load-portfolio-btn-text');
 const loadSpinner= $('load-portfolio-spinner');
 const walletInput= $('wallet-input');
 
+let hideSmallBalances = true;      // default: hide coins < $0.05
+let cachedPortfolioTokens  = [];   // enriched token list from last load
+let cachedPlsBalance = 0;
+let cachedPlsPrice   = 0;
+
+$('hide-small-balances').addEventListener('change', e => {
+  hideSmallBalances = e.target.checked;
+  if (cachedPortfolioTokens.length || cachedPlsBalance) {
+    renderPortfolioTable(cachedPortfolioTokens, cachedPlsBalance, cachedPlsPrice);
+  }
+});
+
 loadBtn.addEventListener('click', () => {
   const address = walletInput.value.trim();
   if (!address) {
     showPortfolioError('Please enter a wallet address.');
     return;
   }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+  if (!isValidAddress(address)) {
     showPortfolioError('Invalid Ethereum/PulseChain address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -224,7 +454,7 @@ walletInput.addEventListener('input', updateSaveWalletBtn);
 saveWalletBtn.addEventListener('click', () => {
   const addr = walletInput.value.trim();
   if (!addr) { showPortfolioError('Enter a wallet address first.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+  if (!isValidAddress(addr)) {
     showPortfolioError('Invalid address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -255,8 +485,10 @@ async function loadPortfolio(address) {
   hidePortfolioError();
   setPortfolioLoading(true);
   setHidden($('portfolio-summary'), true);
+  setHidden($('portfolio-toolbar'), true);
   setHidden($('portfolio-table-wrap'), true);
   setVisible($('portfolio-empty'), true);
+  setHidden($('group-context-banner'), true);
 
   try {
     // Fetch PLS balance and token list in parallel
@@ -286,16 +518,22 @@ async function loadPortfolio(address) {
     enriched.sort((a, b) => b.value - a.value);
 
     // Compute total value (PLS value approximated from WPLS pair if available)
-    const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
+    const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5d0f9a27');
     const plsPrice  = Number(wplsPair?.priceUsd || 0);
     const plsValue  = plsBalance * plsPrice;
     const totalUsd  = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
+
+    // Cache for re-render when toggle changes
+    cachedPortfolioTokens = enriched;
+    cachedPlsBalance      = plsBalance;
+    cachedPlsPrice        = plsPrice;
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, plsBalance, plsPrice);
     renderPortfolioTable(enriched, plsBalance, plsPrice);
 
     setHidden($('portfolio-empty'), true);
     setVisible($('portfolio-summary'), true);
+    setVisible($('portfolio-toolbar'), true);
     setVisible($('portfolio-table-wrap'), true);
   } catch (err) {
     showPortfolioError(`Error loading portfolio: ${err.message}`);
@@ -314,8 +552,23 @@ function renderPortfolioSummary(totalUsd, tokenCount, plsBalance, plsPrice) {
 }
 
 function renderPortfolioTable(tokens, plsBalance, plsPrice) {
+  const DUST_THRESHOLD = 0.05;
   const tbody = $('portfolio-tbody');
   tbody.innerHTML = '';
+
+  // Apply small-balance filter to tokens (PLS native is always shown)
+  const visibleTokens = hideSmallBalances
+    ? tokens.filter(t => t.value >= DUST_THRESHOLD)
+    : tokens;
+
+  const hiddenCount = tokens.length - visibleTokens.length;
+  const countEl = $('hidden-coins-count');
+  if (hideSmallBalances && hiddenCount > 0) {
+    countEl.textContent = `(${hiddenCount} coin${hiddenCount !== 1 ? 's' : ''} hidden)`;
+    setVisible(countEl, true);
+  } else {
+    setHidden(countEl, true);
+  }
 
   // PLS native row (first)
   const plsRow = buildPortfolioRow(
@@ -327,7 +580,7 @@ function renderPortfolioTable(tokens, plsBalance, plsPrice) {
   );
   tbody.appendChild(plsRow);
 
-  tokens.forEach((t, i) => {
+  visibleTokens.forEach((t, i) => {
     tbody.appendChild(buildPortfolioRow(i + 2, t, t.balance, t.price, t.change24h));
   });
 }
@@ -684,7 +937,347 @@ const Watchlist = (() => {
   return { addWallet, removeWallet, hasWallet, addToken, removeToken, hasToken, getWallets, getTokens };
 })();
 
-/* ── Watchlist tab rendering ─────────────────────────────── */
+/* ── Portfolio Groups module ─────────────────────────────── */
+
+/**
+ * Portfolio groups are stored in localStorage under 'pc-groups'.
+ * Shape: { groups: { id, name, addresses: { addr, label }[] }[] }
+ */
+const PortfolioGroups = (() => {
+  const KEY = 'pc-groups';
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch { /* ignore */ }
+    return [];
+  }
+
+  function save(groups) {
+    try { localStorage.setItem(KEY, JSON.stringify(groups)); } catch { /* ignore */ }
+  }
+
+  function getGroups() { return load(); }
+
+  function addGroup(name, addresses) {
+    const groups = load();
+    const id = crypto.randomUUID();
+    groups.push({ id, name, addresses });
+    save(groups);
+    return id;
+  }
+
+  function updateGroup(id, name, addresses) {
+    const groups = load();
+    const idx = groups.findIndex(g => g.id === id);
+    if (idx !== -1) { groups[idx] = { id, name, addresses }; save(groups); }
+  }
+
+  function removeGroup(id) {
+    const groups = load().filter(g => g.id !== id);
+    save(groups);
+  }
+
+  function getGroup(id) {
+    return load().find(g => g.id === id) || null;
+  }
+
+  return { getGroups, addGroup, updateGroup, removeGroup, getGroup };
+})();
+
+/* ── Portfolio Groups UI ─────────────────────────────────── */
+
+// In-modal address list being edited
+let groupModalAddresses = []; // [{addr, label}]
+
+function renderGroupsList() {
+  const groups = PortfolioGroups.getGroups();
+  const container = $('groups-list');
+  container.innerHTML = '';
+
+  groups.forEach(group => {
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.setAttribute('role', 'listitem');
+
+    const icon = document.createElement('span');
+    icon.className = 'group-card-icon';
+    icon.textContent = '🗂';
+
+    const info = document.createElement('div');
+    info.className = 'group-card-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'group-card-name';
+    nameEl.textContent = group.name;
+
+    const meta = document.createElement('div');
+    meta.className = 'group-card-meta';
+    const labels = group.addresses.map(a => a.label || a.addr.slice(0, 8) + '…').join(', ');
+    meta.textContent = `${group.addresses.length} address${group.addresses.length !== 1 ? 'es' : ''}: ${labels}`;
+    meta.title = group.addresses.map(a => a.label ? `${a.label}: ${a.addr}` : a.addr).join('\n');
+
+    info.append(nameEl, meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'group-card-actions';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'wl-load-btn';
+    loadBtn.textContent = '▶ Load';
+    loadBtn.title = 'Load combined portfolio for this group';
+    loadBtn.addEventListener('click', () => loadGroupPortfolio(group));
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'wl-load-btn';
+    editBtn.textContent = '✎ Edit';
+    editBtn.title = 'Edit group';
+    editBtn.addEventListener('click', () => openGroupModal(group));
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'wl-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Delete group';
+    removeBtn.addEventListener('click', () => {
+      if (!confirm(`Delete group "${group.name}"?`)) return;
+      PortfolioGroups.removeGroup(group.id);
+      renderGroupsList();
+    });
+
+    actions.append(loadBtn, editBtn, removeBtn);
+    card.append(icon, info, actions);
+    container.appendChild(card);
+  });
+}
+
+async function loadGroupPortfolio(group) {
+  if (group.addresses.length === 0) {
+    showPortfolioError('This group has no addresses. Add at least one address first.');
+    return;
+  }
+
+  hidePortfolioError();
+  setPortfolioLoading(true);
+  setHidden($('portfolio-summary'), true);
+  setHidden($('portfolio-table-wrap'), true);
+  setVisible($('portfolio-empty'), true);
+  setHidden($('group-context-banner'), true);
+
+  try {
+    // Fetch PLS balance + token list for every address in the group in parallel
+    const results = await Promise.all(
+      group.addresses.map(({ addr }) =>
+        Promise.all([API.getPlsBalance(addr), API.getTokenList(addr)])
+      )
+    );
+
+    // Aggregate PLS and tokens across all addresses
+    let totalPlsBalance = 0;
+    const tokenMap = new Map(); // contractAddress (lower) -> {token object}
+
+    results.forEach(([plsBalance, tokens]) => {
+      totalPlsBalance += plsBalance;
+      tokens.filter(t => t.balance > 0).forEach(t => {
+        const key = t.contractAddress.toLowerCase();
+        if (tokenMap.has(key)) {
+          tokenMap.get(key).balance += t.balance;
+        } else {
+          tokenMap.set(key, { ...t, balance: t.balance });
+        }
+      });
+    });
+
+    const activeTokens = [...tokenMap.values()];
+
+    // Fetch DEX price data
+    const addresses = activeTokens.map(t => t.contractAddress);
+    const pairMap   = await API.getPairsByAddresses(addresses);
+
+    // Enrich with price data
+    const enriched = activeTokens.map(t => {
+      const pair  = pairMap.get(t.contractAddress.toLowerCase());
+      const price     = Number(pair?.priceUsd   || 0);
+      const change24h = Number(pair?.priceChange?.h24 || 0);
+      const value     = price * t.balance;
+      const logoUrl   = pair?.info?.imageUrl || null;
+      return { ...t, price, change24h, value, logoUrl };
+    });
+
+    enriched.sort((a, b) => b.value - a.value);
+
+    const wplsPair = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
+    const plsPrice = Number(wplsPair?.priceUsd || 0);
+    const plsValue = totalPlsBalance * plsPrice;
+    const totalUsd = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
+
+    renderPortfolioSummary(totalUsd, enriched.length + 1, totalPlsBalance, plsPrice);
+    renderPortfolioTable(enriched, totalPlsBalance, plsPrice);
+
+    setHidden($('portfolio-empty'), true);
+    setVisible($('portfolio-summary'), true);
+    setVisible($('portfolio-table-wrap'), true);
+
+    // Show group context banner
+    const banner    = $('group-context-banner');
+    const nameEl    = $('group-context-name');
+    nameEl.textContent = '';
+    nameEl.appendChild(document.createTextNode('🗂 '));
+    const strong = document.createElement('strong');
+    strong.textContent = group.name;
+    nameEl.appendChild(strong);
+    $('group-context-addresses').textContent =
+      `${group.addresses.length} wallet${group.addresses.length !== 1 ? 's' : ''} combined`;
+    setVisible(banner, true);
+
+    // Clear single-wallet input to avoid confusion
+    walletInput.value = '';
+    updateSaveWalletBtn();
+  } catch (err) {
+    showPortfolioError(`Error loading group portfolio: ${err.message}`);
+  } finally {
+    setPortfolioLoading(false);
+  }
+}
+
+/* ── Group modal ─────────────────────────────────────────── */
+
+function openGroupModal(group = null) {
+  groupModalAddresses = group ? group.addresses.map(a => ({ ...a })) : [];
+  $('group-id').value = group ? group.id : '';
+  $('group-name-input').value = group ? group.name : '';
+  $('group-modal-title').textContent = group ? 'Edit Portfolio Group' : 'New Portfolio Group';
+  $('group-addr-input').value = '';
+  $('group-addr-label-input').value = '';
+  hideGroupModalError();
+  renderGroupAddrList();
+  setVisible($('group-modal-overlay'), true);
+  $('group-name-input').focus();
+}
+
+function closeGroupModal() {
+  setHidden($('group-modal-overlay'), true);
+}
+
+function showGroupModalError(msg) {
+  const el = $('group-modal-error');
+  el.textContent = msg;
+  setVisible(el, true);
+}
+
+function hideGroupModalError() {
+  setHidden($('group-modal-error'), true);
+}
+
+function renderGroupAddrList() {
+  const list = $('group-addr-list');
+  list.innerHTML = '';
+
+  if (groupModalAddresses.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'wl-empty';
+    li.style.cssText = 'padding:0.5rem 0;font-size:0.85rem;';
+    li.textContent = 'No addresses added yet.';
+    list.appendChild(li);
+    return;
+  }
+
+  groupModalAddresses.forEach((entry, idx) => {
+    const li = document.createElement('li');
+    li.className = 'group-addr-item';
+
+    if (entry.label) {
+      const labelEl = document.createElement('span');
+      labelEl.className = 'group-addr-item-label';
+      labelEl.textContent = entry.label;
+      labelEl.title = entry.label;
+      li.appendChild(labelEl);
+    }
+
+    const addrEl = document.createElement('span');
+    addrEl.className = 'group-addr-item-addr';
+    addrEl.textContent = entry.addr;
+    addrEl.title = entry.addr;
+    li.appendChild(addrEl);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'wl-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove address';
+    removeBtn.type = 'button';
+    removeBtn.addEventListener('click', () => {
+      const norm = entry.addr.toLowerCase();
+      groupModalAddresses = groupModalAddresses.filter(a => a.addr.toLowerCase() !== norm);
+      renderGroupAddrList();
+    });
+    li.appendChild(removeBtn);
+
+    list.appendChild(li);
+  });
+}
+
+function addGroupAddress() {
+  const addrRaw  = $('group-addr-input').value.trim();
+  const labelRaw = $('group-addr-label-input').value.trim();
+
+  if (!addrRaw) { showGroupModalError('Enter a wallet address to add.'); return; }
+  if (!isValidAddress(addrRaw)) {
+    showGroupModalError('Invalid address format. Must start with 0x and be 42 characters.');
+    return;
+  }
+  const norm = addrRaw.toLowerCase();
+  if (groupModalAddresses.some(a => a.addr.toLowerCase() === norm)) {
+    showGroupModalError('This address is already in the group.');
+    return;
+  }
+
+  hideGroupModalError();
+  groupModalAddresses.push({ addr: addrRaw, label: labelRaw });
+  $('group-addr-input').value = '';
+  $('group-addr-label-input').value = '';
+  renderGroupAddrList();
+  $('group-addr-input').focus();
+}
+
+$('create-group-btn').addEventListener('click', () => openGroupModal());
+$('group-modal-close').addEventListener('click', closeGroupModal);
+$('group-modal-cancel').addEventListener('click', closeGroupModal);
+$('group-modal-overlay').addEventListener('click', e => {
+  if (e.target === $('group-modal-overlay')) closeGroupModal();
+});
+$('group-add-addr-btn').addEventListener('click', addGroupAddress);
+$('group-addr-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addGroupAddress(); }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('group-modal-overlay').classList.contains('hidden')) closeGroupModal();
+});
+
+$('group-modal-save').addEventListener('click', () => {
+  hideGroupModalError();
+  const name = $('group-name-input').value.trim();
+  if (!name) { showGroupModalError('Please enter a group name.'); return; }
+  if (groupModalAddresses.length === 0) { showGroupModalError('Add at least one wallet address.'); return; }
+
+  const id = $('group-id').value;
+  if (id) {
+    PortfolioGroups.updateGroup(id, name, groupModalAddresses);
+  } else {
+    PortfolioGroups.addGroup(name, groupModalAddresses);
+  }
+
+  closeGroupModal();
+  renderGroupsList();
+});
+
+// Render groups on page load
+renderGroupsList();
+
+
 
 $('wl-refresh-btn').addEventListener('click', () => loadWatchlistTokenPrices());
 
@@ -1206,7 +1799,7 @@ $('trade-form').addEventListener('submit', e => {
 
   // Validation
   if (!tokenAddress)  { showTradeFormError('Token address is required.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(tokenAddress)) {
+  if (!isValidAddress(tokenAddress)) {
     showTradeFormError('Invalid token address — must start with 0x and be 42 characters.');
     return;
   }
@@ -1237,6 +1830,230 @@ $('trade-form').addEventListener('submit', e => {
 
   closeTradeModal();
   if (activeTab === 'profits') renderProfitsTab();
+});
+
+/* ── Import from Wallet modal ────────────────────────────── */
+
+/**
+ * Discovered trades from the most recent wallet fetch.
+ * Array of trade objects returned by API.parseWalletTrades().
+ * @type {Array<object>}
+ */
+let _importCandidates = [];
+
+function openImportModal() {
+  showImportStep('input');
+  $('import-wallet-input').value = '';
+  $('import-step1-error').textContent = '';
+  setHidden($('import-step1-error'), true);
+  setVisible($('import-modal-overlay'), true);
+  $('import-wallet-input').focus();
+}
+
+function closeImportModal() {
+  setHidden($('import-modal-overlay'), true);
+}
+
+/** Show one of the three import steps and hide the others */
+function showImportStep(step) {
+  setVisible($('import-step-input'),   step === 'input');
+  setVisible($('import-step-preview'), step === 'preview');
+  setVisible($('import-step-done'),    step === 'done');
+}
+
+function showImportError(msg) {
+  const el = $('import-step1-error');
+  el.textContent = msg;
+  setVisible(el, true);
+}
+
+$('import-wallet-btn').addEventListener('click', openImportModal);
+$('import-modal-close').addEventListener('click', closeImportModal);
+$('import-modal-cancel').addEventListener('click', closeImportModal);
+$('import-modal-overlay').addEventListener('click', e => {
+  if (e.target === $('import-modal-overlay')) closeImportModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('import-modal-overlay').classList.contains('hidden')) closeImportModal();
+});
+
+$('import-back-btn').addEventListener('click', () => showImportStep('input'));
+$('import-done-close').addEventListener('click', () => {
+  closeImportModal();
+  if (activeTab === 'profits') renderProfitsTab();
+});
+
+/** Update the "Import Selected (N)" button count */
+function updateImportSelectedCount() {
+  const checked = $('import-preview-tbody').querySelectorAll('input[type="checkbox"]:checked').length;
+  $('import-selected-count').textContent = checked;
+}
+
+/** Select-all checkbox logic */
+$('import-select-all').addEventListener('change', function () {
+  $('import-preview-tbody')
+    .querySelectorAll('input[type="checkbox"]')
+    .forEach(cb => { cb.checked = this.checked; });
+  updateImportSelectedCount();
+});
+
+$('import-wallet-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('import-fetch-btn').click();
+});
+
+/** Fetch trades from the blockchain and show the preview step */
+$('import-fetch-btn').addEventListener('click', async () => {
+  const address = $('import-wallet-input').value.trim();
+  setHidden($('import-step1-error'), true);
+
+  if (!address) {
+    showImportError('Please enter a wallet address.');
+    return;
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/i.test(address)) {
+    showImportError('Invalid address — must start with 0x and be 42 characters.');
+    return;
+  }
+
+  const btn     = $('import-fetch-btn');
+  const btnTxt  = $('import-fetch-btn-text');
+  const spinner = $('import-fetch-spinner');
+  btn.disabled  = true;
+  btnTxt.textContent = 'Fetching…';
+  setVisible(spinner, true);
+
+  try {
+    _importCandidates = await API.parseWalletTrades(address);
+    renderImportPreview(_importCandidates);
+    showImportStep('preview');
+  } catch (err) {
+    showImportError(`Failed to fetch trades: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btnTxt.textContent = 'Fetch Trades';
+    setHidden(spinner, true);
+  }
+});
+
+/** Render the preview table from discovered trade candidates */
+function renderImportPreview(candidates) {
+  const alreadyImported = TradesDB.getImportedTxHashes();
+  const tbody           = $('import-preview-tbody');
+  tbody.innerHTML       = '';
+
+  const infoEl = $('import-preview-info');
+  const warnEl = $('import-duplicate-warning');
+
+  if (candidates.length === 0) {
+    infoEl.textContent = 'No trades could be detected for this wallet. Only swaps involving native PLS are supported.';
+    setHidden(warnEl, true);
+    $('import-confirm-btn').disabled = true;
+    updateImportSelectedCount();
+    return;
+  }
+
+  let dupCount = 0;
+  candidates.forEach((trade, idx) => {
+    const isDup = alreadyImported.has(trade.txHash);
+    if (isDup) dupCount++;
+
+    const tr = document.createElement('tr');
+    if (isDup) tr.classList.add('import-row-dup');
+
+    // Checkbox
+    const tdCb = document.createElement('td');
+    tdCb.className = 'align-center';
+    const cb = document.createElement('input');
+    cb.type        = 'checkbox';
+    cb.dataset.idx = idx;
+    cb.checked     = !isDup;   // pre-uncheck duplicates
+    cb.addEventListener('change', updateImportSelectedCount);
+    tdCb.appendChild(cb);
+
+    // Date
+    const tdDate = document.createElement('td');
+    tdDate.textContent = new Date(trade.date).toLocaleDateString();
+
+    // Token
+    const tdToken = document.createElement('td');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'token-name';
+    nameSpan.textContent = trade.tokenName || trade.tokenSymbol;
+    const symSpan = document.createElement('span');
+    symSpan.className = 'token-symbol';
+    symSpan.textContent = ' ' + trade.tokenSymbol;
+    tdToken.appendChild(nameSpan);
+    tdToken.appendChild(symSpan);
+
+    // Type badge
+    const tdType = document.createElement('td');
+    const importBadge = document.createElement('span');
+    importBadge.className = `trade-badge trade-badge-${trade.type === 'buy' ? 'buy' : 'sell'}`;
+    importBadge.textContent = trade.type.toUpperCase();
+    tdType.appendChild(importBadge);
+
+    // Token amount
+    const tdAmt = document.createElement('td');
+    tdAmt.className = 'align-right';
+    tdAmt.textContent = fmt.balance(trade.tokenAmount);
+
+    // PLS amount
+    const tdPls = document.createElement('td');
+    tdPls.className = 'align-right';
+    tdPls.textContent = fmt.pls(trade.plsAmount);
+
+    // Status
+    const tdStatus = document.createElement('td');
+    tdStatus.textContent = isDup ? '⚠ Already imported' : 'New';
+    if (isDup) tdStatus.style.color = 'var(--warning)';
+
+    tr.append(tdCb, tdDate, tdToken, tdType, tdAmt, tdPls, tdStatus);
+    tbody.appendChild(tr);
+  });
+
+  infoEl.textContent = `Found ${candidates.length} trade${candidates.length !== 1 ? 's' : ''}.`;
+  if (dupCount > 0) {
+    warnEl.textContent = `${dupCount} trade${dupCount !== 1 ? 's' : ''} appear to already be in your trade log and are pre-deselected.`;
+    setVisible(warnEl, true);
+  } else {
+    setHidden(warnEl, true);
+  }
+
+  $('import-confirm-btn').disabled = false;
+  // Set select-all to checked only if all non-duplicate rows are checked
+  const allCbs = [...$('import-preview-tbody').querySelectorAll('input[type="checkbox"]')];
+  $('import-select-all').checked = allCbs.length > 0 && allCbs.every(cb => cb.checked);
+  updateImportSelectedCount();
+}
+
+/** Import the checked trades from the preview into TradesDB */
+$('import-confirm-btn').addEventListener('click', () => {
+  const checkboxes = $('import-preview-tbody').querySelectorAll('input[type="checkbox"]:checked');
+  let count = 0;
+  checkboxes.forEach(cb => {
+    const trade = _importCandidates[Number(cb.dataset.idx)];
+    if (!trade) return;
+    TradesDB.addTrade({
+      tokenAddress:     trade.tokenAddress,
+      tokenSymbol:      trade.tokenSymbol,
+      tokenName:        trade.tokenName,
+      type:             trade.type,
+      date:             trade.date,
+      tokenAmount:      trade.tokenAmount,
+      plsAmount:        trade.plsAmount,
+      usdValue:         trade.usdValue || 0,
+      pricePerTokenPls: trade.pricePerTokenPls || 0,
+      notes:            trade.notes || '',
+      txHash:           trade.txHash || '',
+    });
+    count++;
+  });
+
+  $('import-done-text').textContent =
+    count > 0
+      ? `${count} trade${count !== 1 ? 's' : ''} imported successfully. USD values are set to 0 — you can edit individual trades to add historical USD values.`
+      : 'No trades were imported.';
+  showImportStep('done');
 });
 
 /* ── CSV export ──────────────────────────────────────────── */

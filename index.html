@@ -17,7 +17,10 @@
         <span class="logo-pulse">Pulse</span><span class="logo-central">Central</span>
       </div>
       <nav class="tab-nav" role="tablist" aria-label="Main navigation">
-        <button class="tab-btn active" data-tab="portfolio" role="tab" aria-selected="true" aria-controls="tab-portfolio">
+        <button class="tab-btn active" data-tab="home" role="tab" aria-selected="true" aria-controls="tab-home">
+          <span class="tab-icon">🏠</span> Home
+        </button>
+        <button class="tab-btn" data-tab="portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio">
           <span class="tab-icon">💼</span> Portfolio
         </button>
         <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
@@ -52,8 +55,43 @@
   <!-- ===== MAIN CONTENT ===== -->
   <main class="main-content">
 
+    <!-- ── HOME TAB ── -->
+    <section id="tab-home" class="tab-panel active" role="tabpanel" aria-labelledby="btn-home">
+
+      <!-- Hero banner -->
+      <div class="home-hero">
+        <div class="home-hero-badge">⛓ PulseChain Network</div>
+        <h1 class="home-hero-title">
+          <span class="logo-pulse">Pulse</span><span class="logo-central">Central</span>
+        </h1>
+        <p class="home-hero-subtitle">Live prices &amp; charts for PulseChain's core tokens</p>
+      </div>
+
+      <!-- Error -->
+      <div id="home-error" class="error-banner hidden" role="alert"></div>
+
+      <!-- Loading -->
+      <div id="home-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading market data"></div>
+        <p>Loading core coin prices…</p>
+      </div>
+
+      <!-- Core coin cards grid -->
+      <div id="home-coins-grid" class="home-coins-grid hidden"></div>
+
+      <!-- Last updated + refresh -->
+      <div id="home-footer" class="home-footer hidden">
+        <span id="home-last-updated" class="home-last-updated"></span>
+        <button id="home-refresh-btn" class="btn btn-secondary btn-sm" aria-label="Refresh prices">↻ Refresh</button>
+        <span class="dex-attribution" style="margin:0">
+          Data: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+        </span>
+      </div>
+
+    </section>
+
     <!-- ── PORTFOLIO TAB ── -->
-    <section id="tab-portfolio" class="tab-panel active" role="tabpanel" aria-labelledby="btn-portfolio">
+    <section id="tab-portfolio" class="tab-panel" role="tabpanel" aria-labelledby="btn-portfolio">
       <div class="section-header">
         <h1>Portfolio Tracker</h1>
         <p class="section-subtitle">Enter a PulseChain wallet address to view its holdings and estimated value.</p>
@@ -81,6 +119,21 @@
 
       <div id="portfolio-error" class="error-banner hidden" role="alert"></div>
 
+      <!-- Portfolio Groups -->
+      <div class="portfolio-groups-bar">
+        <button id="create-group-btn" class="btn btn-secondary btn-sm" aria-label="Create a new portfolio group">
+          ＋ New Group
+        </button>
+      </div>
+
+      <div id="groups-list" class="groups-list" aria-label="Portfolio groups"></div>
+
+      <!-- Active group label (shown when a group is loaded) -->
+      <div id="group-context-banner" class="group-context-banner hidden">
+        <span id="group-context-name"></span>
+        <span class="group-context-addresses" id="group-context-addresses"></span>
+      </div>
+
       <!-- Summary cards -->
       <div id="portfolio-summary" class="summary-cards hidden">
         <div class="summary-card">
@@ -95,6 +148,15 @@
           <span class="summary-label">PLS Balance</span>
           <span class="summary-value" id="summary-pls-balance">—</span>
         </div>
+      </div>
+
+      <!-- Portfolio toolbar -->
+      <div id="portfolio-toolbar" class="portfolio-toolbar hidden">
+        <label class="toggle-label" for="hide-small-balances">
+          <input type="checkbox" id="hide-small-balances" checked />
+          Hide coins &lt; $0.05
+        </label>
+        <span id="hidden-coins-count" class="hidden-coins-count"></span>
       </div>
 
       <!-- Token holdings table -->
@@ -254,6 +316,7 @@
 
       <div class="profits-toolbar">
         <button id="add-trade-btn" class="btn btn-primary">＋ Add Trade</button>
+        <button id="import-wallet-btn" class="btn btn-secondary">⬆ Import from Wallet</button>
         <button id="export-csv-btn" class="btn btn-secondary">⬇ Export CSV</button>
       </div>
 
@@ -351,7 +414,7 @@
           <p>
             PulseCentral is a free, open-source portfolio and market tracker for
             <strong>PulseChain</strong> — the EVM-compatible blockchain launched by
-            Richard Heart. Inspired by <em>plsfolio.com</em>, PulseCentral lets you:
+            Richard Heart. PulseCentral lets you:
           </p>
           <ul>
             <li>Track any PulseChain wallet's token holdings and total USD value.</li>
@@ -406,6 +469,52 @@
       <a href="https://scan.pulsechain.com" target="_blank" rel="noopener">PulseChain Scan</a>
     </p>
   </footer>
+
+  <!-- ===== CREATE / EDIT GROUP MODAL ===== -->
+  <div id="group-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="group-modal-title">New Portfolio Group</h2>
+        <button id="group-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body" id="group-modal-body">
+        <input type="hidden" id="group-id" />
+
+        <!-- Group name -->
+        <div class="form-group">
+          <label for="group-name-input">Group Name *</label>
+          <input id="group-name-input" type="text" class="form-input"
+            placeholder="e.g. My Main Wallets" maxlength="60" autocomplete="off" />
+        </div>
+
+        <!-- Address list -->
+        <div class="form-group">
+          <label>Wallet Addresses</label>
+          <ul id="group-addr-list" class="group-addr-list" aria-label="Addresses in this group"></ul>
+        </div>
+
+        <!-- Add address row -->
+        <div class="form-group">
+          <label for="group-addr-input">Add Address</label>
+          <div class="group-add-addr-row">
+            <input id="group-addr-input" type="text" class="form-input"
+              placeholder="0x… wallet address" maxlength="42" autocomplete="off" spellcheck="false" />
+            <input id="group-addr-label-input" type="text" class="form-input"
+              placeholder="Label (optional)" maxlength="40" autocomplete="off" />
+            <button id="group-add-addr-btn" class="btn btn-secondary btn-sm" type="button">＋ Add</button>
+          </div>
+        </div>
+
+        <div id="group-modal-error" class="trade-form-error hidden" role="alert"></div>
+
+        <div class="modal-footer">
+          <button id="group-modal-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="group-modal-save" class="btn btn-primary">Save Group</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ===== ADD / EDIT TRADE MODAL ===== -->
   <div id="trade-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">
@@ -502,5 +611,84 @@
   <script src="js/api.js"></script>
   <script src="js/trades.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- ===== IMPORT FROM WALLET MODAL ===== -->
+  <div id="import-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+    <div class="modal-dialog modal-dialog-wide">
+      <div class="modal-header">
+        <h2 id="import-modal-title">Import Trades from Wallet</h2>
+        <button id="import-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Step 1: wallet address input -->
+        <div id="import-step-input">
+          <p class="import-instructions">
+            Enter a PulseChain wallet address to automatically detect buy and sell trades
+            from the blockchain. Only swaps involving native PLS can be detected; token-to-token
+            swaps are not included. USD values are not available from historical data and will
+            be set to 0 — you can edit individual trades after importing.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="import-wallet-input">Wallet Address *</label>
+              <input id="import-wallet-input" type="text" class="form-input"
+                placeholder="0x… PulseChain wallet address"
+                autocomplete="off" spellcheck="false" maxlength="42" />
+            </div>
+          </div>
+          <div id="import-step1-error" class="trade-form-error hidden" role="alert"></div>
+          <div class="modal-footer">
+            <button type="button" id="import-modal-cancel" class="btn btn-secondary">Cancel</button>
+            <button type="button" id="import-fetch-btn" class="btn btn-primary">
+              <span id="import-fetch-btn-text">Fetch Trades</span>
+              <span id="import-fetch-spinner" class="spinner hidden" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: preview discovered trades -->
+        <div id="import-step-preview" class="hidden">
+          <div id="import-preview-info" class="import-preview-info"></div>
+          <div id="import-duplicate-warning" class="import-duplicate-warning hidden"></div>
+          <div id="import-preview-wrap" class="table-wrap import-preview-table">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="align-center">
+                    <input type="checkbox" id="import-select-all" title="Select / deselect all" />
+                  </th>
+                  <th>Date</th>
+                  <th>Token</th>
+                  <th>Type</th>
+                  <th class="align-right">Token Amount</th>
+                  <th class="align-right">PLS Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="import-preview-tbody"></tbody>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="import-back-btn" class="btn btn-secondary">← Back</button>
+            <button type="button" id="import-confirm-btn" class="btn btn-primary">
+              Import Selected (<span id="import-selected-count">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: done -->
+        <div id="import-step-done" class="hidden">
+          <div class="import-done-msg">
+            <div class="import-done-icon">✅</div>
+            <p id="import-done-text"></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="import-done-close" class="btn btn-primary">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
