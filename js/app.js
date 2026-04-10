@@ -203,7 +203,6 @@ const tabPanels = document.querySelectorAll('.tab-panel');
 
 let activeTab = 'home';
 let marketsLoaded   = false;
-let trendingLoaded  = false;
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -224,7 +223,6 @@ function switchTab(name) {
 
   if (name === 'home'      && !homeLoaded)    loadHomeTab();
   if (name === 'markets'   && !marketsLoaded)  loadMarkets();
-  if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
   if (name === 'portfolio') {
     renderSavedWalletsInPortfolio();
@@ -819,7 +817,7 @@ let allMarketPairs  = [];
 async function loadMarkets() {
   marketsLoaded = true;
   setHidden($('markets-error'), true);
-  setHidden($('markets-grid'), true);
+  setHidden($('markets-sections'), true);
   setVisible($('markets-loading'), true);
 
   try {
@@ -853,13 +851,55 @@ function renderMarketsGrid() {
     });
   }
 
-  const grid = $('markets-grid');
-  grid.innerHTML = '';
-  pairs.slice(0, 100).forEach((pair, i) => {
-    grid.appendChild(buildMarketCard(i + 1, pair));
-  });
+  const container = $('markets-sections');
+  container.innerHTML = '';
 
-  setVisible(grid, true);
+  if (query) {
+    // When searching, show a flat filtered grid
+    const grid = document.createElement('div');
+    grid.className = 'markets-grid';
+    pairs.slice(0, 100).forEach((pair, i) => grid.appendChild(buildMarketCard(i + 1, pair)));
+    container.appendChild(grid);
+  } else {
+    // ── Top Coins ──────────────────────────────────────────
+    const topPairs = allMarketPairs.slice(0, 12);
+    container.appendChild(buildMarketsSection('🏆 Top Coins', topPairs, true));
+
+    // ── Top Gainers ────────────────────────────────────────
+    const gainerPairs = allMarketPairs
+      .filter(p => p.priceChange?.h24 != null)
+      .slice()
+      .sort((a, b) => Number(b.priceChange.h24) - Number(a.priceChange.h24))
+      .slice(0, 12);
+    container.appendChild(buildMarketsSection('📈 Top Gainers', gainerPairs, false));
+
+    // ── Top Losers ─────────────────────────────────────────
+    const loserPairs = allMarketPairs
+      .filter(p => p.priceChange?.h24 != null)
+      .slice()
+      .sort((a, b) => Number(a.priceChange.h24) - Number(b.priceChange.h24))
+      .slice(0, 12);
+    container.appendChild(buildMarketsSection('📉 Top Losers', loserPairs, false));
+  }
+
+  setVisible(container, true);
+}
+
+function buildMarketsSection(label, pairs, showRank) {
+  const section = document.createElement('div');
+  section.className = 'markets-section';
+
+  const heading = document.createElement('h2');
+  heading.className = 'markets-section-label';
+  heading.textContent = label;
+  section.appendChild(heading);
+
+  const grid = document.createElement('div');
+  grid.className = 'markets-grid';
+  pairs.forEach((pair, i) => grid.appendChild(buildMarketCard(showRank ? i + 1 : i + 1, pair)));
+  section.appendChild(grid);
+
+  return section;
 }
 
 function buildMarketCard(index, pair) {
@@ -998,129 +1038,6 @@ function buildMarketCard(index, pair) {
   }
 
   return card;
-}
-
-/* ── Trending tab ───────────────────────────────────────── */
-
-async function loadTrending() {
-  trendingLoaded = true;
-  setHidden($('trending-error'), true);
-  setHidden($('trending-grid'), true);
-  setVisible($('trending-loading'), true);
-
-  try {
-    const pairs = await API.getTrendingPairs();
-    renderTrendingGrid(pairs.slice(0, 100));
-    setHidden($('trending-loading'), true);
-    setVisible($('trending-grid'), true);
-  } catch (err) {
-    setHidden($('trending-loading'), true);
-    $('trending-error').textContent = `Error loading trending data: ${err.message}`;
-    setVisible($('trending-error'), true);
-  }
-}
-
-function renderTrendingGrid(pairs) {
-  const grid = $('trending-grid');
-  grid.innerHTML = '';
-
-  pairs.forEach((pair, i) => {
-    const token   = pair.baseToken || {};
-    const logoUrl = pair.info?.imageUrl || null;
-    const { text: changeText, cls: changeCls } = fmt.change(pair.priceChange?.h24);
-    const mcap    = pair.marketCap || pair.fdv;
-
-    const card = document.createElement('div');
-    card.className = 'trending-card';
-
-    const header = document.createElement('div');
-    header.className = 'trending-card-header';
-
-    const logoEl = buildTokenLogo(logoUrl, token.symbol);
-    logoEl.style.cssText = 'width:36px;height:36px;border-radius:50%;flex-shrink:0';
-    if (logoEl.tagName === 'IMG') {
-      logoEl.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0';
-    }
-
-    const nameWrap = document.createElement('div');
-    const rankName = document.createElement('div');
-    rankName.className = 'trending-name';
-    rankName.textContent = token.name || token.symbol || '—';
-    const symEl = document.createElement('div');
-    symEl.className = 'trending-symbol';
-    symEl.textContent = token.symbol || '—';
-    nameWrap.append(rankName, symEl);
-
-    header.append(logoEl, nameWrap);
-
-    // Info button — opens the token details modal
-    const trendInfoBtn = document.createElement('button');
-    trendInfoBtn.className = 'card-info-btn';
-    trendInfoBtn.textContent = 'ℹ';
-    trendInfoBtn.title = 'Token details';
-    trendInfoBtn.setAttribute('aria-label', 'View token details');
-    trendInfoBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      openTokenDetailsModal(pair);
-    });
-    header.appendChild(trendInfoBtn);
-
-    const priceEl = document.createElement('div');
-    priceEl.className = 'trending-price';
-    priceEl.textContent = fmt.price(pair.priceUsd);
-
-    const meta = document.createElement('div');
-    meta.className = 'trending-meta';
-    const changeSpan = document.createElement('span');
-    changeSpan.className = changeCls;
-    changeSpan.textContent = changeText;
-    const volSpan = document.createElement('span');
-    volSpan.textContent = `Vol ${fmt.large(pair.volume?.h24)}`;
-    const mcapSpan = document.createElement('span');
-    mcapSpan.textContent = `MCap ${fmt.large(mcap)}`;
-    const liqSpan = document.createElement('span');
-    liqSpan.textContent = `Liq ${fmt.large(pair.liquidity?.usd)}`;
-    meta.append(changeSpan, volSpan, mcapSpan, liqSpan);
-
-    const badge = document.createElement('div');
-    badge.className = 'trending-badge';
-    badge.textContent = '🔥 Trending';
-
-    card.append(header, priceEl, meta, badge);
-
-    // Social links on trending cards
-    const tWebsites = pair.info?.websites || [];
-    const tSocials  = pair.info?.socials  || [];
-    const tSocialLinks = [
-      ...tWebsites.map(w => ({ label: `🌐 ${w.label || 'Web'}`, url: w.url })),
-      ...tSocials.map(s => ({ label: SOCIAL_LABELS[(s.type || '').toLowerCase()] || `🔗 ${s.type}`, url: s.url })),
-    ];
-    if (tSocialLinks.length > 0) {
-      const socialsRow = document.createElement('div');
-      socialsRow.className = 'market-card-socials';
-      tSocialLinks.slice(0, 3).forEach(({ label, url }) => {
-        if (!url) return;
-        const a = document.createElement('a');
-        a.href      = url;
-        a.target    = '_blank';
-        a.rel       = 'noopener';
-        a.className = 'market-social-link';
-        a.textContent = label;
-        a.addEventListener('click', e => e.stopPropagation());
-        socialsRow.appendChild(a);
-      });
-      if (socialsRow.children.length > 0) card.appendChild(socialsRow);
-    }
-
-    // Open DexScreener pair page when card is clicked
-    if (pair.pairAddress) {
-      card.addEventListener('click', () => {
-        window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
-      });
-    }
-
-    grid.appendChild(card);
-  });
 }
 
 /* ── Watchlist module ────────────────────────────────────── */
