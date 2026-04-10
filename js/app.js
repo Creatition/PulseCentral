@@ -127,6 +127,9 @@ const setVisible = (el, visible) => setHidden(el, !visible);
 /** Returns true if the given string is a valid EVM address (0x + 40 hex chars) */
 const isValidAddress = addr => /^0x[0-9a-fA-F]{40}$/.test(addr);
 
+/** Wrapped PLS (WPLS) contract address — used to look up the PLS/USD price */
+const WPLS_ADDRESS = '0xa1077a294dde1b09bb078844df40758a5D0f9a27';
+
 /** Build a token logo element (img if URL available, placeholder otherwise) */
 function buildTokenLogo(logoUrl, symbol) {
   if (logoUrl) {
