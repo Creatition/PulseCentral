@@ -37,6 +37,23 @@
         </button>
       </nav>
       <div class="header-right">
+        <!-- Price Alerts Bell -->
+        <div class="price-alerts-wrap" id="price-alerts-wrap">
+          <button class="price-alerts-btn" id="price-alerts-btn" title="Price Alerts – tokens up 10%+ in 5 min" aria-label="Price alerts" aria-haspopup="true" aria-expanded="false">
+            <span class="bell-icon" aria-hidden="true">🔔</span>
+            <span class="bell-badge hidden" id="bell-badge" aria-live="polite" aria-atomic="true"></span>
+          </button>
+          <div class="alerts-dropdown hidden" id="alerts-dropdown" role="menu" aria-label="Price alerts">
+            <div class="alerts-dropdown-header">
+              <span>🔔 Price Alerts</span>
+              <button class="alerts-clear-btn" id="alerts-clear-btn" title="Clear all alerts" aria-label="Clear all price alerts">✕ Clear</button>
+            </div>
+            <div class="alerts-list" id="alerts-list" role="list">
+              <div class="alerts-empty">No alerts yet. Tokens up +10% in 5 min will appear here.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="theme-picker" role="group" aria-label="Choose color theme">
           <button class="theme-swatch" data-theme="pulsechain" title="PulseChain" aria-label="PulseChain theme">PulseChain</button>
           <button class="theme-swatch" data-theme="hex"        title="HEX"        aria-label="HEX theme">Hex</button>

@@ -1698,8 +1698,160 @@ li + li { margin-top: 0.35rem; }
   margin-bottom: 0.75rem;
 }
 
+/* ── Price Alerts Bell ── */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.price-alerts-wrap {
+  position: relative;
+}
+
+.price-alerts-btn {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.35rem 0.45rem;
+  position: relative;
+  transition: background var(--transition), transform var(--transition);
+}
+.price-alerts-btn:hover {
+  background: rgba(255,255,255,0.08);
+  transform: scale(1.1);
+}
+.price-alerts-btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  outline: none;
+}
+
+.bell-icon {
+  display: block;
+}
+
+.bell-badge {
+  align-items: center;
+  background: var(--danger);
+  border: 2px solid var(--bg);
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  font-size: 0.6rem;
+  font-weight: 800;
+  height: 18px;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 4px;
+  pointer-events: none;
+  position: absolute;
+  right: -2px;
+  top: -2px;
+}
+
+.alerts-dropdown {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow: hidden;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 320px;
+  z-index: 200;
+}
+
+.alerts-dropdown-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+}
+
+.alerts-clear-btn {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  transition: color var(--transition), background var(--transition);
+}
+.alerts-clear-btn:hover {
+  background: rgba(239,68,68,0.1);
+  color: var(--danger);
+}
+
+.alerts-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.alerts-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 1.75rem 1rem;
+  text-align: center;
+}
+
+.alert-item {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  transition: background var(--transition);
+}
+.alert-item:last-child { border-bottom: none; }
+.alert-item:hover { background: var(--bg-card-hover); }
+
+.alert-item-icon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+.alert-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-item-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alert-item-change {
+  color: var(--success);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.alert-item-time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-size: 0.72rem;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
+  .alerts-dropdown { width: 290px; }
   .header-inner { flex-wrap: wrap; height: auto; padding: 0.75rem 1rem; gap: 0.75rem; }
   .tab-nav { gap: 0.1rem; }
   .tab-btn { font-size: 0.8rem; padding: 0.4rem 0.65rem; }
