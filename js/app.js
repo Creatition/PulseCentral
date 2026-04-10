@@ -1086,7 +1086,9 @@ const PortfolioHistory = (() => {
   /** Store one snapshot per calendar day; overwrites today's if it already exists. */
   function addSnapshot(key, totalUsd, totalPls) {
     const data  = load();
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // Use local calendar date (not UTC) to avoid day-offset errors near midnight
+    const d     = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!data[key]) data[key] = [];
     // Overwrite existing snapshot for today
     data[key] = data[key].filter(s => s.date !== today);
@@ -1122,13 +1124,17 @@ const CHART_PAD = { top: 24, right: 24, bottom: 48, left: 80 };
 const CHART_CW  = CHART_W - CHART_PAD.left - CHART_PAD.right;
 const CHART_CH  = CHART_H - CHART_PAD.top  - CHART_PAD.bottom;
 
+// Counter used to create unique gradient IDs across chart redraws
+let chartGradCounter = 0;
+
 // Wire chart toggle buttons
 document.querySelectorAll('[data-chart-currency]').forEach(btn => {
   btn.addEventListener('click', () => {
     chartCurrency = btn.dataset.chartCurrency;
-    document.querySelectorAll('[data-chart-currency]').forEach(b =>
-      b.classList.toggle('active', b === btn)
-    );
+    document.querySelectorAll('[data-chart-currency]').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
     if (currentPortfolioHistoryKey) renderPortfolioChart(currentPortfolioHistoryKey);
   });
 });
@@ -1136,9 +1142,10 @@ document.querySelectorAll('[data-chart-currency]').forEach(btn => {
 document.querySelectorAll('[data-chart-timeframe]').forEach(btn => {
   btn.addEventListener('click', () => {
     chartTimeframe = btn.dataset.chartTimeframe;
-    document.querySelectorAll('[data-chart-timeframe]').forEach(b =>
-      b.classList.toggle('active', b === btn)
-    );
+    document.querySelectorAll('[data-chart-timeframe]').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
     if (currentPortfolioHistoryKey) renderPortfolioChart(currentPortfolioHistoryKey);
   });
 });
@@ -1268,7 +1275,7 @@ function drawHistoryChart(points) {
 
   // ── Gradient definition ────────────────────────────────────
   const defs   = document.createElementNS(svgNS, 'defs');
-  const gradId = 'phg' + Math.random().toString(36).slice(2, 7);
+  const gradId = 'phg' + (++chartGradCounter);
   const grad   = document.createElementNS(svgNS, 'linearGradient');
   grad.id = gradId;
   grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
@@ -1425,12 +1432,17 @@ function setupChartInteractivity(pts, points) {
       dot.setAttribute('opacity', i === nearestIdx ? '1' : '0');
     });
 
-    // Build tooltip
+    // Build tooltip using DOM methods to avoid XSS risk
     const dateStr = formatChartDateLabel(snap.date, chartTimeframe);
     const valStr  = chartCurrency === 'usd' ? fmt.usd(snap.usd) : fmt.pls(snap.pls);
-    tooltip.innerHTML =
-      `<span class="chart-tooltip-date">${escHtml(dateStr)}</span>` +
-      `<span class="chart-tooltip-val">${escHtml(valStr)}</span>`;
+    tooltip.textContent = '';
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'chart-tooltip-date';
+    dateSpan.textContent = dateStr;
+    const valSpan = document.createElement('span');
+    valSpan.className = 'chart-tooltip-val';
+    valSpan.textContent = valStr;
+    tooltip.append(dateSpan, valSpan);
 
     // Position tooltip – flip to left side when near the right edge
     const xPct = (dotX / CHART_W) * 100;
