@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="PulseCentral – Track your PulseChain portfolio, market prices, and trending tokens." />
+  <meta name="description" content="PulseCentral – Track your PulseChain portfolio, market prices, and top token movers." />
   <title>PulseCentral – PulseChain Portfolio Tracker</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/style.css" />
@@ -25,9 +25,6 @@
         </button>
         <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
           <span class="tab-icon">📊</span> Markets
-        </button>
-        <button class="tab-btn" data-tab="trending" role="tab" aria-selected="false" aria-controls="tab-trending">
-          <span class="tab-icon">🔥</span> Trending
         </button>
         <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
           <span class="tab-icon">⭐</span> Watchlist
@@ -291,29 +288,7 @@
         <p>Loading market data…</p>
       </div>
 
-      <div id="markets-grid" class="markets-grid hidden"></div>
-    </section>
-
-    <!-- ── TRENDING TAB ── -->
-    <section id="tab-trending" class="tab-panel" role="tabpanel" aria-labelledby="btn-trending">
-      <div class="section-header">
-        <h1>Trending</h1>
-        <p class="section-subtitle">Hot tokens on PulseChain DEXes right now — ranked by 6-hour activity.</p>
-      </div>
-
-      <p class="dex-attribution">
-        Trending pairs sourced from
-        <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
-      </p>
-
-      <div id="trending-loading" class="loading-wrap">
-        <div class="pulse-loader" aria-label="Loading trending data"></div>
-        <p>Loading trending tokens…</p>
-      </div>
-
-      <div id="trending-error" class="error-banner hidden" role="alert"></div>
-
-      <div id="trending-grid" class="trending-grid hidden"></div>
+      <div id="markets-sections" class="hidden"></div>
     </section>
 
     <!-- ── WATCHLIST TAB ── -->
@@ -399,7 +374,7 @@
           <ul>
             <li>Track any PulseChain wallet's token holdings and total USD value.</li>
             <li>Browse live market prices for popular PulseChain tokens.</li>
-            <li>Discover trending tokens on PulseChain DEXes.</li>
+            <li>Discover top gainers and losers on PulseChain DEXes.</li>
           </ul>
         </div>
 

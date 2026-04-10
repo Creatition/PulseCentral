@@ -1650,6 +1650,20 @@ li + li { margin-top: 0.35rem; }
 .import-done-icon { font-size: 2.5rem; }
 
 
+/* ── Markets sections ── */
+.markets-section {
+  margin-bottom: 2.5rem;
+}
+
+.markets-section-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border);
+}
+
 /* ── Markets card grid ── */
 .markets-grid {
   display: grid;
