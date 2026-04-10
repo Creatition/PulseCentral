@@ -145,47 +145,56 @@ const API = (() => {
   }
 
   /**
-   * Fetch top PulseChain pairs from DexScreener using parallel search terms
-   * to maximise token coverage. Results from known token addresses are merged in
-   * so core tokens always appear even if the search misses them.
+   * Fetch top PulseChain pairs from DexScreener, mirroring the filters used on
+   * https://dexscreener.com/pulsechain?rankBy=volume&order=desc&minLiq=25000&min24HTxns=50&profile=1
+   *
+   * Steps:
+   *  1. Pull token profiles from DexScreener's profiles API (profile=1).
+   *  2. Combine with hardcoded KNOWN_TOKENS so core tokens always appear.
+   *  3. Fetch pair data for all collected addresses.
+   *  4. Filter: liquidity.usd >= 25000 (minLiq=25000)
+   *             txns.h24 total >= 50   (min24HTxns=50)
+   *  5. Sort by 24h volume descending  (rankBy=volume&order=desc).
+   *
    * @returns {Promise<object[]>} array of DexScreener pair objects sorted by 24h volume
    */
   async function getTopPulsechainPairs() {
-    // Run multiple searches in parallel for better coverage
-    const searchTerms = ['pulsechain', 'PLSX HEX', 'INC WPLS'];
+    // Step 1: Fetch PulseChain token profiles (matches profile=1 filter)
+    const profileAddresses = [];
+    try {
+      const profiles = await fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1');
+      (profiles || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
+    } catch (_) {
+      // Non-fatal – fall back to KNOWN_TOKENS only
+    }
 
-    const pairMap = new Map();
-
-    const searchResults = await Promise.allSettled(
-      searchTerms.map(q =>
-        fetchJSON(`${DSX_BASE}/search/?q=${encodeURIComponent(q)}`)
-      )
-    );
-
-    for (const result of searchResults) {
-      if (result.status !== 'fulfilled') continue;
-      const pairs = (result.value.pairs || []).filter(
-        p => p.chainId === 'pulsechain'
-      );
-      for (const pair of pairs) {
-        const addr = pair.baseToken?.address?.toLowerCase();
-        if (!addr) continue;
-        const liq = Number(pair.liquidity?.usd || 0);
-        const existing = pairMap.get(addr);
-        if (!existing || liq > Number(existing.liquidity?.usd || 0)) {
-          pairMap.set(addr, pair);
-        }
+    // Step 2: Merge with hardcoded known tokens (de-duplicated)
+    const seen = new Set();
+    const allAddresses = [];
+    for (const addr of [...profileAddresses, ...KNOWN_TOKENS.map(t => t.address)]) {
+      const lower = addr.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        allAddresses.push(addr);
       }
     }
 
-    // Guarantee the well-known tokens are always represented
-    const knownAddresses = KNOWN_TOKENS.map(t => t.address);
-    const knownMap = await getPairsByAddresses(knownAddresses);
-    for (const [addr, pair] of knownMap) {
-      if (!pairMap.has(addr)) pairMap.set(addr, pair);
+    // Step 3: Fetch pair data for all addresses
+    const rawMap = await getPairsByAddresses(allAddresses);
+
+    // Step 4: Apply minLiq=25000 and min24HTxns=50 filters
+    const pairMap = new Map();
+    for (const [addr, pair] of rawMap) {
+      const liq  = Number(pair.liquidity?.usd || 0);
+      const txns = Number(pair.txns?.h24?.buys || 0) + Number(pair.txns?.h24?.sells || 0);
+      if (liq >= 25000 && txns >= 50) {
+        pairMap.set(addr, pair);
+      }
     }
 
-    // Sort by 24h volume descending
+    // Step 5: Sort by 24h volume descending (rankBy=volume&order=desc)
     return [...pairMap.values()].sort(
       (a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0)
     );
