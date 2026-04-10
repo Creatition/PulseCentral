@@ -286,6 +286,8 @@ li + li { margin-top: 0.35rem; }
   flex-direction: column;
   gap: 0.35rem;
   padding: 1.25rem 1.5rem;
+  /* position:relative required for absolutely positioned .summary-currency-toggle */
+  position: relative;
 }
 .summary-label {
   color: var(--text-muted);
@@ -298,6 +300,26 @@ li + li { margin-top: 0.35rem; }
   color: var(--text);
   font-size: 1.5rem;
   font-weight: 800;
+}
+.summary-currency-toggle {
+  background: var(--bg-input, var(--bg-card));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 0.15rem 0.45rem;
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  text-transform: uppercase;
+  transition: background var(--transition), color var(--transition);
+}
+.summary-currency-toggle:hover {
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ── Tables ── */
