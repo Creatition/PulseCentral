@@ -26,8 +26,6 @@ function applyTheme(name) {
   document.querySelectorAll('.theme-swatch').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === name);
   });
-  const badge = document.querySelector('.network-badge');
-  if (badge) badge.textContent = '⛓ ' + (THEME_NAMES[name] || name);
   const themeLabel = document.getElementById('theme-label-name');
   if (themeLabel) themeLabel.textContent = THEME_NAMES[name] || name;
 }
@@ -213,7 +211,10 @@ function switchTab(name) {
   if (name === 'markets'   && !marketsLoaded)  loadMarkets();
   if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
-  if (name === 'portfolio')                    renderSavedWalletsInPortfolio();
+  if (name === 'portfolio') {
+    renderSavedWalletsInPortfolio();
+    renderPortfolioQuickSelect();
+  }
 }
 
 /* ── Home tab (Landing Page) ─────────────────────────────── */
@@ -435,6 +436,7 @@ const loadBtn    = $('load-portfolio-btn');
 const loadBtnTxt = $('load-portfolio-btn-text');
 const loadSpinner= $('load-portfolio-spinner');
 const walletInput= $('wallet-input');
+const walletNameInput = $('wallet-name-input');
 
 let hideSmallBalances = true;      // default: hide coins < $0.05
 let cachedPortfolioTokens  = [];   // enriched token list from last load
@@ -493,12 +495,18 @@ function updateSaveWalletBtn() {
   saveWalletBtn.classList.toggle('saved', saved);
   saveWalletBtn.textContent = saved ? '★ Saved' : '☆ Save';
   saveWalletBtn.title = saved ? 'Remove wallet from Watchlist' : 'Save wallet to Watchlist';
+  // Pre-fill name input if wallet is already saved
+  if (saved && walletNameInput) {
+    const existingName = Watchlist.getWalletName(addr);
+    if (!walletNameInput.value) walletNameInput.value = existingName;
+  }
 }
 
 walletInput.addEventListener('input', updateSaveWalletBtn);
 
 saveWalletBtn.addEventListener('click', () => {
   const addr = walletInput.value.trim();
+  const name = walletNameInput ? walletNameInput.value.trim() : '';
   if (!addr) { showPortfolioError('Enter a wallet address first.'); return; }
   if (!isValidAddress(addr)) {
     showPortfolioError('Invalid address format. Must start with 0x and be 42 characters.');
@@ -506,12 +514,13 @@ saveWalletBtn.addEventListener('click', () => {
   }
   if (Watchlist.hasWallet(addr)) {
     Watchlist.removeWallet(addr);
+    if (walletNameInput) walletNameInput.value = '';
     // Hide chart if the removed wallet was the one being charted
     if (currentPortfolioHistoryKey === addr.toLowerCase()) {
       hidePortfolioChart();
     }
   } else {
-    Watchlist.addWallet(addr);
+    Watchlist.addWallet(addr, name);
     // Take a snapshot immediately if this wallet's portfolio is already loaded
     if (currentLoadedAddress === addr.toLowerCase() && (cachedPortfolioTokens.length > 0 || cachedPlsBalance > 0)) {
       const totalUsd = cachedPortfolioTokens.reduce((s, t) => s + t.value, 0) + cachedPlsBalance * cachedPlsPrice;
@@ -522,6 +531,7 @@ saveWalletBtn.addEventListener('click', () => {
   }
   updateSaveWalletBtn();
   renderSavedWalletsInPortfolio();
+  renderPortfolioQuickSelect();
 });
 
 function setPortfolioLoading(loading) {
@@ -966,7 +976,8 @@ function renderTrendingGrid(pairs) {
 
 /**
  * All watchlist state lives in localStorage under 'pc-watchlist'.
- * Shape: { wallets: string[], tokens: {address, symbol, name, logoUrl}[] }
+ * Shape: { wallets: {addr: string, name: string}[], tokens: {address, symbol, name, logoUrl}[] }
+ * Legacy shape had wallets as string[] – automatically migrated on load.
  */
 const Watchlist = (() => {
   const KEY = 'pc-watchlist';
@@ -976,8 +987,11 @@ const Watchlist = (() => {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // Migrate legacy wallets format (string[]) to object[]
+        let wallets = Array.isArray(parsed.wallets) ? parsed.wallets : [];
+        wallets = wallets.map(w => typeof w === 'string' ? { addr: w, name: '' } : w);
         return {
-          wallets: Array.isArray(parsed.wallets) ? parsed.wallets : [],
+          wallets,
           tokens:  Array.isArray(parsed.tokens)  ? parsed.tokens  : [],
         };
       }
@@ -989,11 +1003,11 @@ const Watchlist = (() => {
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* ignore */ }
   }
 
-  function addWallet(addr) {
+  function addWallet(addr, name = '') {
     const data = load();
     const norm = addr.toLowerCase();
-    if (!data.wallets.map(w => w.toLowerCase()).includes(norm)) {
-      data.wallets.push(addr);
+    if (!data.wallets.find(w => w.addr.toLowerCase() === norm)) {
+      data.wallets.push({ addr, name: name || '' });
       save(data);
     }
   }
@@ -1001,12 +1015,24 @@ const Watchlist = (() => {
   function removeWallet(addr) {
     const data = load();
     const norm = addr.toLowerCase();
-    data.wallets = data.wallets.filter(w => w.toLowerCase() !== norm);
+    data.wallets = data.wallets.filter(w => w.addr.toLowerCase() !== norm);
     save(data);
   }
 
   function hasWallet(addr) {
-    return load().wallets.map(w => w.toLowerCase()).includes(addr.toLowerCase());
+    return load().wallets.some(w => w.addr.toLowerCase() === addr.toLowerCase());
+  }
+
+  function updateWalletName(addr, name) {
+    const data = load();
+    const norm = addr.toLowerCase();
+    const entry = data.wallets.find(w => w.addr.toLowerCase() === norm);
+    if (entry) { entry.name = name || ''; save(data); }
+  }
+
+  function getWalletName(addr) {
+    const entry = load().wallets.find(w => w.addr.toLowerCase() === addr.toLowerCase());
+    return entry ? (entry.name || '') : '';
   }
 
   function addToken(token) {
@@ -1033,7 +1059,7 @@ const Watchlist = (() => {
   function getWallets() { return load().wallets; }
   function getTokens()  { return load().tokens; }
 
-  return { addWallet, removeWallet, hasWallet, addToken, removeToken, hasToken, getWallets, getTokens };
+  return { addWallet, removeWallet, hasWallet, updateWalletName, getWalletName, addToken, removeToken, hasToken, getWallets, getTokens };
 })();
 
 /* ── Portfolio Groups module ─────────────────────────────── */
@@ -1666,9 +1692,26 @@ function openGroupModal(group = null) {
   $('group-addr-input').value = '';
   $('group-addr-label-input').value = '';
   hideGroupModalError();
+  populateGroupSavedWalletSelect();
   renderGroupAddrList();
   setVisible($('group-modal-overlay'), true);
   $('group-name-input').focus();
+}
+
+/** Populate the saved-wallets dropdown inside the group modal. */
+function populateGroupSavedWalletSelect() {
+  const sel = $('group-saved-wallet-select');
+  if (!sel) return;
+  const wallets = Watchlist.getWallets();
+  sel.innerHTML = '<option value="">— Pick from saved wallets —</option>';
+  wallets.forEach(({ addr, name }) => {
+    const opt = document.createElement('option');
+    opt.value = addr;
+    opt.textContent = name ? `${name} (${addr.slice(0, 8)}…)` : addr;
+    sel.appendChild(opt);
+  });
+  const row = $('group-saved-wallets-row');
+  if (row) setVisible(row, wallets.length > 0);
 }
 
 function closeGroupModal() {
@@ -1765,6 +1808,21 @@ $('group-add-addr-btn').addEventListener('click', addGroupAddress);
 $('group-addr-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); addGroupAddress(); }
 });
+$('group-add-saved-btn').addEventListener('click', () => {
+  const sel = $('group-saved-wallet-select');
+  if (!sel || !sel.value) { showGroupModalError('Please select a saved wallet first.'); return; }
+  const addr = sel.value;
+  const norm = addr.toLowerCase();
+  if (groupModalAddresses.some(a => a.addr.toLowerCase() === norm)) {
+    showGroupModalError('This address is already in the group.');
+    return;
+  }
+  const walletName = Watchlist.getWalletName(addr);
+  hideGroupModalError();
+  groupModalAddresses.push({ addr, label: walletName || '' });
+  sel.value = '';
+  renderGroupAddrList();
+});
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('group-modal-overlay').classList.contains('hidden')) closeGroupModal();
@@ -1785,10 +1843,74 @@ $('group-modal-save').addEventListener('click', () => {
 
   closeGroupModal();
   renderGroupsList();
+  renderPortfolioQuickSelect();
 });
 
 // Render groups on page load
 renderGroupsList();
+
+/* ── Portfolio Quick Select dropdown ─────────────────────── */
+
+/**
+ * Populate the quick-select dropdown with saved wallets and groups.
+ * Selecting a wallet fills the address input; selecting a group loads it directly.
+ */
+function renderPortfolioQuickSelect() {
+  const sel = $('portfolio-quick-select');
+  if (!sel) return;
+
+  const wallets = Watchlist.getWallets();
+  const groups  = PortfolioGroups.getGroups();
+
+  sel.innerHTML = '<option value="">— Select saved wallet or group —</option>';
+
+  if (wallets.length > 0) {
+    const og = document.createElement('optgroup');
+    og.label = '💼 Saved Wallets';
+    wallets.forEach(({ addr, name }) => {
+      const opt = document.createElement('option');
+      opt.value = 'wallet:' + addr;
+      opt.textContent = name ? `${name} (${addr.slice(0, 8)}…)` : addr;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  }
+
+  if (groups.length > 0) {
+    const og = document.createElement('optgroup');
+    og.label = '🗂 Groups';
+    groups.forEach(group => {
+      const opt = document.createElement('option');
+      opt.value = 'group:' + group.id;
+      opt.textContent = `${group.name} (${group.addresses.length} wallet${group.addresses.length !== 1 ? 's' : ''})`;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  }
+
+  setVisible($('portfolio-selector-bar'), wallets.length > 0 || groups.length > 0);
+}
+
+$('portfolio-quick-select').addEventListener('change', e => {
+  const val = e.target.value;
+  if (!val) return;
+
+  if (val.startsWith('wallet:')) {
+    const addr = val.slice('wallet:'.length);
+    const name = Watchlist.getWalletName(addr);
+    walletInput.value = addr;
+    if (walletNameInput) walletNameInput.value = name || '';
+    updateSaveWalletBtn();
+    loadPortfolio(addr);
+  } else if (val.startsWith('group:')) {
+    const id    = val.slice('group:'.length);
+    const group = PortfolioGroups.getGroup(id);
+    if (group) loadGroupPortfolio(group);
+  }
+
+  // Reset dropdown to placeholder after action
+  e.target.value = '';
+});
 
 
 
@@ -1810,14 +1932,25 @@ function renderSavedWalletsInPortfolio() {
   setVisible(empty, wallets.length === 0);
   setHidden(list, wallets.length === 0);
 
-  wallets.forEach(addr => {
+  wallets.forEach(({ addr, name }) => {
     const li = document.createElement('li');
     li.className = 'wl-wallet-item';
+
+    const infoWrap = document.createElement('div');
+    infoWrap.className = 'wl-wallet-info';
+
+    if (name) {
+      const nameEl = document.createElement('span');
+      nameEl.className = 'wl-wallet-name';
+      nameEl.textContent = name;
+      infoWrap.appendChild(nameEl);
+    }
 
     const addrSpan = document.createElement('span');
     addrSpan.className = 'wl-wallet-addr';
     addrSpan.textContent = addr;
     addrSpan.title = addr;
+    infoWrap.appendChild(addrSpan);
 
     const actions = document.createElement('div');
     actions.className = 'wl-wallet-actions';
@@ -1827,8 +1960,24 @@ function renderSavedWalletsInPortfolio() {
     loadBtn.textContent = '▶ Load';
     loadBtn.addEventListener('click', () => {
       walletInput.value = addr;
+      if (walletNameInput) walletNameInput.value = name || '';
       updateSaveWalletBtn();
       loadPortfolio(addr);
+    });
+
+    const editNameBtn = document.createElement('button');
+    editNameBtn.className = 'wl-load-btn';
+    editNameBtn.textContent = '✎ Name';
+    editNameBtn.title = 'Edit wallet name';
+    editNameBtn.addEventListener('click', () => {
+      const newName = prompt('Enter a name for this wallet:', name || '');
+      if (newName === null) return; // cancelled
+      Watchlist.updateWalletName(addr, newName.trim());
+      renderSavedWalletsInPortfolio();
+      renderPortfolioQuickSelect();
+      if (walletInput.value.trim().toLowerCase() === addr.toLowerCase()) {
+        if (walletNameInput) walletNameInput.value = newName.trim();
+      }
     });
 
     const removeBtn = document.createElement('button');
@@ -1838,17 +1987,19 @@ function renderSavedWalletsInPortfolio() {
     removeBtn.addEventListener('click', () => {
       Watchlist.removeWallet(addr);
       renderSavedWalletsInPortfolio();
+      renderPortfolioQuickSelect();
       updateSaveWalletBtn();
     });
 
-    actions.append(loadBtn, removeBtn);
-    li.append(addrSpan, actions);
+    actions.append(loadBtn, editNameBtn, removeBtn);
+    li.append(infoWrap, actions);
     list.appendChild(li);
   });
 }
 
 // Render saved wallets immediately on page load (portfolio tab is the default after home)
 renderSavedWalletsInPortfolio();
+renderPortfolioQuickSelect();
 
 async function loadWatchlistTokenPrices() {
   const tokens = Watchlist.getTokens();

@@ -106,6 +106,14 @@
         <ul id="portfolio-wl-wallets-list" class="wl-wallet-list" aria-label="Saved wallets"></ul>
       </div>
 
+      <!-- Quick wallet/group selector -->
+      <div class="portfolio-selector-bar" id="portfolio-selector-bar">
+        <label class="portfolio-selector-label" for="portfolio-quick-select">Quick Select:</label>
+        <select id="portfolio-quick-select" class="portfolio-quick-select" aria-label="Select saved wallet or group">
+          <option value="">— Select saved wallet or group —</option>
+        </select>
+      </div>
+
       <div class="wallet-search-bar">
         <input
           id="wallet-input"
@@ -116,6 +124,15 @@
           spellcheck="false"
           maxlength="42"
           aria-label="Wallet address"
+        />
+        <input
+          id="wallet-name-input"
+          type="text"
+          class="wallet-input wallet-name-input"
+          placeholder="Wallet name (optional)"
+          autocomplete="off"
+          maxlength="60"
+          aria-label="Wallet name"
         />
         <button id="load-portfolio-btn" class="btn btn-primary">
           <span id="load-portfolio-btn-text">Load Portfolio</span>
@@ -433,6 +450,13 @@
         <!-- Add address row -->
         <div class="form-group">
           <label for="group-addr-input">Add Address</label>
+          <!-- Pick from saved wallets -->
+          <div class="group-saved-wallets-row" id="group-saved-wallets-row">
+            <select id="group-saved-wallet-select" class="form-input group-saved-select" aria-label="Pick from saved wallets">
+              <option value="">— Pick from saved wallets —</option>
+            </select>
+            <button id="group-add-saved-btn" class="btn btn-secondary btn-sm" type="button">＋ Add Saved</button>
+          </div>
           <div class="group-add-addr-row">
             <input id="group-addr-input" type="text" class="form-input"
               placeholder="0x… wallet address" maxlength="42" autocomplete="off" spellcheck="false" />
