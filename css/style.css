@@ -179,19 +179,6 @@ li + li { margin-top: 0.35rem; }
 
 .tab-icon { margin-right: 0.3rem; }
 
-/* Network badge */
-.network-badge {
-  background: rgba(123,47,255,0.2);
-  border: 1px solid var(--primary);
-  border-radius: 20px;
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  padding: 0.3rem 0.85rem;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 
 /* ── Main / Panels ── */
 .main-content {
@@ -1310,19 +1297,6 @@ li + li { margin-top: 0.35rem; }
   padding: 3.5rem 1rem 2.5rem;
 }
 
-.home-hero-badge {
-  display: inline-block;
-  background: var(--primary-bg);
-  border: 1px solid var(--primary);
-  border-radius: 20px;
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  padding: 0.3rem 1rem;
-  margin-bottom: 1.25rem;
-}
-
 .home-hero-title {
   font-size: clamp(2.5rem, 6vw, 4rem);
   font-weight: 900;
@@ -1629,7 +1603,6 @@ li + li { margin-top: 0.35rem; }
   .tab-nav { gap: 0.1rem; }
   .tab-btn { font-size: 0.8rem; padding: 0.4rem 0.65rem; }
   .tab-icon { display: none; }
-  .network-badge { display: none; }
   .wallet-search-bar { flex-direction: column; }
   .wallet-name-input { flex: 1; max-width: none; }
   .portfolio-selector-bar { flex-direction: column; align-items: stretch; }
