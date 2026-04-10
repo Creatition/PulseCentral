@@ -218,7 +218,7 @@ function buildSparklineSvg(pair) {
   const prices = pctChanges.map((c, i) => {
     if (i === 4) return currentPrice;
     const factor = 1 + c / 100;
-    return factor > 0.01 ? currentPrice / factor : currentPrice * 10;
+    return factor > 0.01 ? currentPrice / factor : currentPrice;
   });
 
   const minP  = Math.min(...prices);
@@ -363,7 +363,9 @@ async function loadHomeTab() {
         const fresh = await API.getCoreCoinPairs();
         renderHomeCoinCards(fresh);
         updateHomeTimestamp();
-      } catch { /* silently ignore refresh errors */ }
+      } catch (err) {
+        console.error('[PulseCentral] Home auto-refresh failed:', err);
+      }
     }, 60_000);
   } catch (err) {
     setHidden($('home-loading'), true);
