@@ -170,7 +170,7 @@ function changeTd(pct) {
 const tabBtns   = document.querySelectorAll('.tab-btn');
 const tabPanels = document.querySelectorAll('.tab-panel');
 
-let activeTab = 'portfolio';
+let activeTab = 'home';
 let marketsLoaded   = false;
 let trendingLoaded  = false;
 
@@ -187,11 +187,214 @@ function switchTab(name) {
   });
   tabPanels.forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
 
+  if (name === 'home'      && !homeLoaded)    loadHomeTab();
   if (name === 'markets'   && !marketsLoaded)  loadMarkets();
   if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
   if (name === 'profits')                      renderProfitsTab();
 }
+
+/* ── Home tab (Landing Page) ─────────────────────────────── */
+
+let homeLoaded       = false;
+let homeRefreshTimer = null;
+
+/**
+ * Build an SVG sparkline from a DexScreener pair's priceChange data.
+ * Uses the h24, h6, h1, m5 change percentages to approximate 5 historical
+ * price points and draws a filled area + line chart.
+ * @param {object|null} pair  DexScreener pair object
+ * @returns {string}  SVG markup string
+ */
+function buildSparklineSvg(pair) {
+  const W = 200, H = 56;
+  const currentPrice = Number(pair?.priceUsd || 0);
+
+  if (!currentPrice) {
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="var(--border-light)" stroke-width="1.5" stroke-dasharray="4 3"/>
+    </svg>`;
+  }
+
+  // Reconstruct approximate price at each historical point (oldest → newest)
+  const pctChanges = [
+    Number(pair?.priceChange?.h24 || 0),
+    Number(pair?.priceChange?.h6  || 0),
+    Number(pair?.priceChange?.h1  || 0),
+    Number(pair?.priceChange?.m5  || 0),
+    0,
+  ];
+  const prices = pctChanges.map((c, i) => {
+    if (i === 4) return currentPrice;
+    const factor = 1 + c / 100;
+    return factor > 0.01 ? currentPrice / factor : currentPrice;
+  });
+
+  const minP  = Math.min(...prices);
+  const maxP  = Math.max(...prices);
+  const range = maxP - minP || currentPrice * 0.02;
+  const pad   = 6;
+
+  const pts = prices.map((p, i) => [
+    (i / (prices.length - 1)) * W,
+    H - pad - ((p - minP) / range) * (H - pad * 2),
+  ]);
+
+  const linePath = pts.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`
+  ).join(' ');
+
+  const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+
+  const isUp  = Number(pair?.priceChange?.h24 || 0) >= 0;
+  const color = isUp ? '#22c55e' : '#ef4444';
+  const gid   = `sg${Math.random().toString(36).slice(2, 8)}`;
+
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#${gid})"/>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/**
+ * Build a coin card DOM element for one core token.
+ * @param {string} symbol  Token symbol (e.g. 'WPLS')
+ * @param {object|null} pair  DexScreener pair object, or null if unavailable
+ * @returns {HTMLElement}
+ */
+function buildCoinCard(symbol, pair) {
+  const card = document.createElement('article');
+  card.className = 'coin-card';
+
+  const token     = pair?.baseToken || { symbol, name: symbol };
+  const price     = Number(pair?.priceUsd || 0);
+  const change24h = Number(pair?.priceChange?.h24 || 0);
+  const vol24h    = pair?.volume?.h24;
+  const liq       = pair?.liquidity?.usd;
+  const logoUrl   = pair?.info?.imageUrl || null;
+  const { text: changeText, cls: changeCls } = fmt.change(change24h);
+  const isUp      = change24h >= 0;
+
+  card.classList.toggle('coin-card-up',   isUp);
+  card.classList.toggle('coin-card-down', !isUp);
+
+  // Header: logo + name + 24h badge
+  const header = document.createElement('div');
+  header.className = 'coin-card-header';
+
+  const logoWrap = document.createElement('div');
+  logoWrap.className = 'coin-logo-wrap';
+  logoWrap.appendChild(buildTokenLogo(logoUrl, symbol));
+
+  const info = document.createElement('div');
+  info.className = 'coin-info';
+  info.innerHTML = `
+    <div class="coin-name">${escHtml(token.name || symbol)}</div>
+    <div class="coin-symbol">${escHtml(symbol)}</div>
+  `;
+
+  const changeBadge = document.createElement('div');
+  changeBadge.className = `coin-change ${changeCls}`;
+  changeBadge.textContent = changeText;
+
+  header.append(logoWrap, info, changeBadge);
+
+  // Price
+  const priceEl = document.createElement('div');
+  priceEl.className = 'coin-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
+
+  // Sparkline chart
+  const chart = document.createElement('div');
+  chart.className = 'coin-chart';
+  chart.innerHTML = buildSparklineSvg(pair);
+
+  // Stats row
+  const stats = document.createElement('div');
+  stats.className = 'coin-stats';
+  stats.innerHTML = `
+    <div class="coin-stat">
+      <span class="coin-stat-label">Vol 24h</span>
+      <span class="coin-stat-value">${fmt.large(vol24h)}</span>
+    </div>
+    <div class="coin-stat">
+      <span class="coin-stat-label">Liquidity</span>
+      <span class="coin-stat-value">${fmt.large(liq)}</span>
+    </div>
+  `;
+
+  card.append(header, priceEl, chart, stats);
+  return card;
+}
+
+/**
+ * Render all core coin cards into the home grid.
+ * @param {Array<{symbol: string, pair: object|null}>} coinData
+ */
+function renderHomeCoinCards(coinData) {
+  const grid = $('home-coins-grid');
+  grid.innerHTML = '';
+  coinData.forEach(({ symbol, pair }) => {
+    grid.appendChild(buildCoinCard(symbol, pair));
+  });
+}
+
+/**
+ * Load core coin data and display it on the Home tab.
+ * Also starts the 60-second auto-refresh timer.
+ */
+async function loadHomeTab() {
+  homeLoaded = true;
+  if (homeRefreshTimer) clearInterval(homeRefreshTimer);
+
+  setHidden($('home-error'), true);
+  setVisible($('home-loading'), true);
+  setHidden($('home-coins-grid'), true);
+  setHidden($('home-footer'), true);
+
+  try {
+    const coinData = await API.getCoreCoinPairs();
+    renderHomeCoinCards(coinData);
+    updateHomeTimestamp();
+    setHidden($('home-loading'), true);
+    setVisible($('home-coins-grid'), true);
+    setVisible($('home-footer'), true);
+
+    // Auto-refresh prices every 60 seconds
+    homeRefreshTimer = setInterval(async () => {
+      try {
+        const fresh = await API.getCoreCoinPairs();
+        renderHomeCoinCards(fresh);
+        updateHomeTimestamp();
+      } catch (err) {
+        console.error('[PulseCentral] Home auto-refresh failed:', err);
+      }
+    }, 60_000);
+  } catch (err) {
+    setHidden($('home-loading'), true);
+    $('home-error').textContent = `Error loading market data: ${err.message}`;
+    setVisible($('home-error'), true);
+  }
+}
+
+function updateHomeTimestamp() {
+  const el = $('home-last-updated');
+  if (el) el.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+$('home-refresh-btn').addEventListener('click', () => {
+  homeLoaded = false;
+  loadHomeTab();
+});
+
+// Auto-load the home tab on first page load
+loadHomeTab();
 
 /* ── Portfolio tab ──────────────────────────────────────── */
 

@@ -17,7 +17,10 @@
         <span class="logo-pulse">Pulse</span><span class="logo-central">Central</span>
       </div>
       <nav class="tab-nav" role="tablist" aria-label="Main navigation">
-        <button class="tab-btn active" data-tab="portfolio" role="tab" aria-selected="true" aria-controls="tab-portfolio">
+        <button class="tab-btn active" data-tab="home" role="tab" aria-selected="true" aria-controls="tab-home">
+          <span class="tab-icon">🏠</span> Home
+        </button>
+        <button class="tab-btn" data-tab="portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio">
           <span class="tab-icon">💼</span> Portfolio
         </button>
         <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
@@ -52,8 +55,43 @@
   <!-- ===== MAIN CONTENT ===== -->
   <main class="main-content">
 
+    <!-- ── HOME TAB ── -->
+    <section id="tab-home" class="tab-panel active" role="tabpanel" aria-labelledby="btn-home">
+
+      <!-- Hero banner -->
+      <div class="home-hero">
+        <div class="home-hero-badge">⛓ PulseChain Network</div>
+        <h1 class="home-hero-title">
+          <span class="logo-pulse">Pulse</span><span class="logo-central">Central</span>
+        </h1>
+        <p class="home-hero-subtitle">Live prices &amp; charts for PulseChain's core tokens</p>
+      </div>
+
+      <!-- Error -->
+      <div id="home-error" class="error-banner hidden" role="alert"></div>
+
+      <!-- Loading -->
+      <div id="home-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading market data"></div>
+        <p>Loading core coin prices…</p>
+      </div>
+
+      <!-- Core coin cards grid -->
+      <div id="home-coins-grid" class="home-coins-grid hidden"></div>
+
+      <!-- Last updated + refresh -->
+      <div id="home-footer" class="home-footer hidden">
+        <span id="home-last-updated" class="home-last-updated"></span>
+        <button id="home-refresh-btn" class="btn btn-secondary btn-sm" aria-label="Refresh prices">↻ Refresh</button>
+        <span class="dex-attribution" style="margin:0">
+          Data: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+        </span>
+      </div>
+
+    </section>
+
     <!-- ── PORTFOLIO TAB ── -->
-    <section id="tab-portfolio" class="tab-panel active" role="tabpanel" aria-labelledby="btn-portfolio">
+    <section id="tab-portfolio" class="tab-panel" role="tabpanel" aria-labelledby="btn-portfolio">
       <div class="section-header">
         <h1>Portfolio Tracker</h1>
         <p class="section-subtitle">Enter a PulseChain wallet address to view its holdings and estimated value.</p>
