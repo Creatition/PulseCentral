@@ -1433,9 +1433,6 @@ document.querySelectorAll('[data-chart-timeframe]').forEach(btn => {
 
 /** Aggregate history snapshots for a given time frame. */
 function aggregateByTimeframe(history, timeframe) {
-  if (timeframe === '7d') {
-    return history.slice(-7);
-  }
   if (timeframe === 'daily') {
     return history.slice(-30);
   }
@@ -1455,9 +1452,6 @@ function aggregateByTimeframe(history, timeframe) {
     }
     return [...byMonth.values()].slice(-13);
   }
-  if (timeframe === 'all') {
-    return history;
-  }
   return history;
 }
 
@@ -1473,7 +1467,7 @@ function getISOWeekStart(dateStr) {
 /** Format a date string for the X-axis label. */
 function formatChartDateLabel(dateStr, timeframe) {
   const d = new Date(dateStr + 'T12:00:00Z');
-  if (timeframe === 'monthly' || timeframe === 'all') {
+  if (timeframe === 'monthly') {
     return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
   }
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -1505,7 +1499,6 @@ function renderPortfolioChart(historyKey) {
   setVisible(section, true);
 
   if (history.length === 0) {
-    updateChartPeriodChange(null);
     notice.textContent = 'No history yet. Your portfolio value will be tracked each time you load this wallet.';
     setVisible(notice, true);
     setHidden(outer, true);
@@ -1513,7 +1506,6 @@ function renderPortfolioChart(historyKey) {
   }
 
   if (history.length === 1) {
-    updateChartPeriodChange(null);
     const snap = history[0];
     const val  = chartCurrency === 'usd' ? fmt.usd(snap.usd) : fmt.pls(snap.pls);
     notice.textContent =
@@ -1527,53 +1519,21 @@ function renderPortfolioChart(historyKey) {
   const points = aggregateByTimeframe(history, chartTimeframe);
 
   if (points.length < 2) {
-    updateChartPeriodChange(null);
-    notice.textContent = 'Not enough data for this time frame yet. Try a shorter time frame.';
+    notice.textContent = 'Not enough data for this time frame yet. Try the Daily view.';
     setVisible(notice, true);
     setHidden(outer, true);
     return;
   }
 
-  updateChartPeriodChange(points);
   setHidden(notice, true);
   setVisible(outer, true);
   drawHistoryChart(points);
-}
-
-/** Update the period % change badge shown next to the chart title. */
-function updateChartPeriodChange(points) {
-  const badge = $('chart-period-change');
-  if (!badge) return;
-  if (!points || points.length < 2) {
-    badge.textContent = '';
-    badge.className = 'chart-period-change';
-    return;
-  }
-  const firstVal = chartCurrency === 'usd' ? points[0].usd : points[0].pls;
-  const lastVal  = chartCurrency === 'usd' ? points[points.length - 1].usd : points[points.length - 1].pls;
-  if (!firstVal) {
-    badge.textContent = '';
-    badge.className = 'chart-period-change';
-    return;
-  }
-  const pct  = ((lastVal - firstVal) / firstVal) * 100;
-  const sign = pct >= 0 ? '+' : '';
-  badge.textContent = `${sign}${pct.toFixed(2)}%`;
-  badge.className   = 'chart-period-change ' + (pct >= 0 ? 'change-positive' : 'change-negative');
 }
 
 /** Hide the chart section and clear the current history key. */
 function hidePortfolioChart() {
   setHidden($('portfolio-chart-section'), true);
   currentPortfolioHistoryKey = null;
-}
-
-/** Compute an n-period Simple Moving Average over an array of numbers. */
-function computeSMA(values, n) {
-  return values.map((_, i) => {
-    const slice = values.slice(Math.max(0, i - n + 1), i + 1);
-    return slice.reduce((a, b) => a + b, 0) / slice.length;
-  });
 }
 
 /** Draw (or redraw) the SVG line chart for the given data points. */
@@ -1680,47 +1640,6 @@ function drawHistoryChart(points) {
   lineEl.setAttribute('stroke-linecap', 'round');
   lineEl.setAttribute('stroke-linejoin', 'round');
   svgEl.appendChild(lineEl);
-
-  // ── SMA-7 overlay ──────────────────────────────────────────
-  const SMA_WINDOW = 7;
-  const SMA_COLOR  = '#f59e0b';
-  if (values.length >= SMA_WINDOW) {
-    const smaValues = computeSMA(values, SMA_WINDOW);
-    const smaPath   = pts.map(([x], i) => {
-      const sy = toY(smaValues[i]);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${sy.toFixed(1)}`;
-    }).join(' ');
-    const smaEl = document.createElementNS(svgNS, 'path');
-    smaEl.setAttribute('d', smaPath);
-    smaEl.setAttribute('fill', 'none');
-    smaEl.setAttribute('stroke', SMA_COLOR);
-    smaEl.setAttribute('stroke-width', '1.5');
-    smaEl.setAttribute('stroke-dasharray', '5 3');
-    smaEl.setAttribute('stroke-linecap', 'round');
-    smaEl.setAttribute('opacity', '0.85');
-    svgEl.appendChild(smaEl);
-
-    // Small legend: dashed line + label in the top-right corner of the chart area
-    const legendRX   = CHART_W - CHART_PAD.right;
-    const legendY    = CHART_PAD.top - 7;
-    const legendLine = document.createElementNS(svgNS, 'line');
-    legendLine.setAttribute('x1', legendRX - 38);
-    legendLine.setAttribute('x2', legendRX - 22);
-    legendLine.setAttribute('y1', legendY);
-    legendLine.setAttribute('y2', legendY);
-    legendLine.setAttribute('stroke', SMA_COLOR);
-    legendLine.setAttribute('stroke-width', '1.5');
-    legendLine.setAttribute('stroke-dasharray', '5 3');
-    svgEl.appendChild(legendLine);
-
-    const legendText = document.createElementNS(svgNS, 'text');
-    legendText.setAttribute('x', legendRX - 18);
-    legendText.setAttribute('y', legendY + 4);
-    legendText.setAttribute('fill', SMA_COLOR);
-    legendText.setAttribute('font-size', '10');
-    legendText.textContent = 'SMA 7';
-    svgEl.appendChild(legendText);
-  }
 
   // ── Hover crosshair line ───────────────────────────────────
   const hoverLine = document.createElementNS(svgNS, 'line');
