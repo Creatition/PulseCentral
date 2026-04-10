@@ -83,6 +83,39 @@ const fmt = {
       cls:  n > 0 ? 'change-positive' : n < 0 ? 'change-negative' : 'change-neutral',
     };
   },
+
+  /** Format a PLS amount (large integer, no $ sign) */
+  pls(val) {
+    const n = Number(val);
+    if (!n || isNaN(n)) return '—';
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B PLS';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M PLS';
+    if (n >= 1e3) return n.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' PLS';
+    return n.toFixed(2) + ' PLS';
+  },
+
+  /** Format a signed USD profit/loss value (e.g. +$15.00 or −$3.50) */
+  signedUsd(val) {
+    const n = Number(val);
+    if (isNaN(n)) return '—';
+    const sign = n >= 0 ? '+' : '−';
+    const abs  = Math.abs(n);
+    return sign + '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  },
+
+  /** Format a signed PLS profit/loss value (e.g. +2M PLS or −500K PLS) */
+  signedPls(val) {
+    const n = Number(val);
+    if (isNaN(n)) return '—';
+    const sign = n >= 0 ? '+' : '−';
+    const abs  = Math.abs(n);
+    let body;
+    if (abs >= 1e9)      body = (abs / 1e9).toFixed(2) + 'B';
+    else if (abs >= 1e6) body = (abs / 1e6).toFixed(2) + 'M';
+    else if (abs >= 1e3) body = abs.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    else                 body = abs.toFixed(2);
+    return sign + body + ' PLS';
+  },
 };
 
 /* ── DOM helpers ────────────────────────────────────────── */
@@ -148,6 +181,7 @@ function switchTab(name) {
   if (name === 'markets'   && !marketsLoaded)  loadMarkets();
   if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
+  if (name === 'profits')                      renderProfitsTab();
 }
 
 /* ── Portfolio tab ──────────────────────────────────────── */
@@ -821,3 +855,420 @@ function escHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+/* ── Profits tab ─────────────────────────────────────────── */
+
+/** CSS class name for a signed numeric value */
+function plSignClass(val) {
+  const n = Number(val);
+  if (n > 0) return 'change-positive';
+  if (n < 0) return 'change-negative';
+  return 'change-neutral';
+}
+
+/** Convert a UTC ISO string to the value format required by datetime-local inputs */
+function toDatetimeLocal(isoStr) {
+  const d = new Date(isoStr);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/* ── Profits tab rendering ──────────────────────────────── */
+
+async function renderProfitsTab() {
+  const trades = TradesDB.getTrades();
+
+  $('profits-trade-count').textContent = trades.length;
+  setHidden($('profits-error'), true);
+
+  renderTradeLog(trades);
+
+  if (trades.length === 0) {
+    setVisible($('profits-token-empty'), true);
+    setHidden($('profits-token-loading'), true);
+    setHidden($('profits-token-table-wrap'), true);
+    renderProfitsSummary({ totalRealizedUsd: 0, totalRealizedPls: 0, totalUnrealizedUsd: 0, tokenCount: 0 });
+    return;
+  }
+
+  setHidden($('profits-token-empty'), true);
+  setVisible($('profits-token-loading'), true);
+  setHidden($('profits-token-table-wrap'), true);
+
+  try {
+    const uniqueAddresses = [...new Set(trades.map(t => (t.tokenAddress || '').toLowerCase()).filter(Boolean))];
+    const livePriceMap    = await API.getPairsByAddresses(uniqueAddresses);
+    const { summary, byToken } = computeProfits(trades, livePriceMap);
+    renderProfitsSummary(summary);
+    renderTokenBreakdown(byToken);
+    setHidden($('profits-token-loading'), true);
+    setVisible($('profits-token-table-wrap'), true);
+  } catch (err) {
+    setHidden($('profits-token-loading'), true);
+    const { summary, byToken } = computeProfits(trades, new Map());
+    renderProfitsSummary(summary);
+    renderTokenBreakdown(byToken);
+    if (byToken.length > 0) setVisible($('profits-token-table-wrap'), true);
+    $('profits-error').textContent = `Could not fetch live prices: ${err.message}. Unrealized P&L may be unavailable.`;
+    setVisible($('profits-error'), true);
+  }
+}
+
+function renderProfitsSummary(summary) {
+  const { totalRealizedUsd, totalRealizedPls, totalUnrealizedUsd, tokenCount } = summary;
+
+  const rusdEl = $('profits-realized-usd');
+  rusdEl.textContent = totalRealizedUsd !== 0 ? fmt.signedUsd(totalRealizedUsd) : '—';
+  rusdEl.className   = 'summary-value ' + plSignClass(totalRealizedUsd);
+
+  const rplsEl = $('profits-realized-pls');
+  rplsEl.textContent = totalRealizedPls !== 0 ? fmt.signedPls(totalRealizedPls) : '—';
+  rplsEl.className   = 'summary-value ' + plSignClass(totalRealizedPls);
+
+  const uusdEl = $('profits-unrealized-usd');
+  uusdEl.textContent = totalUnrealizedUsd !== 0 ? fmt.signedUsd(totalUnrealizedUsd) : '—';
+  uusdEl.className   = 'summary-value ' + plSignClass(totalUnrealizedUsd);
+
+  $('profits-token-count').textContent = tokenCount || '—';
+}
+
+function renderTokenBreakdown(byToken) {
+  const tbody = $('profits-token-tbody');
+  tbody.innerHTML = '';
+
+  byToken.forEach(info => {
+    const tr = document.createElement('tr');
+
+    // Token name + symbol
+    const tdToken = document.createElement('td');
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'token-cell';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'token-name';
+    nameSpan.textContent = info.tokenName || info.tokenSymbol;
+    nameDiv.appendChild(nameSpan);
+    if (info.tokenSymbol && info.tokenSymbol !== info.tokenName) {
+      const symSpan = document.createElement('span');
+      symSpan.className = 'token-symbol';
+      symSpan.textContent = info.tokenSymbol;
+      nameDiv.appendChild(document.createTextNode(' '));
+      nameDiv.appendChild(symSpan);
+    }
+    tdToken.appendChild(nameDiv);
+
+    const makeTd = text => {
+      const td = document.createElement('td');
+      td.className = 'align-right';
+      td.textContent = text;
+      return td;
+    };
+
+    const makeSignedTd = (val, formatter) => {
+      const td = document.createElement('td');
+      td.className = 'align-right';
+      const span = document.createElement('span');
+      span.className = plSignClass(val);
+      span.textContent = formatter(val);
+      td.appendChild(span);
+      return td;
+    };
+
+    const { text: retText, cls: retCls } = fmt.change(info.returnPct);
+    const tdRet = document.createElement('td');
+    tdRet.className = 'align-right';
+    const retSpan = document.createElement('span');
+    retSpan.className = retCls;
+    retSpan.textContent = retText;
+    tdRet.appendChild(retSpan);
+
+    tr.append(
+      tdToken,
+      makeTd(fmt.pls(info.totalBuyPls)),
+      makeTd(fmt.usd(info.totalBuyUsd)),
+      makeTd(fmt.pls(info.totalSellPls)),
+      makeTd(fmt.usd(info.totalSellUsd)),
+      makeSignedTd(info.realizedUsd, v => fmt.signedUsd(v)),
+      makeSignedTd(info.realizedPls, v => fmt.signedPls(v)),
+      makeSignedTd(info.unrealizedUsd, v => fmt.signedUsd(v)),
+      tdRet,
+    );
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTradeLog(trades) {
+  const tbody = $('profits-log-tbody');
+  const empty = $('profits-log-empty');
+  const wrap  = $('profits-log-table-wrap');
+
+  tbody.innerHTML = '';
+  setVisible(empty, trades.length === 0);
+  setHidden(wrap, trades.length === 0);
+  if (trades.length === 0) return;
+
+  // Newest first in the log
+  const sorted = [...trades].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  sorted.forEach(trade => {
+    const tr = document.createElement('tr');
+
+    // Date
+    const tdDate = document.createElement('td');
+    tdDate.style.cssText = 'font-size:0.82rem;white-space:nowrap';
+    tdDate.textContent = new Date(trade.date).toLocaleString();
+
+    // Token
+    const tdToken = document.createElement('td');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'token-name';
+    nameSpan.textContent = trade.tokenName || trade.tokenSymbol;
+    tdToken.appendChild(nameSpan);
+
+    // Type badge
+    const tdType = document.createElement('td');
+    tdType.innerHTML = `<span class="trade-badge trade-badge-${escHtml(trade.type)}">${escHtml(trade.type.toUpperCase())}</span>`;
+
+    // Token amount
+    const tdAmt = document.createElement('td');
+    tdAmt.className = 'align-right';
+    tdAmt.textContent = fmt.balance(trade.tokenAmount);
+
+    // PLS amount
+    const tdPls = document.createElement('td');
+    tdPls.className = 'align-right';
+    tdPls.textContent = fmt.pls(trade.plsAmount);
+
+    // USD value
+    const tdUsd = document.createElement('td');
+    tdUsd.className = 'align-right';
+    tdUsd.textContent = trade.usdValue ? fmt.usd(trade.usdValue) : '—';
+
+    // Notes
+    const tdNotes = document.createElement('td');
+    tdNotes.className = 'trade-notes';
+    tdNotes.textContent = trade.notes || '';
+    tdNotes.title = trade.notes || '';
+
+    // Actions
+    const tdActions = document.createElement('td');
+    tdActions.className = 'align-center';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'wl-load-btn';
+    editBtn.textContent = '✎ Edit';
+    editBtn.addEventListener('click', () => openTradeModal(trade));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'wl-remove-btn';
+    deleteBtn.textContent = '✕';
+    deleteBtn.title = 'Delete trade';
+    deleteBtn.addEventListener('click', () => {
+      if (!confirm(`Delete this ${trade.type} trade for ${trade.tokenSymbol}?`)) return;
+      TradesDB.deleteTrade(trade.id);
+      renderProfitsTab();
+    });
+
+    const actDiv = document.createElement('div');
+    actDiv.className = 'wl-wallet-actions';
+    actDiv.append(editBtn, deleteBtn);
+    tdActions.appendChild(actDiv);
+
+    tr.append(tdDate, tdToken, tdType, tdAmt, tdPls, tdUsd, tdNotes, tdActions);
+    tbody.appendChild(tr);
+  });
+}
+
+/* ── Add/Edit Trade modal ────────────────────────────────── */
+
+// Populate the known-token datalist once
+(function populateKnownTokensDatalist() {
+  const dl = $('known-tokens-datalist');
+  API.KNOWN_TOKENS.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.address;
+    opt.label = `${t.symbol}  —  ${t.address}`;
+    dl.appendChild(opt);
+  });
+})();
+
+// Auto-fill symbol/name when user picks a known token address
+$('trade-token-address').addEventListener('input', () => {
+  const val = $('trade-token-address').value.trim().toLowerCase();
+  const known = API.KNOWN_TOKENS.find(t => t.address.toLowerCase() === val);
+  if (known) {
+    if (!$('trade-token-symbol').value) $('trade-token-symbol').value = known.symbol;
+    if (!$('trade-token-name').value)   $('trade-token-name').value   = known.name || known.symbol;
+  }
+});
+
+// Fetch current DexScreener price and multiply by token amount to suggest USD value
+$('fetch-price-btn').addEventListener('click', async () => {
+  const addr      = $('trade-token-address').value.trim();
+  const tokenAmt  = Number($('trade-token-amount').value) || 0;
+  const btn       = $('fetch-price-btn');
+
+  if (!addr) { showTradeFormError('Enter a token address first.'); return; }
+
+  btn.textContent = '…';
+  btn.disabled = true;
+  try {
+    const pairMap = await API.getPairsByAddresses([addr]);
+    const pair    = pairMap.get(addr.toLowerCase());
+    const price   = Number(pair?.priceUsd || 0);
+    if (price && tokenAmt > 0) {
+      $('trade-usd-value').value = (price * tokenAmt).toFixed(4);
+    } else if (price) {
+      $('trade-usd-value').value = price.toFixed(6);
+    } else {
+      showTradeFormError('No price data found for this token on DexScreener.');
+    }
+  } catch (err) {
+    showTradeFormError(`Price fetch failed: ${err.message}`);
+  } finally {
+    btn.textContent = '↻';
+    btn.disabled = false;
+  }
+});
+
+function openTradeModal(trade = null) {
+  const form = $('trade-form');
+  form.reset();
+  hideTradeFormError();
+
+  if (trade) {
+    $('trade-modal-title').textContent    = 'Edit Trade';
+    $('trade-id').value                   = trade.id;
+    $('trade-token-address').value        = trade.tokenAddress;
+    $('trade-token-symbol').value         = trade.tokenSymbol;
+    $('trade-token-name').value           = trade.tokenName || '';
+    const typeRadio = form.querySelector(`input[name="trade-type"][value="${trade.type}"]`);
+    if (typeRadio) typeRadio.checked = true;
+    $('trade-date').value                 = trade.date ? toDatetimeLocal(trade.date) : '';
+    $('trade-token-amount').value         = trade.tokenAmount;
+    $('trade-pls-amount').value           = trade.plsAmount;
+    $('trade-usd-value').value            = trade.usdValue || '';
+    $('trade-notes').value                = trade.notes || '';
+  } else {
+    $('trade-modal-title').textContent = 'Add Trade';
+    $('trade-id').value = '';
+    // Default date to current local time (truncated to minutes)
+    const now = new Date();
+    now.setSeconds(0, 0);
+    $('trade-date').value = toDatetimeLocal(now.toISOString());
+  }
+
+  setVisible($('trade-modal-overlay'), true);
+  $('trade-token-address').focus();
+}
+
+function closeTradeModal() {
+  setHidden($('trade-modal-overlay'), true);
+}
+
+function showTradeFormError(msg) {
+  const el = $('trade-form-error');
+  el.textContent = msg;
+  setVisible(el, true);
+}
+
+function hideTradeFormError() {
+  setHidden($('trade-form-error'), true);
+}
+
+// Open modal via toolbar button
+$('add-trade-btn').addEventListener('click', () => openTradeModal());
+
+// Close modal
+$('trade-modal-close').addEventListener('click', closeTradeModal);
+$('trade-modal-cancel').addEventListener('click', closeTradeModal);
+$('trade-modal-overlay').addEventListener('click', e => {
+  if (e.target === $('trade-modal-overlay')) closeTradeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('trade-modal-overlay').classList.contains('hidden')) closeTradeModal();
+});
+
+// Form submit — add or edit a trade
+$('trade-form').addEventListener('submit', e => {
+  e.preventDefault();
+  hideTradeFormError();
+
+  const tokenAddress = $('trade-token-address').value.trim();
+  const tokenSymbol  = $('trade-token-symbol').value.trim();
+  const tokenName    = $('trade-token-name').value.trim();
+  const type         = document.querySelector('input[name="trade-type"]:checked')?.value;
+  const dateVal      = $('trade-date').value;
+  const tokenAmount  = Number($('trade-token-amount').value);
+  const plsAmount    = Number($('trade-pls-amount').value);
+  const usdValue     = Number($('trade-usd-value').value) || 0;
+  const notes        = $('trade-notes').value.trim();
+  const id           = $('trade-id').value;
+
+  // Validation
+  if (!tokenAddress)  { showTradeFormError('Token address is required.'); return; }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(tokenAddress)) {
+    showTradeFormError('Invalid token address — must start with 0x and be 42 characters.');
+    return;
+  }
+  if (!tokenSymbol)   { showTradeFormError('Token symbol is required.'); return; }
+  if (!type)          { showTradeFormError('Select a trade type.'); return; }
+  if (!dateVal)       { showTradeFormError('Date is required.'); return; }
+  if (!tokenAmount || tokenAmount <= 0) { showTradeFormError('Token amount must be greater than 0.'); return; }
+  if (!plsAmount  || plsAmount  <= 0)  { showTradeFormError('PLS amount must be greater than 0.'); return; }
+
+  const tradeData = {
+    tokenAddress:    tokenAddress.toLowerCase(),
+    tokenSymbol,
+    tokenName:       tokenName || tokenSymbol,
+    type,
+    date:            new Date(dateVal).toISOString(),
+    tokenAmount,
+    plsAmount,
+    usdValue,
+    pricePerTokenPls: tokenAmount > 0 ? plsAmount / tokenAmount : 0,
+    notes,
+  };
+
+  if (id) {
+    TradesDB.editTrade(id, tradeData);
+  } else {
+    TradesDB.addTrade(tradeData);
+  }
+
+  closeTradeModal();
+  if (activeTab === 'profits') renderProfitsTab();
+});
+
+/* ── CSV export ──────────────────────────────────────────── */
+
+$('export-csv-btn').addEventListener('click', () => {
+  const trades = TradesDB.getTrades();
+  if (!trades.length) {
+    alert('No trades to export.');
+    return;
+  }
+
+  const headers = ['Date', 'Token Address', 'Symbol', 'Name', 'Type',
+                   'Token Amount', 'PLS Amount', 'USD Value', 'PLS/Token', 'Notes'];
+
+  const rows = [...trades]
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map(t => [
+      t.date, t.tokenAddress, t.tokenSymbol, t.tokenName, t.type,
+      t.tokenAmount, t.plsAmount, t.usdValue || '', t.pricePerTokenPls || '', t.notes || '',
+    ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `pulsecentral-trades-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});

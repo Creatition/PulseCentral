@@ -29,6 +29,9 @@
         <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
           <span class="tab-icon">⭐</span> Watchlist
         </button>
+        <button class="tab-btn" data-tab="profits" role="tab" aria-selected="false" aria-controls="tab-profits">
+          <span class="tab-icon">📈</span> Profits
+        </button>
         <button class="tab-btn" data-tab="about" role="tab" aria-selected="false" aria-controls="tab-about">
           <span class="tab-icon">ℹ️</span> About
         </button>
@@ -242,6 +245,99 @@
       </div>
     </section>
 
+    <!-- ── PROFITS TAB ── -->
+    <section id="tab-profits" class="tab-panel" role="tabpanel" aria-labelledby="btn-profits">
+      <div class="section-header">
+        <h1>Profits Tracker</h1>
+        <p class="section-subtitle">Log your buys and sells to track realized and unrealized P&amp;L in both USD and PLS.</p>
+      </div>
+
+      <div class="profits-toolbar">
+        <button id="add-trade-btn" class="btn btn-primary">＋ Add Trade</button>
+        <button id="export-csv-btn" class="btn btn-secondary">⬇ Export CSV</button>
+      </div>
+
+      <div id="profits-error" class="error-banner hidden" role="alert"></div>
+
+      <!-- Summary cards -->
+      <div class="summary-cards" id="profits-summary">
+        <div class="summary-card">
+          <span class="summary-label">Realized P&amp;L (USD)</span>
+          <span class="summary-value" id="profits-realized-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Realized P&amp;L (PLS)</span>
+          <span class="summary-value" id="profits-realized-pls">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Unrealized P&amp;L (USD)</span>
+          <span class="summary-value" id="profits-unrealized-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Tokens Tracked</span>
+          <span class="summary-value" id="profits-token-count">—</span>
+        </div>
+      </div>
+
+      <!-- Per-token breakdown -->
+      <div class="profits-section">
+        <h2 class="profits-section-title">Per-Token Summary</h2>
+        <div id="profits-token-empty" class="wl-empty">
+          No trades logged yet. Click <strong>＋ Add Trade</strong> to record your first trade.
+        </div>
+        <div id="profits-token-loading" class="loading-wrap hidden">
+          <div class="pulse-loader" aria-label="Fetching live prices"></div>
+          <p>Fetching live prices…</p>
+        </div>
+        <div id="profits-token-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th class="align-right">Invested (PLS)</th>
+                <th class="align-right">Invested (USD)</th>
+                <th class="align-right">Returned (PLS)</th>
+                <th class="align-right">Returned (USD)</th>
+                <th class="align-right">Realized P&amp;L (USD)</th>
+                <th class="align-right">Realized P&amp;L (PLS)</th>
+                <th class="align-right">Unrealized (USD)</th>
+                <th class="align-right">Return %</th>
+              </tr>
+            </thead>
+            <tbody id="profits-token-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Trade log -->
+      <div class="profits-section">
+        <h2 class="profits-section-title">
+          Trade Log
+          <span class="watchlist-count" id="profits-trade-count">0</span>
+        </h2>
+        <div id="profits-log-empty" class="wl-empty">
+          No trades recorded yet. Click <strong>＋ Add Trade</strong> to get started.
+        </div>
+        <div id="profits-log-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Token</th>
+                <th>Type</th>
+                <th class="align-right">Token Amount</th>
+                <th class="align-right">PLS Amount</th>
+                <th class="align-right">USD Value</th>
+                <th>Notes</th>
+                <th class="align-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="profits-log-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ── ABOUT TAB ── -->
     <section id="tab-about" class="tab-panel" role="tabpanel" aria-labelledby="btn-about">
       <div class="section-header">
@@ -311,7 +407,100 @@
     </p>
   </footer>
 
+  <!-- ===== ADD / EDIT TRADE MODAL ===== -->
+  <div id="trade-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="trade-modal-title">Add Trade</h2>
+        <button id="trade-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="trade-form" class="modal-body" novalidate>
+        <input type="hidden" id="trade-id" />
+
+        <!-- Token address -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="trade-token-address">Token Contract Address *</label>
+            <input id="trade-token-address" type="text" class="form-input"
+              placeholder="0x… or pick a known token" autocomplete="off"
+              list="known-tokens-datalist" spellcheck="false" maxlength="42" />
+            <datalist id="known-tokens-datalist"></datalist>
+          </div>
+        </div>
+
+        <!-- Symbol + Name -->
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label for="trade-token-symbol">Symbol *</label>
+            <input id="trade-token-symbol" type="text" class="form-input" placeholder="e.g. PLSX" maxlength="20" />
+          </div>
+          <div class="form-group">
+            <label for="trade-token-name">Name</label>
+            <input id="trade-token-name" type="text" class="form-input" placeholder="e.g. PulseX" maxlength="60" />
+          </div>
+        </div>
+
+        <!-- Type + Date -->
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label>Trade Type *</label>
+            <div class="trade-type-toggle">
+              <label class="trade-type-opt">
+                <input type="radio" name="trade-type" value="buy" checked /> Buy
+              </label>
+              <label class="trade-type-opt">
+                <input type="radio" name="trade-type" value="sell" /> Sell
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="trade-date">Date &amp; Time *</label>
+            <input id="trade-date" type="datetime-local" class="form-input" />
+          </div>
+        </div>
+
+        <!-- Token amount + PLS amount + USD value -->
+        <div class="form-row form-row-3">
+          <div class="form-group">
+            <label for="trade-token-amount">Token Amount *</label>
+            <input id="trade-token-amount" type="number" class="form-input" placeholder="0" min="0" step="any" />
+          </div>
+          <div class="form-group">
+            <label for="trade-pls-amount">PLS Amount *</label>
+            <input id="trade-pls-amount" type="number" class="form-input" placeholder="0" min="0" step="any" />
+          </div>
+          <div class="form-group">
+            <label for="trade-usd-value">USD Value</label>
+            <div class="input-with-btn">
+              <input id="trade-usd-value" type="number" class="form-input" placeholder="0.00" min="0" step="any" />
+              <button type="button" id="fetch-price-btn" class="btn btn-secondary btn-sm" title="Fetch current price from DexScreener and multiply by token amount">↻</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="trade-notes">Notes</label>
+            <input id="trade-notes" type="text" class="form-input" placeholder="Optional notes…" maxlength="200" />
+          </div>
+        </div>
+
+        <!-- Form error -->
+        <div id="trade-form-error" class="trade-form-error hidden" role="alert"></div>
+
+        <!-- Footer buttons -->
+        <div class="modal-footer">
+          <button type="button" id="trade-modal-cancel" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="trade-modal-submit" class="btn btn-primary">Save Trade</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="js/api.js"></script>
+  <script src="js/trades.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
