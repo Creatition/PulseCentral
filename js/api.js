@@ -372,16 +372,9 @@ const API = (() => {
   }
 
   /**
-   * Fetch top PulseChain pairs from DexScreener, mirroring the filters used on
-   * https://dexscreener.com/pulsechain?rankBy=volume&order=desc&minLiq=25000&min24HTxns=50&profile=1
-   *
-   * Steps:
-   *  1. Pull token profiles from DexScreener's profiles API (profile=1).
-   *  2. Combine with hardcoded KNOWN_TOKENS so core tokens always appear.
-   *  3. Fetch pair data for all collected addresses.
-   *  4. Filter: liquidity.usd >= 25000 (minLiq=25000)
-   *             txns.h24 total >= 50   (min24HTxns=50)
-   *  5. Sort by 24h volume descending  (rankBy=volume&order=desc).
+   * Fetch top PulseChain pairs from DexScreener sorted by 24-hour volume.
+   * Collects addresses from token profiles, boosted tokens (latest and top),
+   * and hardcoded KNOWN_TOKENS, then deduplicates by token address.
    *
    * @returns {Promise<object[]>} array of DexScreener pair objects sorted by 24h volume
    */
@@ -389,17 +382,23 @@ const API = (() => {
     // Step 1: Fetch PulseChain token profiles and boosted tokens for a wider address pool
     const profileAddresses = [];
     try {
-      const [profiles, boosts] = await Promise.allSettled([
+      const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
         fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
         fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
+        fetchJSON('https://api.dexscreener.com/token-boosts/top/v1'),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
           .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
           .forEach(p => profileAddresses.push(p.tokenAddress));
       }
-      if (boosts.status === 'fulfilled') {
-        (boosts.value || [])
+      if (latestBoosts.status === 'fulfilled') {
+        (latestBoosts.value || [])
+          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+          .forEach(p => profileAddresses.push(p.tokenAddress));
+      }
+      if (topBoosts.status === 'fulfilled') {
+        (topBoosts.value || [])
           .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
           .forEach(p => profileAddresses.push(p.tokenAddress));
       }
@@ -407,7 +406,7 @@ const API = (() => {
       // Non-fatal – fall back to KNOWN_TOKENS only
     }
 
-    // Step 2: Merge with hardcoded known tokens (de-duplicated)
+    // Step 2: Merge with hardcoded known tokens (de-duplicated by token address)
     const seen = new Set();
     const allAddresses = [];
     for (const addr of [...profileAddresses, ...KNOWN_TOKENS.map(t => t.address)]) {
@@ -418,21 +417,11 @@ const API = (() => {
       }
     }
 
-    // Step 3: Fetch pair data for all addresses
+    // Step 3: Fetch pair data for all addresses (getPairsByAddresses deduplicates by token address)
     const rawMap = await getPairsByAddresses(allAddresses);
 
-    // Step 4: Apply minLiq=25000 and min24HTxns=50 filters
-    const pairMap = new Map();
-    for (const [addr, pair] of rawMap) {
-      const liq  = Number(pair.liquidity?.usd || 0);
-      const txns = Number(pair.txns?.h24?.buys || 0) + Number(pair.txns?.h24?.sells || 0);
-      if (liq >= 25000 && txns >= 50) {
-        pairMap.set(addr, pair);
-      }
-    }
-
-    // Step 5: Sort by 24h volume descending (rankBy=volume&order=desc)
-    return [...pairMap.values()].sort(
+    // Step 4: Sort by 24h volume descending – no additional filters, dedup is the only constraint
+    return [...rawMap.values()].sort(
       (a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0)
     );
   }
@@ -448,17 +437,23 @@ const API = (() => {
   async function getTrendingPairs() {
     const profileAddresses = [];
     try {
-      const [profiles, boosts] = await Promise.allSettled([
+      const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
         fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
         fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
+        fetchJSON('https://api.dexscreener.com/token-boosts/top/v1'),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
           .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
           .forEach(p => profileAddresses.push(p.tokenAddress));
       }
-      if (boosts.status === 'fulfilled') {
-        (boosts.value || [])
+      if (latestBoosts.status === 'fulfilled') {
+        (latestBoosts.value || [])
+          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+          .forEach(p => profileAddresses.push(p.tokenAddress));
+      }
+      if (topBoosts.status === 'fulfilled') {
+        (topBoosts.value || [])
           .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
           .forEach(p => profileAddresses.push(p.tokenAddress));
       }

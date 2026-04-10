@@ -145,6 +145,8 @@ li + li { margin-top: 0.35rem; }
   letter-spacing: -0.5px;
   white-space: nowrap;
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
 }
 .logo-pulse { color: var(--primary); }
 .logo-central { color: var(--accent); }
