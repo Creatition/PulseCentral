@@ -26,6 +26,9 @@
         <button class="tab-btn" data-tab="trending" role="tab" aria-selected="false" aria-controls="tab-trending">
           <span class="tab-icon">🔥</span> Trending
         </button>
+        <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
+          <span class="tab-icon">⭐</span> Watchlist
+        </button>
         <button class="tab-btn" data-tab="about" role="tab" aria-selected="false" aria-controls="tab-about">
           <span class="tab-icon">ℹ️</span> About
         </button>
@@ -67,6 +70,9 @@
         <button id="load-portfolio-btn" class="btn btn-primary">
           <span id="load-portfolio-btn-text">Load Portfolio</span>
           <span id="load-portfolio-spinner" class="spinner hidden" aria-hidden="true"></span>
+        </button>
+        <button id="save-wallet-btn" class="btn btn-save-wallet" title="Save wallet to Watchlist" aria-label="Save wallet to Watchlist">
+          ☆ Save
         </button>
       </div>
 
@@ -152,6 +158,7 @@
               <th class="align-right sortable" data-sort="change">24 h %</th>
               <th class="align-right sortable" data-sort="volume">Volume 24 h</th>
               <th class="align-right sortable" data-sort="liquidity">Liquidity</th>
+              <th class="align-center" aria-label="Watch"></th>
             </tr>
           </thead>
           <tbody id="markets-tbody">
@@ -180,6 +187,59 @@
       <div id="trending-error" class="error-banner hidden" role="alert"></div>
 
       <div id="trending-grid" class="trending-grid hidden"></div>
+    </section>
+
+    <!-- ── WATCHLIST TAB ── -->
+    <section id="tab-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="btn-watchlist">
+      <div class="section-header">
+        <h1>Watchlist</h1>
+        <p class="section-subtitle">Your saved wallets and tokens — stored locally in your browser.</p>
+      </div>
+
+      <!-- Saved wallets -->
+      <div class="watchlist-section">
+        <h2 class="watchlist-section-title">
+          💼 Saved Wallets
+          <span class="watchlist-count" id="wl-wallet-count">0</span>
+        </h2>
+        <div id="wl-wallets-empty" class="wl-empty">
+          No wallets saved yet. Enter an address in the Portfolio tab and click <strong>☆ Save</strong>.
+        </div>
+        <ul id="wl-wallets-list" class="wl-wallet-list" aria-label="Saved wallets"></ul>
+      </div>
+
+      <!-- Watched tokens -->
+      <div class="watchlist-section">
+        <h2 class="watchlist-section-title">
+          ⭐ Watched Tokens
+          <span class="watchlist-count" id="wl-token-count">0</span>
+          <button id="wl-refresh-btn" class="btn btn-secondary btn-sm" aria-label="Refresh token prices">↻ Refresh prices</button>
+        </h2>
+        <div id="wl-tokens-empty" class="wl-empty">
+          No tokens watched yet. Click the <strong>☆</strong> star in the Markets tab to watch a token.
+        </div>
+
+        <div id="wl-tokens-loading" class="loading-wrap hidden">
+          <div class="pulse-loader" aria-label="Loading token prices"></div>
+          <p>Loading prices…</p>
+        </div>
+
+        <div id="wl-tokens-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Symbol</th>
+                <th class="align-right">Price (USD)</th>
+                <th class="align-right">24 h %</th>
+                <th class="align-right">Volume 24 h</th>
+                <th class="align-center" aria-label="Remove"></th>
+              </tr>
+            </thead>
+            <tbody id="wl-tokens-tbody"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- ── ABOUT TAB ── -->

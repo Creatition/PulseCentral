@@ -145,8 +145,9 @@ function switchTab(name) {
   });
   tabPanels.forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
 
-  if (name === 'markets'  && !marketsLoaded)  loadMarkets();
-  if (name === 'trending' && !trendingLoaded) loadTrending();
+  if (name === 'markets'   && !marketsLoaded)  loadMarkets();
+  if (name === 'trending'  && !trendingLoaded) loadTrending();
+  if (name === 'watchlist')                    renderWatchlistTab();
 }
 
 /* ── Portfolio tab ──────────────────────────────────────── */
@@ -171,6 +172,34 @@ loadBtn.addEventListener('click', () => {
 
 walletInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') loadBtn.click();
+});
+
+/* Save Wallet button — updates appearance based on watchlist state */
+const saveWalletBtn = $('save-wallet-btn');
+
+function updateSaveWalletBtn() {
+  const addr = walletInput.value.trim();
+  const saved = addr && Watchlist.hasWallet(addr);
+  saveWalletBtn.classList.toggle('saved', saved);
+  saveWalletBtn.textContent = saved ? '★ Saved' : '☆ Save';
+  saveWalletBtn.title = saved ? 'Remove wallet from Watchlist' : 'Save wallet to Watchlist';
+}
+
+walletInput.addEventListener('input', updateSaveWalletBtn);
+
+saveWalletBtn.addEventListener('click', () => {
+  const addr = walletInput.value.trim();
+  if (!addr) { showPortfolioError('Enter a wallet address first.'); return; }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    showPortfolioError('Invalid address format. Must start with 0x and be 42 characters.');
+    return;
+  }
+  if (Watchlist.hasWallet(addr)) {
+    Watchlist.removeWallet(addr);
+  } else {
+    Watchlist.addWallet(addr);
+  }
+  updateSaveWalletBtn();
 });
 
 function setPortfolioLoading(loading) {
@@ -442,7 +471,38 @@ function buildMarketRow(index, pair) {
   tdLiq.className = 'align-right';
   tdLiq.textContent = fmt.large(pair.liquidity?.usd);
 
-  tr.append(tdIdx, tdToken, tdSym, tdPrice, tdChange, tdVol, tdLiq);
+  // Star (watch) button
+  const tdStar = document.createElement('td');
+  tdStar.className = 'align-center';
+  const starBtn = document.createElement('button');
+  starBtn.className = 'star-btn';
+  const tokenAddr  = (pair.baseToken?.address || '').toLowerCase();
+  const isWatched  = Watchlist.hasToken(tokenAddr);
+  starBtn.textContent = isWatched ? '★' : '☆';
+  starBtn.classList.toggle('active', isWatched);
+  starBtn.title = isWatched ? 'Remove from Watchlist' : 'Add to Watchlist';
+  starBtn.setAttribute('aria-label', isWatched ? 'Remove from Watchlist' : 'Add to Watchlist');
+  starBtn.addEventListener('click', () => {
+    if (Watchlist.hasToken(tokenAddr)) {
+      Watchlist.removeToken(tokenAddr);
+      starBtn.textContent = '☆';
+      starBtn.classList.remove('active');
+      starBtn.title = 'Add to Watchlist';
+    } else {
+      Watchlist.addToken({
+        address: tokenAddr,
+        symbol:  token.symbol || '',
+        name:    token.name   || token.symbol || '',
+        logoUrl: pair.info?.imageUrl || null,
+      });
+      starBtn.textContent = '★';
+      starBtn.classList.add('active');
+      starBtn.title = 'Remove from Watchlist';
+    }
+  });
+  tdStar.appendChild(starBtn);
+
+  tr.append(tdIdx, tdToken, tdSym, tdPrice, tdChange, tdVol, tdLiq, tdStar);
   return tr;
 }
 
@@ -513,6 +573,240 @@ function renderTrendingGrid(pairs) {
     }
 
     grid.appendChild(card);
+  });
+}
+
+/* ── Watchlist module ────────────────────────────────────── */
+
+/**
+ * All watchlist state lives in localStorage under 'pc-watchlist'.
+ * Shape: { wallets: string[], tokens: {address, symbol, name, logoUrl}[] }
+ */
+const Watchlist = (() => {
+  const KEY = 'pc-watchlist';
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          wallets: Array.isArray(parsed.wallets) ? parsed.wallets : [],
+          tokens:  Array.isArray(parsed.tokens)  ? parsed.tokens  : [],
+        };
+      }
+    } catch { /* ignore */ }
+    return { wallets: [], tokens: [] };
+  }
+
+  function save(data) {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  }
+
+  function addWallet(addr) {
+    const data = load();
+    const norm = addr.toLowerCase();
+    if (!data.wallets.map(w => w.toLowerCase()).includes(norm)) {
+      data.wallets.push(addr);
+      save(data);
+    }
+  }
+
+  function removeWallet(addr) {
+    const data = load();
+    const norm = addr.toLowerCase();
+    data.wallets = data.wallets.filter(w => w.toLowerCase() !== norm);
+    save(data);
+  }
+
+  function hasWallet(addr) {
+    return load().wallets.map(w => w.toLowerCase()).includes(addr.toLowerCase());
+  }
+
+  function addToken(token) {
+    const data = load();
+    const norm = token.address.toLowerCase();
+    if (!data.tokens.find(t => t.address.toLowerCase() === norm)) {
+      data.tokens.push({ ...token, address: norm });
+      save(data);
+    }
+  }
+
+  function removeToken(address) {
+    const data = load();
+    const norm = address.toLowerCase();
+    data.tokens = data.tokens.filter(t => t.address.toLowerCase() !== norm);
+    save(data);
+  }
+
+  function hasToken(address) {
+    const norm = address.toLowerCase();
+    return load().tokens.some(t => t.address.toLowerCase() === norm);
+  }
+
+  function getWallets() { return load().wallets; }
+  function getTokens()  { return load().tokens; }
+
+  return { addWallet, removeWallet, hasWallet, addToken, removeToken, hasToken, getWallets, getTokens };
+})();
+
+/* ── Watchlist tab rendering ─────────────────────────────── */
+
+$('wl-refresh-btn').addEventListener('click', () => loadWatchlistTokenPrices());
+
+async function renderWatchlistTab() {
+  renderWatchlistWallets();
+  await loadWatchlistTokenPrices();
+}
+
+function renderWatchlistWallets() {
+  const wallets = Watchlist.getWallets();
+  $('wl-wallet-count').textContent = wallets.length;
+  const list  = $('wl-wallets-list');
+  const empty = $('wl-wallets-empty');
+  list.innerHTML = '';
+
+  setVisible(empty, wallets.length === 0);
+  setHidden(list, wallets.length === 0);
+
+  wallets.forEach(addr => {
+    const li = document.createElement('li');
+    li.className = 'wl-wallet-item';
+
+    const addrSpan = document.createElement('span');
+    addrSpan.className = 'wl-wallet-addr';
+    addrSpan.textContent = addr;
+    addrSpan.title = addr;
+
+    const actions = document.createElement('div');
+    actions.className = 'wl-wallet-actions';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'wl-load-btn';
+    loadBtn.textContent = '▶ Load';
+    loadBtn.addEventListener('click', () => {
+      walletInput.value = addr;
+      updateSaveWalletBtn();
+      switchTab('portfolio');
+      loadPortfolio(addr);
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'wl-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove from Watchlist';
+    removeBtn.addEventListener('click', () => {
+      Watchlist.removeWallet(addr);
+      renderWatchlistWallets();
+      updateSaveWalletBtn();
+    });
+
+    actions.append(loadBtn, removeBtn);
+    li.append(addrSpan, actions);
+    list.appendChild(li);
+  });
+}
+
+async function loadWatchlistTokenPrices() {
+  const tokens = Watchlist.getTokens();
+  $('wl-token-count').textContent = tokens.length;
+  const empty   = $('wl-tokens-empty');
+  const loading = $('wl-tokens-loading');
+  const wrap    = $('wl-tokens-table-wrap');
+
+  if (tokens.length === 0) {
+    setVisible(empty, true);
+    setHidden(loading, true);
+    setHidden(wrap, true);
+    return;
+  }
+
+  setHidden(empty, true);
+  setVisible(loading, true);
+  setHidden(wrap, true);
+
+  try {
+    const addresses = tokens.map(t => t.address);
+    const pairMap   = await API.getPairsByAddresses(addresses);
+    renderWatchlistTokens(tokens, pairMap);
+    setHidden(loading, true);
+    setVisible(wrap, true);
+  } catch {
+    setHidden(loading, true);
+    renderWatchlistTokens(tokens, new Map());
+    setVisible(wrap, true);
+  }
+}
+
+function renderWatchlistTokens(tokens, pairMap) {
+  const tbody = $('wl-tokens-tbody');
+  tbody.innerHTML = '';
+
+  tokens.forEach(token => {
+    const pair      = pairMap.get(token.address.toLowerCase());
+    const price     = Number(pair?.priceUsd || 0);
+    const change24h = Number(pair?.priceChange?.h24 || 0);
+    const vol24h    = pair?.volume?.h24;
+    const logoUrl   = pair?.info?.imageUrl || token.logoUrl || null;
+
+    const tr = document.createElement('tr');
+
+    // Token name + logo
+    const tdToken = document.createElement('td');
+    const cell    = document.createElement('div');
+    cell.className = 'token-cell';
+    cell.appendChild(buildTokenLogo(logoUrl, token.symbol));
+    const nameEl  = document.createElement('span');
+    nameEl.className = 'token-name';
+    nameEl.textContent = token.name || token.symbol;
+    cell.appendChild(nameEl);
+    tdToken.appendChild(cell);
+
+    // Symbol
+    const tdSym = document.createElement('td');
+    tdSym.innerHTML = `<span class="token-symbol">${escHtml(token.symbol || '—')}</span>`;
+
+    // Price
+    const tdPrice = document.createElement('td');
+    tdPrice.className = 'align-right';
+    tdPrice.textContent = price ? fmt.price(price) : '—';
+
+    // 24h change
+    const tdChange = changeTd(change24h);
+
+    // Volume
+    const tdVol = document.createElement('td');
+    tdVol.className = 'align-right';
+    tdVol.textContent = fmt.large(vol24h);
+
+    // Remove button
+    const tdRemove = document.createElement('td');
+    tdRemove.className = 'align-center';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'wl-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove from Watchlist';
+    removeBtn.addEventListener('click', () => {
+      Watchlist.removeToken(token.address);
+      // Refresh watchlist tab and re-render market star buttons
+      loadWatchlistTokenPrices();
+      $('wl-token-count').textContent = Watchlist.getTokens().length;
+      // Update any visible star button in the Markets table
+      document.querySelectorAll('.star-btn').forEach(btn => {
+        const row = btn.closest('tr');
+        if (!row) return;
+        const sym = row.querySelector('.token-symbol')?.textContent;
+        if (sym && sym === token.symbol) {
+          btn.textContent = '☆';
+          btn.classList.remove('active');
+          btn.title = 'Add to Watchlist';
+        }
+      });
+    });
+    tdRemove.appendChild(removeBtn);
+
+    tr.append(tdToken, tdSym, tdPrice, tdChange, tdVol, tdRemove);
+    tbody.appendChild(tr);
   });
 }
 

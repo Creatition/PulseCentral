@@ -525,6 +525,145 @@ li + li { margin-top: 0.35rem; }
 }
 .site-footer a { color: var(--primary); }
 
+/* ── Save-wallet button ── */
+.btn-save-wallet {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  padding: 0.65rem 1rem;
+  transition: color var(--transition), border-color var(--transition), background var(--transition), filter var(--transition), transform var(--transition);
+}
+.btn-save-wallet:hover { color: var(--text); }
+.btn-save-wallet.saved {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: rgba(245,158,11,0.1);
+}
+
+/* ── Star button in Markets rows ── */
+.star-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  transition: color var(--transition), transform var(--transition);
+}
+.star-btn:hover  { color: var(--warning); transform: scale(1.2); }
+.star-btn.active { color: var(--warning); }
+
+.align-center { text-align: center !important; }
+
+.btn-sm {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  margin-left: 0.75rem;
+}
+
+/* ── Watchlist tab ── */
+.watchlist-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  padding: 1.5rem 1.75rem;
+}
+
+.watchlist-section-title {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  font-size: 1rem;
+  font-weight: 700;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.watchlist-count {
+  background: var(--primary-bg);
+  border-radius: 20px;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.6rem;
+}
+
+.wl-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 1.25rem 0 0.25rem;
+}
+.wl-empty strong { color: var(--text); }
+
+/* Saved wallets list */
+.wl-wallet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.wl-wallet-item {
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  transition: border-color var(--transition);
+}
+.wl-wallet-item:hover { border-color: var(--border-light); }
+
+.wl-wallet-addr {
+  color: var(--text);
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wl-wallet-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.wl-load-btn {
+  background: var(--primary-bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.3rem 0.75rem;
+  transition: filter var(--transition);
+}
+.wl-load-btn:hover { filter: brightness(1.2); }
+
+.wl-remove-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.3rem 0.6rem;
+  transition: color var(--transition), border-color var(--transition);
+}
+.wl-remove-btn:hover { color: var(--danger); border-color: var(--danger); }
+
 /* ── Theme picker ── */
 .theme-picker {
   align-items: center;
