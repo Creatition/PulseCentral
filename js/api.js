@@ -67,11 +67,6 @@ const API = (() => {
     { symbol: 'solidx',       address: '0x8Da17Db850315A34532108f0f5458fc0401525f6' },
     { symbol: 'lbrty',        address: '0xB261Fa283aBf9CcE0b493B50b57cb654A490f339' },
     { symbol: 'coffee',       address: '0x707C905DF6104eAE3B116eD9635cBee0A9EBA6E6' },
-    { symbol: 'eHex',         address: '0x57fde0a71132198BBeC939B98976993d8D89D225' },
-    { symbol: 'PRVX',         address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11' },
-    { symbol: 'usdl',         address: '0x0dEEd1486bc52aA0d3E6f8849cEC5adD6598A162' },
-    { symbol: 'emit',         address: '0x32fB5663619A657839A80133994E45c5e5cDf427' },
-    { symbol: 'pulseguy',     address: '0x67922D590BA6C784f468B6B562d201113a8FbD2D' },
   ];
 
   /**
@@ -83,7 +78,7 @@ const API = (() => {
     { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9' },
     { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65' },
     { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa' },
-    { symbol: 'PRVX', address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11',  pairAddress: '0x62f7d076c92db76cf84223b6309801ea461d7afe' },
+    { symbol: 'PRVX', address: null,                                           pairAddress: '0x62f7d076c92db76cf84223b6309801ea461d7afe' },
   ];
 
   /**
