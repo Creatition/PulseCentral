@@ -32,9 +32,6 @@
         <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
           <span class="tab-icon">⭐</span> Watchlist
         </button>
-        <button class="tab-btn" data-tab="profits" role="tab" aria-selected="false" aria-controls="tab-profits">
-          <span class="tab-icon">📈</span> Profits
-        </button>
         <button class="tab-btn" data-tab="about" role="tab" aria-selected="false" aria-controls="tab-about">
           <span class="tab-icon">ℹ️</span> About
         </button>
@@ -95,6 +92,18 @@
       <div class="section-header">
         <h1>Portfolio Tracker</h1>
         <p class="section-subtitle">Enter a PulseChain wallet address to view its holdings and estimated value.</p>
+      </div>
+
+      <!-- Saved Wallets -->
+      <div class="watchlist-section" id="portfolio-saved-wallets-wrap">
+        <h2 class="watchlist-section-title">
+          💼 Saved Wallets
+          <span class="watchlist-count" id="portfolio-wl-wallet-count">0</span>
+        </h2>
+        <div id="portfolio-wl-wallets-empty" class="wl-empty">
+          No wallets saved yet. Enter an address below and click <strong>☆ Save</strong>.
+        </div>
+        <ul id="portfolio-wl-wallets-list" class="wl-wallet-list" aria-label="Saved wallets"></ul>
       </div>
 
       <div class="wallet-search-bar">
@@ -190,7 +199,7 @@
     <section id="tab-markets" class="tab-panel" role="tabpanel" aria-labelledby="btn-markets">
       <div class="section-header">
         <h1>Markets</h1>
-        <p class="section-subtitle">Live prices for top PulseChain tokens sourced from DEX pairs.</p>
+        <p class="section-subtitle">Top 100 PulseChain tokens by volume sourced from DEX pairs.</p>
       </div>
 
       <div class="markets-toolbar">
@@ -202,7 +211,7 @@
 
       <p class="dex-attribution">
         Prices &amp; pairs sourced from
-        <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+        <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
       </p>
 
       <div id="markets-error" class="error-banner hidden" role="alert"></div>
@@ -212,36 +221,19 @@
         <p>Loading market data…</p>
       </div>
 
-      <div id="markets-table-wrap" class="table-wrap hidden">
-        <table class="data-table" id="markets-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Token</th>
-              <th>Symbol</th>
-              <th class="align-right sortable" data-sort="price">Price (USD)</th>
-              <th class="align-right sortable" data-sort="change">24 h %</th>
-              <th class="align-right sortable" data-sort="volume">Volume 24 h</th>
-              <th class="align-right sortable" data-sort="liquidity">Liquidity</th>
-              <th class="align-center" aria-label="Watch"></th>
-            </tr>
-          </thead>
-          <tbody id="markets-tbody">
-          </tbody>
-        </table>
-      </div>
+      <div id="markets-grid" class="markets-grid hidden"></div>
     </section>
 
     <!-- ── TRENDING TAB ── -->
     <section id="tab-trending" class="tab-panel" role="tabpanel" aria-labelledby="btn-trending">
       <div class="section-header">
         <h1>Trending</h1>
-        <p class="section-subtitle">Hot tokens on PulseChain DEXes right now.</p>
+        <p class="section-subtitle">Hot tokens on PulseChain DEXes right now — ranked by 6-hour activity.</p>
       </div>
 
       <p class="dex-attribution">
         Trending pairs sourced from
-        <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
+        <a href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener">DexScreener</a>
       </p>
 
       <div id="trending-loading" class="loading-wrap">
@@ -258,19 +250,29 @@
     <section id="tab-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="btn-watchlist">
       <div class="section-header">
         <h1>Watchlist</h1>
-        <p class="section-subtitle">Your saved wallets and tokens — stored locally in your browser.</p>
+        <p class="section-subtitle">Save tokens by contract address and track their prices — stored locally in your browser.</p>
       </div>
 
-      <!-- Saved wallets -->
+      <!-- Add token by contract address -->
       <div class="watchlist-section">
-        <h2 class="watchlist-section-title">
-          💼 Saved Wallets
-          <span class="watchlist-count" id="wl-wallet-count">0</span>
-        </h2>
-        <div id="wl-wallets-empty" class="wl-empty">
-          No wallets saved yet. Enter an address in the Portfolio tab and click <strong>☆ Save</strong>.
+        <h2 class="watchlist-section-title">➕ Add Token</h2>
+        <div class="wl-add-token-bar">
+          <input
+            id="wl-add-addr"
+            type="text"
+            class="wallet-input"
+            placeholder="Paste contract address (0x…)"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="42"
+            aria-label="Token contract address"
+          />
+          <button id="wl-add-btn" class="btn btn-primary">
+            <span id="wl-add-btn-text">＋ Add Token</span>
+            <span id="wl-add-spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
         </div>
-        <ul id="wl-wallets-list" class="wl-wallet-list" aria-label="Saved wallets"></ul>
+        <div id="wl-add-error" class="error-banner hidden" role="alert"></div>
       </div>
 
       <!-- Watched tokens -->
@@ -281,7 +283,7 @@
           <button id="wl-refresh-btn" class="btn btn-secondary btn-sm" aria-label="Refresh token prices">↻ Refresh prices</button>
         </h2>
         <div id="wl-tokens-empty" class="wl-empty">
-          No tokens watched yet. Click the <strong>☆</strong> star in the Markets tab to watch a token.
+          No tokens watched yet. Paste a contract address above or click the <strong>☆</strong> star in the Markets tab.
         </div>
 
         <div id="wl-tokens-loading" class="loading-wrap hidden">
@@ -298,104 +300,12 @@
                 <th class="align-right">Price (USD)</th>
                 <th class="align-right">24 h %</th>
                 <th class="align-right">Volume 24 h</th>
+                <th class="align-right">Market Cap</th>
+                <th class="align-right">Liquidity</th>
                 <th class="align-center" aria-label="Remove"></th>
               </tr>
             </thead>
             <tbody id="wl-tokens-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── PROFITS TAB ── -->
-    <section id="tab-profits" class="tab-panel" role="tabpanel" aria-labelledby="btn-profits">
-      <div class="section-header">
-        <h1>Profits Tracker</h1>
-        <p class="section-subtitle">Log your buys and sells to track realized and unrealized P&amp;L in both USD and PLS.</p>
-      </div>
-
-      <div class="profits-toolbar">
-        <button id="add-trade-btn" class="btn btn-primary">＋ Add Trade</button>
-        <button id="import-wallet-btn" class="btn btn-secondary">⬆ Import from Wallet</button>
-        <button id="export-csv-btn" class="btn btn-secondary">⬇ Export CSV</button>
-      </div>
-
-      <div id="profits-error" class="error-banner hidden" role="alert"></div>
-
-      <!-- Summary cards -->
-      <div class="summary-cards" id="profits-summary">
-        <div class="summary-card">
-          <span class="summary-label">Realized P&amp;L (USD)</span>
-          <span class="summary-value" id="profits-realized-usd">—</span>
-        </div>
-        <div class="summary-card">
-          <span class="summary-label">Realized P&amp;L (PLS)</span>
-          <span class="summary-value" id="profits-realized-pls">—</span>
-        </div>
-        <div class="summary-card">
-          <span class="summary-label">Unrealized P&amp;L (USD)</span>
-          <span class="summary-value" id="profits-unrealized-usd">—</span>
-        </div>
-        <div class="summary-card">
-          <span class="summary-label">Tokens Tracked</span>
-          <span class="summary-value" id="profits-token-count">—</span>
-        </div>
-      </div>
-
-      <!-- Per-token breakdown -->
-      <div class="profits-section">
-        <h2 class="profits-section-title">Per-Token Summary</h2>
-        <div id="profits-token-empty" class="wl-empty">
-          No trades logged yet. Click <strong>＋ Add Trade</strong> to record your first trade.
-        </div>
-        <div id="profits-token-loading" class="loading-wrap hidden">
-          <div class="pulse-loader" aria-label="Fetching live prices"></div>
-          <p>Fetching live prices…</p>
-        </div>
-        <div id="profits-token-table-wrap" class="table-wrap hidden">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Token</th>
-                <th class="align-right">Invested (PLS)</th>
-                <th class="align-right">Invested (USD)</th>
-                <th class="align-right">Returned (PLS)</th>
-                <th class="align-right">Returned (USD)</th>
-                <th class="align-right">Realized P&amp;L (USD)</th>
-                <th class="align-right">Realized P&amp;L (PLS)</th>
-                <th class="align-right">Unrealized (USD)</th>
-                <th class="align-right">Return %</th>
-              </tr>
-            </thead>
-            <tbody id="profits-token-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Trade log -->
-      <div class="profits-section">
-        <h2 class="profits-section-title">
-          Trade Log
-          <span class="watchlist-count" id="profits-trade-count">0</span>
-        </h2>
-        <div id="profits-log-empty" class="wl-empty">
-          No trades recorded yet. Click <strong>＋ Add Trade</strong> to get started.
-        </div>
-        <div id="profits-log-table-wrap" class="table-wrap hidden">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Token</th>
-                <th>Type</th>
-                <th class="align-right">Token Amount</th>
-                <th class="align-right">PLS Amount</th>
-                <th class="align-right">USD Value</th>
-                <th>Notes</th>
-                <th class="align-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="profits-log-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -516,179 +426,8 @@
     </div>
   </div>
 
-  <!-- ===== ADD / EDIT TRADE MODAL ===== -->
-  <div id="trade-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h2 id="trade-modal-title">Add Trade</h2>
-        <button id="trade-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
-      </div>
-
-      <form id="trade-form" class="modal-body" novalidate>
-        <input type="hidden" id="trade-id" />
-
-        <!-- Token address -->
-        <div class="form-row">
-          <div class="form-group">
-            <label for="trade-token-address">Token Contract Address *</label>
-            <input id="trade-token-address" type="text" class="form-input"
-              placeholder="0x… or pick a known token" autocomplete="off"
-              list="known-tokens-datalist" spellcheck="false" maxlength="42" />
-            <datalist id="known-tokens-datalist"></datalist>
-          </div>
-        </div>
-
-        <!-- Symbol + Name -->
-        <div class="form-row form-row-2">
-          <div class="form-group">
-            <label for="trade-token-symbol">Symbol *</label>
-            <input id="trade-token-symbol" type="text" class="form-input" placeholder="e.g. PLSX" maxlength="20" />
-          </div>
-          <div class="form-group">
-            <label for="trade-token-name">Name</label>
-            <input id="trade-token-name" type="text" class="form-input" placeholder="e.g. PulseX" maxlength="60" />
-          </div>
-        </div>
-
-        <!-- Type + Date -->
-        <div class="form-row form-row-2">
-          <div class="form-group">
-            <label>Trade Type *</label>
-            <div class="trade-type-toggle">
-              <label class="trade-type-opt">
-                <input type="radio" name="trade-type" value="buy" checked /> Buy
-              </label>
-              <label class="trade-type-opt">
-                <input type="radio" name="trade-type" value="sell" /> Sell
-              </label>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="trade-date">Date &amp; Time *</label>
-            <input id="trade-date" type="datetime-local" class="form-input" />
-          </div>
-        </div>
-
-        <!-- Token amount + PLS amount + USD value -->
-        <div class="form-row form-row-3">
-          <div class="form-group">
-            <label for="trade-token-amount">Token Amount *</label>
-            <input id="trade-token-amount" type="number" class="form-input" placeholder="0" min="0" step="any" />
-          </div>
-          <div class="form-group">
-            <label for="trade-pls-amount">PLS Amount *</label>
-            <input id="trade-pls-amount" type="number" class="form-input" placeholder="0" min="0" step="any" />
-          </div>
-          <div class="form-group">
-            <label for="trade-usd-value">USD Value</label>
-            <div class="input-with-btn">
-              <input id="trade-usd-value" type="number" class="form-input" placeholder="0.00" min="0" step="any" />
-              <button type="button" id="fetch-price-btn" class="btn btn-secondary btn-sm" title="Fetch current price from DexScreener and multiply by token amount">↻</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Notes -->
-        <div class="form-row">
-          <div class="form-group">
-            <label for="trade-notes">Notes</label>
-            <input id="trade-notes" type="text" class="form-input" placeholder="Optional notes…" maxlength="200" />
-          </div>
-        </div>
-
-        <!-- Form error -->
-        <div id="trade-form-error" class="trade-form-error hidden" role="alert"></div>
-
-        <!-- Footer buttons -->
-        <div class="modal-footer">
-          <button type="button" id="trade-modal-cancel" class="btn btn-secondary">Cancel</button>
-          <button type="submit" id="trade-modal-submit" class="btn btn-primary">Save Trade</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <script src="js/api.js"></script>
-  <script src="js/trades.js"></script>
   <script src="js/app.js"></script>
 
-  <!-- ===== IMPORT FROM WALLET MODAL ===== -->
-  <div id="import-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
-    <div class="modal-dialog modal-dialog-wide">
-      <div class="modal-header">
-        <h2 id="import-modal-title">Import Trades from Wallet</h2>
-        <button id="import-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
-      </div>
-
-      <div class="modal-body">
-        <!-- Step 1: wallet address input -->
-        <div id="import-step-input">
-          <p class="import-instructions">
-            Enter a PulseChain wallet address to automatically detect buy and sell trades
-            from the blockchain. Only swaps involving native PLS can be detected; token-to-token
-            swaps are not included. USD values are not available from historical data and will
-            be set to 0 — you can edit individual trades after importing.
-          </p>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="import-wallet-input">Wallet Address *</label>
-              <input id="import-wallet-input" type="text" class="form-input"
-                placeholder="0x… PulseChain wallet address"
-                autocomplete="off" spellcheck="false" maxlength="42" />
-            </div>
-          </div>
-          <div id="import-step1-error" class="trade-form-error hidden" role="alert"></div>
-          <div class="modal-footer">
-            <button type="button" id="import-modal-cancel" class="btn btn-secondary">Cancel</button>
-            <button type="button" id="import-fetch-btn" class="btn btn-primary">
-              <span id="import-fetch-btn-text">Fetch Trades</span>
-              <span id="import-fetch-spinner" class="spinner hidden" aria-hidden="true"></span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 2: preview discovered trades -->
-        <div id="import-step-preview" class="hidden">
-          <div id="import-preview-info" class="import-preview-info"></div>
-          <div id="import-duplicate-warning" class="import-duplicate-warning hidden"></div>
-          <div id="import-preview-wrap" class="table-wrap import-preview-table">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th class="align-center">
-                    <input type="checkbox" id="import-select-all" title="Select / deselect all" />
-                  </th>
-                  <th>Date</th>
-                  <th>Token</th>
-                  <th>Type</th>
-                  <th class="align-right">Token Amount</th>
-                  <th class="align-right">PLS Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="import-preview-tbody"></tbody>
-            </table>
-          </div>
-          <div class="modal-footer">
-            <button type="button" id="import-back-btn" class="btn btn-secondary">← Back</button>
-            <button type="button" id="import-confirm-btn" class="btn btn-primary">
-              Import Selected (<span id="import-selected-count">0</span>)
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 3: done -->
-        <div id="import-step-done" class="hidden">
-          <div class="import-done-msg">
-            <div class="import-done-icon">✅</div>
-            <p id="import-done-text"></p>
-          </div>
-          <div class="modal-footer">
-            <button type="button" id="import-done-close" class="btn btn-primary">Done</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 </body>
 </html>
