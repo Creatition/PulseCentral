@@ -124,6 +124,9 @@ const $ = id => document.getElementById(id);
 const setHidden  = (el, hidden) => el.classList.toggle('hidden', hidden);
 const setVisible = (el, visible) => setHidden(el, !visible);
 
+/** Returns true if the given string is a valid EVM address (0x + 40 hex chars) */
+const isValidAddress = addr => /^0x[0-9a-fA-F]{40}$/.test(addr);
+
 /** Build a token logo element (img if URL available, placeholder otherwise) */
 function buildTokenLogo(logoUrl, symbol) {
   if (logoUrl) {
@@ -197,7 +200,7 @@ loadBtn.addEventListener('click', () => {
     showPortfolioError('Please enter a wallet address.');
     return;
   }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+  if (!isValidAddress(address)) {
     showPortfolioError('Invalid Ethereum/PulseChain address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -224,7 +227,7 @@ walletInput.addEventListener('input', updateSaveWalletBtn);
 saveWalletBtn.addEventListener('click', () => {
   const addr = walletInput.value.trim();
   if (!addr) { showPortfolioError('Enter a wallet address first.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+  if (!isValidAddress(addr)) {
     showPortfolioError('Invalid address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -713,7 +716,7 @@ const PortfolioGroups = (() => {
 
   function addGroup(name, addresses) {
     const groups = load();
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const id = crypto.randomUUID();
     groups.push({ id, name, addresses });
     save(groups);
     return id;
@@ -870,8 +873,13 @@ async function loadGroupPortfolio(group) {
     setVisible($('portfolio-table-wrap'), true);
 
     // Show group context banner
-    const banner  = $('group-context-banner');
-    $('group-context-name').innerHTML = `🗂 <strong>${escHtml(group.name)}</strong>`;
+    const banner    = $('group-context-banner');
+    const nameEl    = $('group-context-name');
+    nameEl.textContent = '';
+    nameEl.appendChild(document.createTextNode('🗂 '));
+    const strong = document.createElement('strong');
+    strong.textContent = group.name;
+    nameEl.appendChild(strong);
     $('group-context-addresses').textContent =
       `${group.addresses.length} wallet${group.addresses.length !== 1 ? 's' : ''} combined`;
     setVisible(banner, true);
@@ -952,7 +960,8 @@ function renderGroupAddrList() {
     removeBtn.title = 'Remove address';
     removeBtn.type = 'button';
     removeBtn.addEventListener('click', () => {
-      groupModalAddresses.splice(idx, 1);
+      const norm = entry.addr.toLowerCase();
+      groupModalAddresses = groupModalAddresses.filter(a => a.addr.toLowerCase() !== norm);
       renderGroupAddrList();
     });
     li.appendChild(removeBtn);
@@ -966,7 +975,7 @@ function addGroupAddress() {
   const labelRaw = $('group-addr-label-input').value.trim();
 
   if (!addrRaw) { showGroupModalError('Enter a wallet address to add.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(addrRaw)) {
+  if (!isValidAddress(addrRaw)) {
     showGroupModalError('Invalid address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -1541,7 +1550,7 @@ $('trade-form').addEventListener('submit', e => {
 
   // Validation
   if (!tokenAddress)  { showTradeFormError('Token address is required.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(tokenAddress)) {
+  if (!isValidAddress(tokenAddress)) {
     showTradeFormError('Invalid token address — must start with 0x and be 42 characters.');
     return;
   }
