@@ -159,6 +159,32 @@
         </div>
       </div>
 
+      <!-- Portfolio History Chart -->
+      <div id="portfolio-chart-section" class="portfolio-chart-section hidden">
+        <div class="portfolio-chart-header">
+          <h3 class="portfolio-chart-title">📈 Portfolio History</h3>
+          <div class="portfolio-chart-controls">
+            <div class="chart-toggle-group" role="group" aria-label="Currency">
+              <button class="chart-toggle-btn active" data-chart-currency="usd">USD</button>
+              <button class="chart-toggle-btn" data-chart-currency="pls">PLS</button>
+            </div>
+            <div class="chart-toggle-group" role="group" aria-label="Time frame">
+              <button class="chart-toggle-btn active" data-chart-timeframe="daily">Daily</button>
+              <button class="chart-toggle-btn" data-chart-timeframe="weekly">Weekly</button>
+              <button class="chart-toggle-btn" data-chart-timeframe="monthly">Monthly</button>
+            </div>
+          </div>
+        </div>
+        <div class="portfolio-chart-body">
+          <div id="portfolio-chart-notice" class="portfolio-chart-notice hidden"></div>
+          <div id="portfolio-chart-outer" class="portfolio-chart-outer hidden">
+            <svg id="portfolio-history-svg" viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" aria-label="Portfolio value history chart" role="img"></svg>
+            <div id="chart-tooltip" class="chart-tooltip hidden" aria-hidden="true"></div>
+            <div id="chart-hover-overlay" class="chart-hover-overlay" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Portfolio toolbar -->
       <div id="portfolio-toolbar" class="portfolio-toolbar hidden">
         <label class="toggle-label" for="hide-small-balances">
@@ -351,7 +377,6 @@
           <h2>📋 Upcoming Features</h2>
           <ul>
             <li>Multi-wallet aggregation</li>
-            <li>Historical portfolio chart</li>
             <li>NFT tab</li>
             <li>DeFi / farming positions tab</li>
             <li>Price alerts</li>
