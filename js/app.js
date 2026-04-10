@@ -45,14 +45,22 @@ document.querySelectorAll('.theme-swatch').forEach(btn => {
 /* ── Formatters ─────────────────────────────────────────── */
 
 const fmt = {
-  /** Format a USD price with smart decimal places */
+  /** Format a USD price with smart decimal places.
+   *  For very small prices (< 0.001) uses compact zero notation:
+   *  e.g. 0.000001234 → $0.0₄1234  (subscript = zeros after "0.0") */
   price(val) {
     const n = Number(val);
     if (!n || isNaN(n)) return '—';
     if (n >= 1000)  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
     if (n >= 1)     return '$' + n.toFixed(4);
     if (n >= 0.001) return '$' + n.toFixed(6);
-    return '$' + n.toExponential(4);
+    // Compact zero notation for tiny prices
+    const SUB = '₀₁₂₃₄₅₆₇₈₉';
+    const exp = Math.floor(Math.log10(n));
+    const subscriptN = Math.abs(exp) - 2;
+    const mantissa = n.toExponential(3).split('e')[0].replace('.', '').replace(/0+$/, '') || '0';
+    const subscript = String(subscriptN).split('').map(d => SUB[+d]).join('');
+    return '$0.0' + subscript + mantissa;
   },
 
   /** Format a USD value (balance × price) */
@@ -339,6 +347,13 @@ function buildCoinCard(symbol, pair) {
     </div>
   `;
 
+  // Open DexScreener pair page when card is clicked
+  if (pair?.pairAddress) {
+    card.addEventListener('click', () => {
+      window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
+    });
+  }
+
   card.append(header, priceEl, chart, stats);
   return card;
 }
@@ -418,11 +433,12 @@ let cachedPortfolioTokens  = [];   // enriched token list from last load
 let cachedPlsBalance = 0;
 let cachedPlsPrice   = 0;
 let cachedPlsLogoUrl = null;       // logo URL for native PLS (from WPLS pair)
+let cachedPlsPairAddress = null;   // pair address for native PLS (from WPLS pair)
 
 $('hide-small-balances').addEventListener('change', e => {
   hideSmallBalances = e.target.checked;
   if (cachedPortfolioTokens.length || cachedPlsBalance) {
-    renderPortfolioTable(cachedPortfolioTokens, cachedPlsBalance, cachedPlsPrice, cachedPlsLogoUrl);
+    renderPortfolioTable(cachedPortfolioTokens, cachedPlsBalance, cachedPlsPrice, cachedPlsLogoUrl, cachedPlsPairAddress);
   }
 });
 
@@ -517,7 +533,8 @@ async function loadPortfolio(address) {
       const change24h = Number(pair?.priceChange?.h24 || 0);
       const value = price * t.balance;
       const logoUrl = pair?.info?.imageUrl || null;
-      return { ...t, price, change24h, value, logoUrl };
+      const pairAddress = pair?.pairAddress || null;
+      return { ...t, price, change24h, value, logoUrl, pairAddress };
     });
 
     // Sort by USD value descending
@@ -527,6 +544,7 @@ async function loadPortfolio(address) {
     const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5d0f9a27');
     const plsPrice  = Number(wplsPair?.priceUsd || 0);
     const plsLogoUrl = wplsPair?.info?.imageUrl || null;
+    const plsPairAddress = wplsPair?.pairAddress || null;
     const plsValue  = plsBalance * plsPrice;
     const totalUsd  = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
 
@@ -535,9 +553,10 @@ async function loadPortfolio(address) {
     cachedPlsBalance      = plsBalance;
     cachedPlsPrice        = plsPrice;
     cachedPlsLogoUrl      = plsLogoUrl;
+    cachedPlsPairAddress  = plsPairAddress;
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, plsBalance, plsPrice);
-    renderPortfolioTable(enriched, plsBalance, plsPrice, plsLogoUrl);
+    renderPortfolioTable(enriched, plsBalance, plsPrice, plsLogoUrl, plsPairAddress);
 
     setHidden($('portfolio-empty'), true);
     setVisible($('portfolio-summary'), true);
@@ -559,7 +578,7 @@ function renderPortfolioSummary(totalUsd, tokenCount, plsBalance, plsPrice) {
   }
 }
 
-function renderPortfolioTable(tokens, plsBalance, plsPrice, plsLogoUrl) {
+function renderPortfolioTable(tokens, plsBalance, plsPrice, plsLogoUrl, plsPairAddress = null) {
   const DUST_THRESHOLD = 0.05;
   const tbody = $('portfolio-tbody');
   tbody.innerHTML = '';
@@ -584,16 +603,17 @@ function renderPortfolioTable(tokens, plsBalance, plsPrice, plsLogoUrl) {
     { symbol: 'PLS', name: 'PulseChain', logoUrl: plsLogoUrl || null },
     plsBalance,
     plsPrice,
-    0 // change unavailable for native
+    0, // change unavailable for native
+    plsPairAddress
   );
   tbody.appendChild(plsRow);
 
   visibleTokens.forEach((t, i) => {
-    tbody.appendChild(buildPortfolioRow(i + 2, t, t.balance, t.price, t.change24h));
+    tbody.appendChild(buildPortfolioRow(i + 2, t, t.balance, t.price, t.change24h, t.pairAddress));
   });
 }
 
-function buildPortfolioRow(index, token, balance, price, change24h) {
+function buildPortfolioRow(index, token, balance, price, change24h, pairAddress = null) {
   const tr = document.createElement('tr');
 
   // # index
@@ -633,6 +653,15 @@ function buildPortfolioRow(index, token, balance, price, change24h) {
 
   // 24h change
   tr.append(tdIdx, tdToken, tdSym, tdBal, tdPrice, tdValue, changeTd(change24h));
+
+  // Open DexScreener pair page when row is clicked
+  if (pairAddress) {
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => {
+      window.open(`https://dexscreener.com/pulsechain/${pairAddress}`, '_blank', 'noopener');
+    });
+  }
+
   return tr;
 }
 
@@ -727,7 +756,8 @@ function buildMarketCard(index, pair) {
   starBtn.textContent = isWatched ? '★' : '☆';
   starBtn.title = isWatched ? 'Remove from Watchlist' : 'Add to Watchlist';
   starBtn.setAttribute('aria-label', isWatched ? 'Remove from Watchlist' : 'Add to Watchlist');
-  starBtn.addEventListener('click', () => {
+  starBtn.addEventListener('click', e => {
+    e.stopPropagation(); // don't trigger card click
     if (Watchlist.hasToken(tokenAddr)) {
       Watchlist.removeToken(tokenAddr);
       starBtn.textContent = '☆';
@@ -778,6 +808,14 @@ function buildMarketCard(index, pair) {
   `;
 
   card.append(header, priceRow, stats);
+
+  // Open DexScreener pair page when card is clicked
+  if (pair.pairAddress) {
+    card.addEventListener('click', () => {
+      window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
+    });
+  }
+
   return card;
 }
 
@@ -856,6 +894,14 @@ function renderTrendingGrid(pairs) {
     badge.textContent = '🔥 Trending';
 
     card.append(header, priceEl, meta, badge);
+
+    // Open DexScreener pair page when card is clicked
+    if (pair.pairAddress) {
+      card.addEventListener('click', () => {
+        window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
+      });
+    }
+
     grid.appendChild(card);
   });
 }
@@ -1101,7 +1147,8 @@ async function loadGroupPortfolio(group) {
       const change24h = Number(pair?.priceChange?.h24 || 0);
       const value     = price * t.balance;
       const logoUrl   = pair?.info?.imageUrl || null;
-      return { ...t, price, change24h, value, logoUrl };
+      const pairAddress = pair?.pairAddress || null;
+      return { ...t, price, change24h, value, logoUrl, pairAddress };
     });
 
     enriched.sort((a, b) => b.value - a.value);
@@ -1109,11 +1156,12 @@ async function loadGroupPortfolio(group) {
     const wplsPair = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
     const plsPrice = Number(wplsPair?.priceUsd || 0);
     const plsLogoUrl = wplsPair?.info?.imageUrl || null;
+    const plsPairAddress = wplsPair?.pairAddress || null;
     const plsValue = totalPlsBalance * plsPrice;
     const totalUsd = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, totalPlsBalance, plsPrice);
-    renderPortfolioTable(enriched, totalPlsBalance, plsPrice, plsLogoUrl);
+    renderPortfolioTable(enriched, totalPlsBalance, plsPrice, plsLogoUrl, plsPairAddress);
 
     setHidden($('portfolio-empty'), true);
     setVisible($('portfolio-summary'), true);
@@ -1426,7 +1474,8 @@ function renderWatchlistTokens(tokens, pairMap) {
     removeBtn.className = 'wl-remove-btn';
     removeBtn.textContent = '✕';
     removeBtn.title = 'Remove from Watchlist';
-    removeBtn.addEventListener('click', () => {
+    removeBtn.addEventListener('click', e => {
+      e.stopPropagation(); // don't trigger row click
       Watchlist.removeToken(token.address);
       loadWatchlistTokenPrices();
       $('wl-token-count').textContent = Watchlist.getTokens().length;
@@ -1434,6 +1483,16 @@ function renderWatchlistTokens(tokens, pairMap) {
     tdRemove.appendChild(removeBtn);
 
     tr.append(tdToken, tdSym, tdPrice, tdChange, tdVol, tdMcap, tdLiq, tdRemove);
+
+    // Open DexScreener pair page when row is clicked
+    const pairAddress = pair?.pairAddress;
+    if (pairAddress) {
+      tr.style.cursor = 'pointer';
+      tr.addEventListener('click', () => {
+        window.open(`https://dexscreener.com/pulsechain/${pairAddress}`, '_blank', 'noopener');
+      });
+    }
+
     tbody.appendChild(tr);
   });
 }
