@@ -286,7 +286,7 @@ async function loadPortfolio(address) {
     enriched.sort((a, b) => b.value - a.value);
 
     // Compute total value (PLS value approximated from WPLS pair if available)
-    const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
+    const wplsPair  = pairMap.get('0xa1077a294dde1b09bb078844df40758a5d0f9a27');
     const plsPrice  = Number(wplsPair?.priceUsd || 0);
     const plsValue  = plsBalance * plsPrice;
     const totalUsd  = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
