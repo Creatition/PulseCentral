@@ -38,11 +38,10 @@
       </nav>
       <div class="header-right">
         <div class="theme-picker" role="group" aria-label="Choose color theme">
-          <button class="theme-swatch" data-theme="pulsechain" title="PulseChain" aria-label="PulseChain theme"></button>
-          <button class="theme-swatch" data-theme="hex"        title="HEX"        aria-label="HEX theme"></button>
-          <button class="theme-swatch" data-theme="pulsex"     title="PulseX"     aria-label="PulseX theme"></button>
-          <button class="theme-swatch" data-theme="incentive"  title="Incentive"  aria-label="Incentive theme"></button>
-
+          <button class="theme-swatch" data-theme="pulsechain" title="PulseChain" aria-label="PulseChain theme">PulseChain</button>
+          <button class="theme-swatch" data-theme="hex"        title="HEX"        aria-label="HEX theme">Hex</button>
+          <button class="theme-swatch" data-theme="pulsex"     title="PulseX"     aria-label="PulseX theme">PulseX</button>
+          <button class="theme-swatch" data-theme="incentive"  title="Incentive"  aria-label="Incentive theme">Inc</button>
         </div>
       </div>
     </div>
@@ -87,24 +86,17 @@
 
     <!-- ── PORTFOLIO TAB ── -->
     <section id="tab-portfolio" class="tab-panel" role="tabpanel" aria-labelledby="btn-portfolio">
-      <div class="section-header">
-        <h1>Portfolio Tracker</h1>
-        <p class="section-subtitle">Enter a PulseChain wallet address to view its holdings and estimated value.</p>
-      </div>
-
-      <!-- Saved Wallets -->
-      <div class="watchlist-section" id="portfolio-saved-wallets-wrap">
-        <h2 class="watchlist-section-title">
-          💼 Saved Wallets
-          <span class="watchlist-count" id="portfolio-wl-wallet-count">0</span>
-        </h2>
-        <div id="portfolio-wl-wallets-empty" class="wl-empty">
-          No wallets saved yet. Enter an address below and click <strong>☆ Save</strong>.
+      <div class="section-header portfolio-section-header">
+        <div>
+          <h1>Portfolio Tracker</h1>
+          <p class="section-subtitle">Enter a PulseChain wallet address to view its holdings and estimated value.</p>
         </div>
-        <ul id="portfolio-wl-wallets-list" class="wl-wallet-list" aria-label="Saved wallets"></ul>
+        <button id="add-wallet-toggle-btn" class="btn btn-primary" aria-expanded="false" aria-controls="wallet-add-collapse">
+          ➕ Add Wallet
+        </button>
       </div>
 
-      <!-- Quick wallet/group selector -->
+      <!-- Saved wallet/group selector -->
       <div class="portfolio-selector-bar" id="portfolio-selector-bar">
         <label class="portfolio-selector-label" for="portfolio-quick-select">Quick Select:</label>
         <select id="portfolio-quick-select" class="portfolio-quick-select" aria-label="Select saved wallet or group">
@@ -112,33 +104,36 @@
         </select>
       </div>
 
-      <div class="wallet-search-bar">
-        <input
-          id="wallet-input"
-          type="text"
-          class="wallet-input"
-          placeholder="0x… PulseChain wallet address"
-          autocomplete="off"
-          spellcheck="false"
-          maxlength="42"
-          aria-label="Wallet address"
-        />
-        <input
-          id="wallet-name-input"
-          type="text"
-          class="wallet-input wallet-name-input"
-          placeholder="Wallet name (optional)"
-          autocomplete="off"
-          maxlength="60"
-          aria-label="Wallet name"
-        />
-        <button id="load-portfolio-btn" class="btn btn-primary">
-          <span id="load-portfolio-btn-text">Load Portfolio</span>
-          <span id="load-portfolio-spinner" class="spinner hidden" aria-hidden="true"></span>
-        </button>
-        <button id="save-wallet-btn" class="btn btn-save-wallet" title="Save wallet to Watchlist" aria-label="Save wallet to Watchlist">
-          ☆ Save
-        </button>
+      <!-- Collapsible wallet address entry -->
+      <div id="wallet-add-collapse" class="wallet-add-collapse hidden">
+        <div class="wallet-search-bar">
+          <input
+            id="wallet-input"
+            type="text"
+            class="wallet-input"
+            placeholder="0x… PulseChain wallet address"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="42"
+            aria-label="Wallet address"
+          />
+          <input
+            id="wallet-name-input"
+            type="text"
+            class="wallet-input wallet-name-input"
+            placeholder="Wallet name (optional)"
+            autocomplete="off"
+            maxlength="60"
+            aria-label="Wallet name"
+          />
+          <button id="load-portfolio-btn" class="btn btn-primary">
+            <span id="load-portfolio-btn-text">Load Portfolio</span>
+            <span id="load-portfolio-spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
+          <button id="save-wallet-btn" class="btn btn-save-wallet" title="Save wallet to Watchlist" aria-label="Save wallet to Watchlist">
+            ☆ Save
+          </button>
+        </div>
       </div>
 
       <div id="portfolio-error" class="error-banner hidden" role="alert"></div>

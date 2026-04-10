@@ -233,6 +233,20 @@ li + li { margin-top: 0.35rem; }
 }
 
 /* ── Wallet search bar ── */
+/* ── Portfolio section header with Add Wallet button ── */
+.portfolio-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* ── Collapsible wallet address entry ── */
+.wallet-add-collapse {
+  margin-bottom: 0.5rem;
+}
+
 .wallet-search-bar {
   display: flex;
   gap: 0.75rem;
@@ -291,13 +305,13 @@ li + li { margin-top: 0.35rem; }
 .summary-currency-toggle {
   background: var(--bg-input, var(--bg-card));
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--primary);
   cursor: pointer;
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.4px;
-  padding: 0.15rem 0.45rem;
+  padding: 0.35rem 0.85rem;
   position: absolute;
   right: 1rem;
   top: 1rem;
@@ -1122,25 +1136,27 @@ li + li { margin-top: 0.35rem; }
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.35rem;
   flex-shrink: 0;
-  justify-content: center;
-  margin-top: 0.6rem;
-  max-width: 120px;
 }
 
 .theme-swatch {
   border: 2px solid transparent;
-  border-radius: 50%;
+  border-radius: 20px;
   cursor: pointer;
-  height: 20px;
   outline: none;
-  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
-  width: 20px;
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition), filter var(--transition);
+  padding: 0.22rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.92);
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+  white-space: nowrap;
 }
-.theme-swatch:hover  { transform: scale(1.25); }
+.theme-swatch:hover  { filter: brightness(1.15); transform: translateY(-1px); }
 .theme-swatch:focus-visible { box-shadow: 0 0 0 3px var(--primary-glow); }
-.theme-swatch.active { border-color: #fff; transform: scale(1.2); }
+.theme-swatch.active { border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.35); }
 
 .theme-swatch[data-theme="pulsechain"] { background: linear-gradient(135deg, #7b2fff, #ff2f7b); }
 .theme-swatch[data-theme="hex"]        { background: linear-gradient(135deg, #e8002d, #ff7700); }
@@ -1620,6 +1636,7 @@ li + li { margin-top: 0.35rem; }
   .group-saved-wallets-row { flex-direction: column; }
   .markets-grid { grid-template-columns: repeat(2, 1fr); }
   .wl-add-token-bar { flex-direction: column; }
+  .portfolio-section-header { flex-direction: column; align-items: flex-start; }
 }
 
 @media (max-width: 480px) {
