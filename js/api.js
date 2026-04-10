@@ -92,6 +92,190 @@ const API = (() => {
   }
 
   /**
+   * Fetch a page of ERC-20 token transfer events for a wallet address.
+   * @param {string} address   0x-prefixed wallet address
+   * @param {number} [page=1]
+   * @param {number} [offset=5000]  records per page (max 10 000)
+   * @returns {Promise<object[]>}
+   */
+  async function getTokenTransfers(address, page = 1, offset = 5000) {
+    const url = `${SCAN_BASE}?module=account&action=tokentx&address=${address}&page=${page}&offset=${offset}&sort=asc`;
+    const data = await fetchJSON(url, 30000);
+    if (data.status !== '1') {
+      if (data.message === 'No transactions found') return [];
+      throw new Error(data.message || 'Failed to fetch token transfers');
+    }
+    return data.result || [];
+  }
+
+  /**
+   * Fetch a page of normal (native PLS) transactions for a wallet address.
+   * @param {string} address
+   * @param {number} [page=1]
+   * @param {number} [offset=5000]
+   * @returns {Promise<object[]>}
+   */
+  async function getNormalTxs(address, page = 1, offset = 5000) {
+    const url = `${SCAN_BASE}?module=account&action=txlist&address=${address}&page=${page}&offset=${offset}&sort=asc`;
+    const data = await fetchJSON(url, 30000);
+    if (data.status !== '1') {
+      if (data.message === 'No transactions found') return [];
+      throw new Error(data.message || 'Failed to fetch transactions');
+    }
+    return data.result || [];
+  }
+
+  /**
+   * Fetch a page of internal transactions (contract-initiated PLS transfers) for a wallet.
+   * @param {string} address
+   * @param {number} [page=1]
+   * @param {number} [offset=5000]
+   * @returns {Promise<object[]>}
+   */
+  async function getInternalTxs(address, page = 1, offset = 5000) {
+    const url = `${SCAN_BASE}?module=account&action=txlistinternal&address=${address}&page=${page}&offset=${offset}&sort=asc`;
+    const data = await fetchJSON(url, 30000);
+    if (data.status !== '1') {
+      if (data.message === 'No transactions found') return [];
+      throw new Error(data.message || 'Failed to fetch internal transactions');
+    }
+    return data.result || [];
+  }
+
+  /**
+   * Wrapped PLS contract address — derived from KNOWN_TOKENS and excluded from
+   * trade imports since wrapping/unwrapping PLS→WPLS is not a swap trade.
+   */
+  const WPLS_ADDRESS = KNOWN_TOKENS.find(t => t.symbol === 'WPLS').address.toLowerCase();
+
+  /**
+   * Fetch all token transfers, normal transactions, and internal transactions for
+   * a wallet address, then parse them into structured buy/sell trade records.
+   *
+   * Detection rules:
+   *   BUY  — wallet receives token(s) in the same tx where it sent PLS (normal tx, value > 0, from == wallet)
+   *   SELL — wallet sends token(s) in the same tx where it received PLS via an internal transfer
+   *
+   * Token-to-token swaps and transactions where PLS amount cannot be determined
+   * are excluded.  WPLS (wrapped PLS) transfers are always excluded.
+   *
+   * @param {string} address  0x-prefixed wallet address
+   * @returns {Promise<Array<{type,tokenAddress,tokenSymbol,tokenName,date,tokenAmount,plsAmount,usdValue,pricePerTokenPls,notes,txHash}>>}
+   */
+  async function parseWalletTrades(address) {
+    const addrLower = address.toLowerCase();
+
+    // Fetch all three data sources in parallel
+    const [tokenTxs, normalTxs, internalTxs] = await Promise.all([
+      getTokenTransfers(address),
+      getNormalTxs(address),
+      getInternalTxs(address),
+    ]);
+
+    // Index normal txs by hash for O(1) lookup
+    const normalTxMap = new Map();
+    for (const tx of normalTxs) {
+      normalTxMap.set(tx.hash.toLowerCase(), tx);
+    }
+
+    // Sum PLS received via internal txs per tx hash
+    const internalPlsMap = new Map(); // hash → total PLS received by wallet
+    for (const tx of internalTxs) {
+      if (tx.to?.toLowerCase() !== addrLower) continue;
+      const plsVal = toDecimal(tx.value, PLS_DECIMALS);
+      if (plsVal <= 0) continue;
+      const hash = tx.hash.toLowerCase();
+      internalPlsMap.set(hash, (internalPlsMap.get(hash) || 0) + plsVal);
+    }
+
+    // Group token transfers by tx hash, separating incoming from outgoing
+    const txGroups = new Map(); // hash → { incoming: [], outgoing: [], timeStamp }
+    for (const tx of tokenTxs) {
+      // Exclude WPLS wrapping/unwrapping
+      if (tx.contractAddress?.toLowerCase() === WPLS_ADDRESS) continue;
+
+      const hash = tx.hash.toLowerCase();
+      if (!txGroups.has(hash)) {
+        txGroups.set(hash, { incoming: [], outgoing: [], timeStamp: tx.timeStamp });
+      }
+      const group = txGroups.get(hash);
+      if (tx.to?.toLowerCase() === addrLower) {
+        group.incoming.push(tx);
+      } else if (tx.from?.toLowerCase() === addrLower) {
+        group.outgoing.push(tx);
+      }
+    }
+
+    const trades = [];
+
+    for (const [hash, { incoming, outgoing, timeStamp }] of txGroups) {
+      const date     = new Date(Number(timeStamp) * 1000).toISOString();
+      const shortHash = hash.slice(0, 10) + '…';
+      const normalTx = normalTxMap.get(hash);
+
+      // ── BUY: wallet sent PLS and received token(s) ──────────────────────
+      if (
+        incoming.length > 0 &&
+        normalTx &&
+        normalTx.from?.toLowerCase() === addrLower
+      ) {
+        const plsSpent = toDecimal(normalTx.value, PLS_DECIMALS);
+        if (plsSpent > 0) {
+          // Split PLS evenly across all received tokens in this tx.
+          // Note: this is an approximation — in rare multi-token swaps the actual
+          // PLS per token may differ; users can edit individual trades if needed.
+          const plsPerToken = plsSpent / incoming.length;
+          for (const transfer of incoming) {
+            const tokenAmount = toDecimal(transfer.value, Number(transfer.tokenDecimal) || 18);
+            if (tokenAmount <= 0) continue;
+            trades.push({
+              type:            'buy',
+              tokenAddress:    transfer.contractAddress.toLowerCase(),
+              tokenSymbol:     transfer.tokenSymbol || '?',
+              tokenName:       transfer.tokenName   || transfer.tokenSymbol || '?',
+              date,
+              tokenAmount,
+              plsAmount:       plsPerToken,
+              usdValue:        0,
+              pricePerTokenPls: tokenAmount > 0 ? plsPerToken / tokenAmount : 0,
+              notes:           `Imported from tx ${shortHash}`,
+              txHash:          hash,
+            });
+          }
+        }
+      }
+
+      // ── SELL: wallet sent token(s) and received PLS internally ──────────
+      if (outgoing.length > 0 && internalPlsMap.has(hash)) {
+        const plsReceived  = internalPlsMap.get(hash);
+        // Split PLS evenly across all sent tokens in this tx (same approximation as buys above).
+        const plsPerToken  = plsReceived / outgoing.length;
+        for (const transfer of outgoing) {
+          const tokenAmount = toDecimal(transfer.value, Number(transfer.tokenDecimal) || 18);
+          if (tokenAmount <= 0) continue;
+          trades.push({
+            type:            'sell',
+            tokenAddress:    transfer.contractAddress.toLowerCase(),
+            tokenSymbol:     transfer.tokenSymbol || '?',
+            tokenName:       transfer.tokenName   || transfer.tokenSymbol || '?',
+            date,
+            tokenAmount,
+            plsAmount:       plsPerToken,
+            usdValue:        0,
+            pricePerTokenPls: tokenAmount > 0 ? plsPerToken / tokenAmount : 0,
+            notes:           `Imported from tx ${shortHash}`,
+            txHash:          hash,
+          });
+        }
+      }
+    }
+
+    // Sort chronologically
+    trades.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return trades;
+  }
+
+  /**
    * Fetch all ERC-20 token balances held by a wallet.
    * Returns an array of token objects with symbol, name, balance, decimals, contractAddress.
    * @param {string} address  0x-prefixed wallet address
@@ -264,6 +448,7 @@ const API = (() => {
     getTopPulsechainPairs,
     getKnownTokenPairs,
     getCoreCoinPairs,
+    parseWalletTrades,
     KNOWN_TOKENS,
     CORE_COINS,
   };

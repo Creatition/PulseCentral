@@ -1111,6 +1111,51 @@ li + li { margin-top: 0.35rem; }
   flex: 1;
 }
 
+/* ── Import from Wallet modal ── */
+.modal-dialog-wide { max-width: 760px; }
+
+.import-instructions {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.import-preview-info {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.import-duplicate-warning {
+  background: rgba(245,158,11,0.12);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  font-size: 0.83rem;
+  margin-bottom: 0.75rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.import-preview-table {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.import-row-dup td { opacity: 0.55; }
+
+.import-done-msg {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.import-done-icon { font-size: 2.5rem; }
+
+
 /* ── Responsive ── */
 @media (max-width: 1100px) {
   .home-coins-grid { grid-template-columns: repeat(3, 1fr); }
