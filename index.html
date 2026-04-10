@@ -98,6 +98,9 @@
           <button id="create-group-btn" class="btn btn-primary" aria-label="Create a new portfolio group">
             ＋ New Group
           </button>
+          <button id="edit-saved-btn" class="btn btn-secondary" aria-label="Edit saved addresses and groups">
+            ✎ Edit
+          </button>
         </div>
       </div>
 
@@ -142,8 +145,6 @@
       </div>
 
       <div id="portfolio-error" class="error-banner hidden" role="alert"></div>
-
-      <div id="groups-list" class="groups-list" aria-label="Portfolio groups"></div>
 
       <!-- Active group label (shown when a group is loaded) -->
       <div id="group-context-banner" class="group-context-banner hidden">
@@ -417,6 +418,33 @@
       <a href="https://scan.pulsechain.com" target="_blank" rel="noopener">PulseChain Scan</a>
     </p>
   </footer>
+
+  <!-- ===== MANAGE SAVED ADDRESSES & GROUPS MODAL ===== -->
+  <div id="manage-saved-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="manage-saved-title">
+    <div class="modal-dialog modal-dialog-wide">
+      <div class="modal-header">
+        <h2 id="manage-saved-title">Edit Saved Addresses &amp; Groups</h2>
+        <button id="manage-saved-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="manage-saved-body">
+
+        <!-- Saved Addresses -->
+        <div class="manage-saved-section">
+          <h3 class="manage-saved-section-title">💼 Saved Addresses</h3>
+          <div id="manage-saved-wallets-list" class="manage-saved-list"></div>
+          <p id="manage-saved-wallets-empty" class="manage-saved-empty hidden">No saved addresses yet.</p>
+        </div>
+
+        <!-- Groups -->
+        <div class="manage-saved-section">
+          <h3 class="manage-saved-section-title">🗂 Groups</h3>
+          <div id="manage-saved-groups-list" class="manage-saved-list"></div>
+          <p id="manage-saved-groups-empty" class="manage-saved-empty hidden">No groups yet. Create one with ＋ New Group.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!-- ===== CREATE / EDIT GROUP MODAL ===== -->
   <div id="group-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
