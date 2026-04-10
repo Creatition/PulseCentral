@@ -30,6 +30,11 @@ const API = (() => {
     { symbol: 'WETH',         address: '0x02DcdD04e3F455D838cd1249292C58f3B79e3C3C' },
     { symbol: 'WBTC',         address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' },
     { symbol: 'pDAI',         address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' },
+    { symbol: 'eHex',         address: '0x57fde0a71132198BBeC939B98976993d8D89D225' },
+    { symbol: 'PRVX',         address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11' },
+    { symbol: 'usdl',         address: '0x0dEEd1486bc52aA0d3E6f8849cEC5adD6598A162' },
+    { symbol: 'emit',         address: '0x32fB5663619A657839A80133994E45c5e5cDf427' },
+    { symbol: 'pulseguy',     address: '0x67922D590BA6C784f468B6B562d201113a8FbD2D' },
     { symbol: 'Peacock',      address: '0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F' },
     { symbol: 'Zero',         address: '0xf6703DBff070F231eEd966D33B1B6D7eF5207d26' },
     { symbol: 'pTGC',         address: '0x94534EeEe131840b1c0F61847c572228bdfDDE93' },
@@ -78,7 +83,9 @@ const API = (() => {
     { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9' },
     { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65' },
     { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa' },
-    { symbol: 'PRVX', address: null,                                           pairAddress: '0x62f7d076c92db76cf84223b6309801ea461d7afe' },
+    { symbol: 'PRVX', address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11',  pairAddress: '0x62f7d076c92db76cf84223b6309801ea461d7afe' },
+    { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',  pairAddress: '0xe0e1F83A1C64Cf65C1a86D7f3445fc4F58f7Dcbf' },
+    { symbol: 'pDAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F',  pairAddress: '0xfC64556FAA683e6087F425819C7Ca3C558e13aC1' },
   ];
 
   /**
