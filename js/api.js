@@ -397,6 +397,45 @@ const API = (() => {
   }
 
   /**
+   * Fetch trending PulseChain pairs, sorted by 6-hour transaction activity
+   * as an approximation of trending tokens.  Note: this is not an exact replica
+   * of DexScreener's proprietary trendingScoreH6 — it uses (h6 buys + h6 sells)
+   * as a publicly available proxy that correlates with recent trading momentum.
+   * Mirrors the spirit of: https://dexscreener.com/pulsechain?rankBy=trendingScoreH6&order=desc
+   * @returns {Promise<object[]>}
+   */
+  async function getTrendingPairs() {
+    const profileAddresses = [];
+    try {
+      const profiles = await fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1');
+      (profiles || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
+    } catch (_) {
+      // Non-fatal – fall back to KNOWN_TOKENS only
+    }
+
+    const seen = new Set();
+    const allAddresses = [];
+    for (const addr of [...profileAddresses, ...KNOWN_TOKENS.map(t => t.address)]) {
+      const lower = addr.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        allAddresses.push(addr);
+      }
+    }
+
+    const rawMap = await getPairsByAddresses(allAddresses);
+
+    // Sort by 6-hour transaction count (buys + sells) as trendingScoreH6 proxy
+    return [...rawMap.values()].sort((a, b) => {
+      const aScore = Number(a.txns?.h6?.buys || 0) + Number(a.txns?.h6?.sells || 0);
+      const bScore = Number(b.txns?.h6?.buys || 0) + Number(b.txns?.h6?.sells || 0);
+      return bScore - aScore;
+    });
+  }
+
+  /**
    * Fetch pair data for the well-known token list (Markets tab warm-up).
    * @returns {Promise<object[]>}
    */
@@ -446,6 +485,7 @@ const API = (() => {
     getTokenList,
     getPairsByAddresses,
     getTopPulsechainPairs,
+    getTrendingPairs,
     getKnownTokenPairs,
     getCoreCoinPairs,
     parseWalletTrades,
