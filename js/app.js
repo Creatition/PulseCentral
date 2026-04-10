@@ -862,7 +862,19 @@ function renderMarketsGrid() {
     container.appendChild(grid);
   } else {
     // ── Top Coins ──────────────────────────────────────────
-    const topPairs = allMarketPairs.slice(0, 12);
+    // pTGC and Peacock are pinned at positions 7 and 8 regardless of volume rank.
+    const PINNED_7TH = '0x94534eeee131840b1c0f61847c572228bfdde93'; // pTGC
+    const PINNED_8TH = '0xc10a4ed9b4042222d69ff0b374eddd47ed90fc1f'; // Peacock
+    const pinnedAddrs = new Set([PINNED_7TH, PINNED_8TH]);
+    const ptgcPair    = allMarketPairs.find(p => (p.baseToken?.address || '').toLowerCase() === PINNED_7TH);
+    const peacockPair = allMarketPairs.find(p => (p.baseToken?.address || '').toLowerCase() === PINNED_8TH);
+    const remaining   = allMarketPairs.filter(p => !pinnedAddrs.has((p.baseToken?.address || '').toLowerCase()));
+    const topPairs = [
+      ...remaining.slice(0, 6),
+      ...(ptgcPair    ? [ptgcPair]    : []),
+      ...(peacockPair ? [peacockPair] : []),
+      ...remaining.slice(6, 6 + 12 - 6 - (ptgcPair ? 1 : 0) - (peacockPair ? 1 : 0)),
+    ].slice(0, 12);
     container.appendChild(buildMarketsSection('🏆 Top Coins', topPairs, true));
 
     // ── Top Gainers ────────────────────────────────────────
