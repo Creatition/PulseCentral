@@ -561,6 +561,60 @@ const API = (() => {
     }));
   }
 
+  /* ── Enhanced Market Data API ───────────────────────────── */
+
+  /**
+   * Fetch token security information from GoPlus Security API.
+   * PulseChain chain ID is 369.
+   * Returns null when the token is not found or on network error.
+   * @param {string} address  Token contract address (0x-prefixed)
+   * @returns {Promise<object|null>}
+   */
+  async function getTokenSecurity(address) {
+    const addr = address.toLowerCase();
+    const url = `https://api.gopluslabs.io/api/v1/token_security/369?contract_addresses=${addr}`;
+    try {
+      const data = await fetchJSON(url, 12000);
+      if (data.code !== 1) return null;
+      return data.result?.[addr] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch token metadata (holder count, total supply, token type) from the
+   * PulseChain Scan BlockScout v2 REST API.
+   * Returns null on error.
+   * @param {string} address  Token contract address (0x-prefixed)
+   * @returns {Promise<object|null>}
+   */
+  async function getTokenMetadata(address) {
+    const url = `https://scan.pulsechain.com/api/v2/tokens/${address}`;
+    try {
+      return await fetchJSON(url, 10000);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch recent transfer events for a specific token contract from the
+   * PulseChain Scan BlockScout v2 REST API.
+   * Used by the Whale Tracker to surface large token movements.
+   * @param {string} address  Token contract address (0x-prefixed)
+   * @returns {Promise<object[]>}  Array of BlockScout transfer objects
+   */
+  async function getTokenTransferHistory(address) {
+    const url = `https://scan.pulsechain.com/api/v2/tokens/${address}/transfers?limit=50`;
+    try {
+      const data = await fetchJSON(url, 12000);
+      return data?.items || [];
+    } catch {
+      return [];
+    }
+  }
+
   /* ── Public API ─────────────────────────────────────────── */
   return {
     getPlsBalance,
@@ -571,6 +625,9 @@ const API = (() => {
     getKnownTokenPairs,
     getCoreCoinPairs,
     parseWalletTrades,
+    getTokenSecurity,
+    getTokenMetadata,
+    getTokenTransferHistory,
     KNOWN_TOKENS,
     CORE_COINS,
   };

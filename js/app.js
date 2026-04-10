@@ -143,6 +143,27 @@ const WPLS_ADDRESS = '0xa1077a294dde1b09bb078844df40758a5D0f9a27';
 /** Fallback logo URL for WPLS/PLS when DexScreener doesn't return one */
 const WPLS_LOGO_FALLBACK = 'https://dd.dexscreener.com/ds-data/tokens/pulsechain/0xa1077a294dde1b09bb078844df40758a5d0f9a27.png';
 
+/**
+ * Human-readable labels for known DexScreener social link types.
+ * Used on market/trending cards and in the Token Details modal.
+ */
+const SOCIAL_LABELS = {
+  twitter:    '𝕏 Twitter',
+  x:          '𝕏 Twitter',
+  telegram:   '✈️ Telegram',
+  discord:    '💬 Discord',
+  github:     '</> GitHub',
+  medium:     '📝 Medium',
+  reddit:     '🔴 Reddit',
+  youtube:    '▶️ YouTube',
+  facebook:   '👥 Facebook',
+  instagram:  '📷 Instagram',
+  linkedin:   '💼 LinkedIn',
+  tiktok:     '🎵 TikTok',
+  docs:       '📄 Docs',
+  whitepaper: '📄 Whitepaper',
+};
+
 /** Build a token logo element (img if URL available, placeholder otherwise) */
 function buildTokenLogo(logoUrl, symbol) {
   if (logoUrl) {
@@ -904,6 +925,18 @@ function buildMarketCard(index, pair) {
 
   header.append(rankEl, logoEl, nameWrap, starBtn);
 
+  // Info button — opens the token details modal
+  const infoBtn = document.createElement('button');
+  infoBtn.className = 'card-info-btn';
+  infoBtn.textContent = 'ℹ';
+  infoBtn.title = 'Token details';
+  infoBtn.setAttribute('aria-label', 'View token details');
+  infoBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    openTokenDetailsModal(pair);
+  });
+  header.appendChild(infoBtn);
+
   // Price + change
   const priceRow = document.createElement('div');
   priceRow.className = 'market-card-price-row';
@@ -934,6 +967,28 @@ function buildMarketCard(index, pair) {
   `;
 
   card.append(header, priceRow, stats);
+
+  // Social links row (website, Twitter, Telegram etc.)
+  const websites = pair.info?.websites || [];
+  const socials  = pair.info?.socials  || [];
+  const socialLinks = [...websites.map(w => ({ label: `🌐 ${w.label || 'Web'}`, url: w.url })),
+                       ...socials.map(s => ({ label: SOCIAL_LABELS[(s.type || '').toLowerCase()] || `🔗 ${s.type}`, url: s.url }))];
+  if (socialLinks.length > 0) {
+    const socialsRow = document.createElement('div');
+    socialsRow.className = 'market-card-socials';
+    socialLinks.slice(0, 4).forEach(({ label, url }) => {
+      if (!url) return;
+      const a = document.createElement('a');
+      a.href      = url;
+      a.target    = '_blank';
+      a.rel       = 'noopener';
+      a.className = 'market-social-link';
+      a.textContent = label;
+      a.addEventListener('click', e => e.stopPropagation());
+      socialsRow.appendChild(a);
+    });
+    if (socialsRow.children.length > 0) card.appendChild(socialsRow);
+  }
 
   // Open DexScreener pair page when card is clicked
   if (pair.pairAddress) {
@@ -998,6 +1053,18 @@ function renderTrendingGrid(pairs) {
 
     header.append(logoEl, nameWrap);
 
+    // Info button — opens the token details modal
+    const trendInfoBtn = document.createElement('button');
+    trendInfoBtn.className = 'card-info-btn';
+    trendInfoBtn.textContent = 'ℹ';
+    trendInfoBtn.title = 'Token details';
+    trendInfoBtn.setAttribute('aria-label', 'View token details');
+    trendInfoBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      openTokenDetailsModal(pair);
+    });
+    header.appendChild(trendInfoBtn);
+
     const priceEl = document.createElement('div');
     priceEl.className = 'trending-price';
     priceEl.textContent = fmt.price(pair.priceUsd);
@@ -1020,6 +1087,30 @@ function renderTrendingGrid(pairs) {
     badge.textContent = '🔥 Trending';
 
     card.append(header, priceEl, meta, badge);
+
+    // Social links on trending cards
+    const tWebsites = pair.info?.websites || [];
+    const tSocials  = pair.info?.socials  || [];
+    const tSocialLinks = [
+      ...tWebsites.map(w => ({ label: `🌐 ${w.label || 'Web'}`, url: w.url })),
+      ...tSocials.map(s => ({ label: SOCIAL_LABELS[(s.type || '').toLowerCase()] || `🔗 ${s.type}`, url: s.url })),
+    ];
+    if (tSocialLinks.length > 0) {
+      const socialsRow = document.createElement('div');
+      socialsRow.className = 'market-card-socials';
+      tSocialLinks.slice(0, 3).forEach(({ label, url }) => {
+        if (!url) return;
+        const a = document.createElement('a');
+        a.href      = url;
+        a.target    = '_blank';
+        a.rel       = 'noopener';
+        a.className = 'market-social-link';
+        a.textContent = label;
+        a.addEventListener('click', e => e.stopPropagation());
+        socialsRow.appendChild(a);
+      });
+      if (socialsRow.children.length > 0) card.appendChild(socialsRow);
+    }
 
     // Open DexScreener pair page when card is clicked
     if (pair.pairAddress) {
@@ -2650,3 +2741,543 @@ function plSignClass(val) {
   if (n < 0) return 'change-negative';
   return 'change-neutral';
 }
+
+/* ── Token Details Modal ──────────────────────────────────── */
+
+/**
+ * Social-link label mapping for known social types from DexScreener.
+ * (Defined near the top of the file for use by market/trending card builders.)
+ */
+// SOCIAL_LABELS is defined in the constants section above.
+
+/** The DexScreener pair currently displayed in the token details modal. */
+let tokenDetailsPair = null;
+
+/** Tracks which tabs have already had their data loaded (lazy-loaded on first open). */
+let tokenDetailsSecurityLoaded = false;
+let tokenDetailsWhalesLoaded   = false;
+
+/** Minimum USD transfer value to qualify as a whale transaction. */
+const WHALE_USD_THRESHOLD = 10_000;
+
+/** Open the token details modal for the given DexScreener pair. */
+function openTokenDetailsModal(pair) {
+  tokenDetailsPair           = pair;
+  tokenDetailsSecurityLoaded = false;
+  tokenDetailsWhalesLoaded   = false;
+
+  // Reset to overview tab
+  switchTokenDetailsTab('overview');
+  renderTokenDetailsOverview(pair);
+
+  setVisible($('token-details-overlay'), true);
+}
+
+/** Close the token details modal and clear state. */
+function closeTokenDetailsModal() {
+  setHidden($('token-details-overlay'), true);
+  tokenDetailsPair = null;
+}
+
+/** Switch to the named tab (overview | security | whales) inside the modal. */
+function switchTokenDetailsTab(tabName) {
+  document.querySelectorAll('.td-tab-btn').forEach(btn => {
+    const active = btn.dataset.tdTab === tabName;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  document.querySelectorAll('.td-tab-panel').forEach(panel => {
+    const active = panel.id === `td-tab-${tabName}`;
+    panel.classList.toggle('hidden', !active);
+  });
+
+  // Lazy-load Security and Whale Tracker data on first visit
+  if (tabName === 'security' && !tokenDetailsSecurityLoaded) {
+    tokenDetailsSecurityLoaded = true;
+    loadTokenSecurityData();
+  }
+  if (tabName === 'whales' && !tokenDetailsWhalesLoaded) {
+    tokenDetailsWhalesLoaded = true;
+    loadTokenWhaleData();
+  }
+}
+
+/**
+ * Build the Overview tab content from the existing pair data.
+ * No additional API calls are made here; all data comes from DexScreener.
+ */
+function renderTokenDetailsOverview(pair) {
+  const token    = pair?.baseToken || {};
+  const logoUrl  = pair?.info?.imageUrl || null;
+  const tokenAddr = (token.address || '').toLowerCase();
+
+  // Update modal header
+  const logoWrap = $('token-details-logo-wrap');
+  logoWrap.innerHTML = '';
+  logoWrap.appendChild(buildTokenLogo(logoUrl, token.symbol || '?'));
+  $('token-details-title').textContent = token.name || token.symbol || 'Unknown Token';
+  $('token-details-sym').textContent   = token.symbol || '';
+
+  const content = $('td-tab-overview');
+  content.innerHTML = '';
+
+  // ── Contract address ─────────────────────────────────────
+  if (tokenAddr) {
+    const addrSection = document.createElement('div');
+    addrSection.className = 'td-section';
+
+    const addrLabel = document.createElement('div');
+    addrLabel.className = 'td-label';
+    addrLabel.textContent = 'Contract Address';
+
+    const addrRow = document.createElement('div');
+    addrRow.className = 'td-contract-row';
+
+    const addrEl = document.createElement('span');
+    addrEl.className = 'td-contract-addr';
+    addrEl.textContent = tokenAddr;
+    addrEl.title = tokenAddr;
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'td-copy-btn';
+    copyBtn.title = 'Copy address';
+    copyBtn.setAttribute('aria-label', 'Copy contract address');
+    copyBtn.textContent = '📋';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(tokenAddr)
+        .then(() => {
+          copyBtn.textContent = '✅';
+          setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+        })
+        .catch(() => {});
+    });
+
+    const scanLink = document.createElement('a');
+    scanLink.href      = `https://scan.pulsechain.com/token/${tokenAddr}`;
+    scanLink.target    = '_blank';
+    scanLink.rel       = 'noopener';
+    scanLink.className = 'td-scan-link';
+    scanLink.textContent = '🔗 Scan';
+    scanLink.addEventListener('click', e => e.stopPropagation());
+
+    addrRow.append(addrEl, copyBtn, scanLink);
+    addrSection.append(addrLabel, addrRow);
+    content.appendChild(addrSection);
+  }
+
+  // ── Price stats grid ──────────────────────────────────────
+  const statsSection = document.createElement('div');
+  statsSection.className = 'td-section';
+
+  const statsGrid = document.createElement('div');
+  statsGrid.className = 'td-stats-grid';
+
+  const statDefs = [
+    { label: 'Price',       value: fmt.price(pair?.priceUsd) },
+    { label: '24h Change',  html: (() => { const { text, cls } = fmt.change(pair?.priceChange?.h24); return `<span class="${cls}">${text}</span>`; })() },
+    { label: '1h Change',   html: (() => { const { text, cls } = fmt.change(pair?.priceChange?.h1);  return `<span class="${cls}">${text}</span>`; })() },
+    { label: '5 min Change',html: (() => { const { text, cls } = fmt.change(pair?.priceChange?.m5);  return `<span class="${cls}">${text}</span>`; })() },
+    { label: 'Volume 24h',  value: fmt.large(pair?.volume?.h24) },
+    { label: 'Market Cap',  value: fmt.large(pair?.marketCap || pair?.fdv) },
+    { label: 'Liquidity',   value: fmt.large(pair?.liquidity?.usd) },
+    { label: 'Txns 24h',    value: pair?.txns?.h24 ? String(Number(pair.txns.h24.buys || 0) + Number(pair.txns.h24.sells || 0)) : '—' },
+  ];
+
+  statDefs.forEach(({ label, value, html }) => {
+    const stat = document.createElement('div');
+    stat.className = 'td-stat';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'td-stat-label';
+    lbl.textContent = label;
+
+    const val = document.createElement('div');
+    val.className = 'td-stat-value';
+    if (html) val.innerHTML = html;
+    else val.textContent = value || '—';
+
+    stat.append(lbl, val);
+    statsGrid.appendChild(stat);
+  });
+
+  statsSection.appendChild(statsGrid);
+  content.appendChild(statsSection);
+
+  // ── Social links ──────────────────────────────────────────
+  const websites = pair?.info?.websites || [];
+  const socials  = pair?.info?.socials  || [];
+
+  if (websites.length > 0 || socials.length > 0) {
+    const socialSection = document.createElement('div');
+    socialSection.className = 'td-section';
+
+    const socialLabel = document.createElement('div');
+    socialLabel.className = 'td-label';
+    socialLabel.textContent = 'Links & Socials';
+
+    const socialLinks = document.createElement('div');
+    socialLinks.className = 'td-social-links';
+
+    websites.forEach(({ label, url }) => {
+      if (!url) return;
+      const a = document.createElement('a');
+      a.href      = url;
+      a.target    = '_blank';
+      a.rel       = 'noopener';
+      a.className = 'td-social-link';
+      a.textContent = `🌐 ${escHtml(label || 'Website')}`;
+      a.addEventListener('click', e => e.stopPropagation());
+      socialLinks.appendChild(a);
+    });
+
+    socials.forEach(({ type, url }) => {
+      if (!url) return;
+      const a = document.createElement('a');
+      a.href      = url;
+      a.target    = '_blank';
+      a.rel       = 'noopener';
+      a.className = 'td-social-link';
+      const typeLower = (type || '').toLowerCase();
+      a.textContent = SOCIAL_LABELS[typeLower] || `🔗 ${type || 'Link'}`;
+      a.addEventListener('click', e => e.stopPropagation());
+      socialLinks.appendChild(a);
+    });
+
+    socialSection.append(socialLabel, socialLinks);
+    content.appendChild(socialSection);
+  }
+
+  // ── DexScreener link ──────────────────────────────────────
+  if (pair?.pairAddress) {
+    const dexSection = document.createElement('div');
+    dexSection.className = 'td-section';
+
+    const dexLink = document.createElement('a');
+    dexLink.href      = `https://dexscreener.com/pulsechain/${pair.pairAddress}`;
+    dexLink.target    = '_blank';
+    dexLink.rel       = 'noopener';
+    dexLink.className = 'td-social-link';
+    dexLink.textContent = '📈 View on DexScreener';
+    dexLink.addEventListener('click', e => e.stopPropagation());
+    dexSection.appendChild(dexLink);
+    content.appendChild(dexSection);
+  }
+}
+
+/** Fetch GoPlus security data and BlockScout metadata, then render the Security tab. */
+async function loadTokenSecurityData() {
+  if (!tokenDetailsPair) return;
+  const tokenAddr = (tokenDetailsPair?.baseToken?.address || '').toLowerCase();
+  if (!tokenAddr) return;
+
+  const loadingEl = $('token-details-security-loading');
+  const contentEl = $('token-details-security-content');
+  contentEl.innerHTML = '';
+  setVisible(loadingEl, true);
+
+  try {
+    const [security, metadata] = await Promise.all([
+      API.getTokenSecurity(tokenAddr),
+      API.getTokenMetadata(tokenAddr),
+    ]);
+    setHidden(loadingEl, true);
+    renderTokenSecurityContent(security, metadata, tokenAddr);
+  } catch (err) {
+    setHidden(loadingEl, true);
+    const p = document.createElement('p');
+    p.className = 'td-error';
+    p.textContent = `Failed to load security data: ${err.message}`;
+    contentEl.appendChild(p);
+  }
+}
+
+/**
+ * Render the Security tab content from GoPlus and BlockScout data.
+ * @param {object|null} security  GoPlus token security result
+ * @param {object|null} metadata  BlockScout v2 token metadata
+ * @param {string}      tokenAddr Lowercase contract address
+ */
+function renderTokenSecurityContent(security, metadata, tokenAddr) {
+  const contentEl = $('token-details-security-content');
+  contentEl.innerHTML = '';
+
+  // ── Holder / Supply info (BlockScout preferred, GoPlus fallback) ──
+  const holderCount = metadata?.holders || security?.holder_count || null;
+  const rawSupply   = metadata?.total_supply || security?.total_supply || null;
+  const decimals    = Number(metadata?.decimals || 18);
+
+  if (holderCount || rawSupply) {
+    const section = document.createElement('div');
+    section.className = 'td-section';
+    const grid = document.createElement('div');
+    grid.className = 'td-stats-grid';
+
+    if (holderCount) {
+      const stat = document.createElement('div');
+      stat.className = 'td-stat';
+      stat.innerHTML = `<div class="td-stat-label">Holders</div><div class="td-stat-value">${Number(holderCount).toLocaleString('en-US')}</div>`;
+      grid.appendChild(stat);
+    }
+    if (rawSupply) {
+      const supply = Number(rawSupply) / Math.pow(10, decimals);
+      const fmtd = supply >= 1e12 ? (supply / 1e12).toFixed(2) + 'T'
+                 : supply >= 1e9  ? (supply / 1e9 ).toFixed(2) + 'B'
+                 : supply >= 1e6  ? (supply / 1e6 ).toFixed(2) + 'M'
+                 : supply.toLocaleString('en-US', { maximumFractionDigits: 0 });
+      const stat = document.createElement('div');
+      stat.className = 'td-stat';
+      stat.innerHTML = `<div class="td-stat-label">Total Supply</div><div class="td-stat-value">${fmtd}</div>`;
+      grid.appendChild(stat);
+    }
+    section.appendChild(grid);
+    contentEl.appendChild(section);
+  }
+
+  if (!security) {
+    const unavail = document.createElement('div');
+    unavail.className = 'td-security-unavailable';
+    unavail.innerHTML = '<span>🔍</span><p>Security analysis is not available for this token on PulseChain.</p>';
+    contentEl.appendChild(unavail);
+    return;
+  }
+
+  // ── Risk banner ───────────────────────────────────────────
+  const isHoneypot      = security.is_honeypot      === '1';
+  const buyTax          = Number(security.buy_tax   || 0) * 100;
+  const sellTax         = Number(security.sell_tax  || 0) * 100;
+  const isOpenSource    = security.is_open_source   === '1';
+  const isMintable      = security.is_mintable      === '1';
+  const isProxy         = security.is_proxy         === '1';
+  const canTakeBack     = security.can_take_back_ownership === '1';
+  const hiddenOwner     = security.hidden_owner     === '1';
+  const xferPausable    = security.transfer_pausable === '1';
+  const blacklistable   = security.is_blacklisted   === '1';
+  const ownerModBalance = security.owner_change_balance === '1';
+
+  const criticalCount = [isHoneypot, canTakeBack, hiddenOwner, ownerModBalance].filter(Boolean).length;
+  const warnCount     = [isMintable, xferPausable, blacklistable, buyTax > 10, sellTax > 10].filter(Boolean).length;
+
+  const riskBanner = document.createElement('div');
+  if (isHoneypot) {
+    riskBanner.className = 'td-risk-banner td-risk-critical';
+    riskBanner.innerHTML = '🚨 <strong>HONEYPOT DETECTED</strong> — This token may trap your funds. Exercise extreme caution.';
+  } else if (criticalCount > 0 || warnCount >= 3) {
+    riskBanner.className = 'td-risk-banner td-risk-high';
+    riskBanner.innerHTML = '⚠️ <strong>HIGH RISK</strong> — Multiple security flags detected. DYOR before buying.';
+  } else if (warnCount > 0 || !isOpenSource) {
+    riskBanner.className = 'td-risk-banner td-risk-warning';
+    riskBanner.innerHTML = '⚡ <strong>MODERATE RISK</strong> — Some flags detected. Proceed with caution.';
+  } else {
+    riskBanner.className = 'td-risk-banner td-risk-ok';
+    riskBanner.innerHTML = '✅ <strong>LOW RISK</strong> — No major security issues detected.';
+  }
+  contentEl.appendChild(riskBanner);
+
+  // ── Security checks list ──────────────────────────────────
+  const checksSection = document.createElement('div');
+  checksSection.className = 'td-section';
+
+  const checksLabel = document.createElement('div');
+  checksLabel.className = 'td-label';
+  checksLabel.textContent = 'Security Checks';
+
+  const checks = [
+    { label: 'Honeypot',                   pass: !isHoneypot,      textVal: isHoneypot      ? 'Yes ⚠️' : 'No',   critical: true  },
+    { label: 'Contract Open Source',       pass: isOpenSource,     textVal: isOpenSource     ? 'Yes'    : 'No',   critical: false },
+    { label: 'Buy Tax',                    pass: buyTax  <= 5,     textVal: buyTax  > 0 ? `${buyTax.toFixed(1)}%`  : 'None', critical: false },
+    { label: 'Sell Tax',                   pass: sellTax <= 5,     textVal: sellTax > 0 ? `${sellTax.toFixed(1)}%` : 'None', critical: false },
+    { label: 'Mintable',                   pass: !isMintable,      textVal: isMintable       ? 'Yes' : 'No',      critical: false },
+    { label: 'Is Proxy',                   pass: !isProxy,         textVal: isProxy          ? 'Yes' : 'No',      critical: false },
+    { label: 'Transfer Pausable',          pass: !xferPausable,    textVal: xferPausable     ? 'Yes' : 'No',      critical: false },
+    { label: 'Blacklist Function',         pass: !blacklistable,   textVal: blacklistable    ? 'Yes' : 'No',      critical: false },
+    { label: 'Can Take Back Ownership',    pass: !canTakeBack,     textVal: canTakeBack      ? 'Yes' : 'No',      critical: true  },
+    { label: 'Hidden Owner',               pass: !hiddenOwner,     textVal: hiddenOwner      ? 'Yes' : 'No',      critical: true  },
+    { label: 'Owner Can Modify Balances',  pass: !ownerModBalance, textVal: ownerModBalance  ? 'Yes' : 'No',      critical: true  },
+  ];
+
+  const checksList = document.createElement('ul');
+  checksList.className = 'td-security-list';
+
+  checks.forEach(({ label, pass, textVal, critical }) => {
+    const li = document.createElement('li');
+    li.className = 'td-security-item';
+
+    const icon = document.createElement('span');
+    icon.className = pass ? 'td-check-pass' : (critical ? 'td-check-critical' : 'td-check-warn');
+    icon.textContent = pass ? '✓' : '✗';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'td-check-label';
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement('span');
+    valueEl.className = `td-check-value ${pass ? 'td-check-pass' : (critical ? 'td-check-critical' : 'td-check-warn')}`;
+    valueEl.textContent = textVal;
+
+    li.append(icon, labelEl, valueEl);
+    checksList.appendChild(li);
+  });
+
+  checksSection.append(checksLabel, checksList);
+  contentEl.appendChild(checksSection);
+
+  // GoPlus attribution
+  const attr = document.createElement('p');
+  attr.className = 'td-attribution';
+  attr.innerHTML = 'Security analysis powered by <a href="https://gopluslabs.io" target="_blank" rel="noopener">GoPlus Security</a>. Always DYOR.';
+  contentEl.appendChild(attr);
+}
+
+/** Fetch recent token transfers and render the Whale Tracker tab. */
+async function loadTokenWhaleData() {
+  if (!tokenDetailsPair) return;
+  const tokenAddr = (tokenDetailsPair?.baseToken?.address || '').toLowerCase();
+  if (!tokenAddr) return;
+
+  const loadingEl = $('token-details-whales-loading');
+  const contentEl = $('token-details-whales-content');
+  contentEl.innerHTML = '';
+  setVisible(loadingEl, true);
+
+  try {
+    const transfers = await API.getTokenTransferHistory(tokenAddr);
+    setHidden(loadingEl, true);
+    renderWhaleTransfers(transfers);
+  } catch (err) {
+    setHidden(loadingEl, true);
+    const p = document.createElement('p');
+    p.className = 'td-error';
+    p.textContent = `Failed to load transfers: ${err.message}`;
+    contentEl.appendChild(p);
+  }
+}
+
+/**
+ * Render whale transactions (transfers ≥ WHALE_USD_THRESHOLD) into the Whale Tracker tab.
+ * @param {object[]} transfers  BlockScout v2 transfer items
+ */
+function renderWhaleTransfers(transfers) {
+  const contentEl = $('token-details-whales-content');
+  const price     = Number(tokenDetailsPair?.priceUsd || 0);
+
+  // Parse transfers and filter to whale-sized ones
+  const whales = transfers.map(t => {
+    const raw      = Number(t.total?.value    || 0);
+    const dec      = Number(t.total?.decimals || 18);
+    const amount   = raw / Math.pow(10, dec);
+    const usdValue = amount * price;
+    return {
+      from:      t.from?.hash   || '',
+      to:        t.to?.hash     || '',
+      amount,
+      usdValue,
+      timestamp: t.timestamp    || '',
+      txHash:    t.tx_hash      || '',
+    };
+  }).filter(t => price > 0 ? t.usdValue >= WHALE_USD_THRESHOLD : t.amount > 0)
+    .sort((a, b) => b.usdValue - a.usdValue);
+
+  if (whales.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'td-whales-empty';
+    empty.innerHTML = `<span>🐋</span><p>No whale transactions found in the last 50 transfers.<br><small>Threshold: ${fmt.usd(WHALE_USD_THRESHOLD)}</small></p>`;
+    contentEl.appendChild(empty);
+    return;
+  }
+
+  const sym = escHtml(tokenDetailsPair?.baseToken?.symbol || '');
+
+  const header = document.createElement('p');
+  header.className = 'td-whales-header';
+  header.textContent = `${whales.length} large transfer${whales.length !== 1 ? 's' : ''} found (≥ ${fmt.usd(WHALE_USD_THRESHOLD)})`;
+  contentEl.appendChild(header);
+
+  const table = document.createElement('div');
+  table.className = 'td-whale-table';
+
+  whales.forEach(({ from, to, amount, usdValue, timestamp, txHash }) => {
+    const row = document.createElement('div');
+    row.className = 'td-whale-row';
+
+    // Timestamp
+    const timeEl = document.createElement('div');
+    timeEl.className = 'td-whale-time';
+    if (timestamp) {
+      const d = new Date(timestamp);
+      timeEl.textContent =
+        d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) + ' ' +
+        d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    } else {
+      timeEl.textContent = '—';
+    }
+
+    // From / To addresses
+    const addrsEl = document.createElement('div');
+    addrsEl.className = 'td-whale-addrs';
+
+    function addrLink(hash) {
+      if (!hash) return '—';
+      const short = `${hash.slice(0, 8)}…${hash.slice(-6)}`;
+      return `<a href="https://scan.pulsechain.com/address/${escHtml(hash)}" target="_blank" rel="noopener">${escHtml(short)}</a>`;
+    }
+
+    const fromEl = document.createElement('div');
+    fromEl.className = 'td-whale-addr';
+    fromEl.innerHTML = `<span class="td-whale-dir">From</span> ${addrLink(from)}`;
+
+    const toEl = document.createElement('div');
+    toEl.className = 'td-whale-addr';
+    toEl.innerHTML = `<span class="td-whale-dir">To</span> ${addrLink(to)}`;
+
+    addrsEl.append(fromEl, toEl);
+
+    // Value
+    const valEl = document.createElement('div');
+    valEl.className = 'td-whale-value';
+    const usdEl = document.createElement('div');
+    usdEl.className = 'td-whale-usd';
+    usdEl.textContent = price > 0 ? fmt.usd(usdValue) : '—';
+    const amtEl = document.createElement('div');
+    amtEl.className = 'td-whale-amount';
+    amtEl.textContent = `${fmt.balance(amount)} ${sym}`;
+    valEl.append(usdEl, amtEl);
+
+    row.append(timeEl, addrsEl, valEl);
+
+    // Tx link
+    if (txHash) {
+      const txLink = document.createElement('a');
+      txLink.href      = `https://scan.pulsechain.com/tx/${escHtml(txHash)}`;
+      txLink.target    = '_blank';
+      txLink.rel       = 'noopener';
+      txLink.className = 'td-whale-tx-link';
+      txLink.textContent = '🔗';
+      txLink.title = 'View transaction';
+      txLink.addEventListener('click', e => e.stopPropagation());
+      row.appendChild(txLink);
+    }
+
+    table.appendChild(row);
+  });
+
+  contentEl.appendChild(table);
+
+  const attr = document.createElement('p');
+  attr.className = 'td-attribution';
+  attr.innerHTML = 'Transfer data from <a href="https://scan.pulsechain.com" target="_blank" rel="noopener">PulseChain Scan</a>. Whale threshold: ' + fmt.usd(WHALE_USD_THRESHOLD) + '.';
+  contentEl.appendChild(attr);
+}
+
+// ── Wire token details modal events ───────────────────────
+$('token-details-close').addEventListener('click', closeTokenDetailsModal);
+$('token-details-overlay').addEventListener('click', e => {
+  if (e.target === $('token-details-overlay')) closeTokenDetailsModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('token-details-overlay').classList.contains('hidden')) {
+    closeTokenDetailsModal();
+  }
+});
+document.querySelectorAll('.td-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTokenDetailsTab(btn.dataset.tdTab));
+});

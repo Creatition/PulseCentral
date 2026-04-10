@@ -529,6 +529,55 @@
     </div>
   </div>
 
+  <!-- ===== TOKEN DETAILS MODAL ===== -->
+  <div id="token-details-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="token-details-title">
+    <div class="modal-dialog modal-dialog-wide token-details-dialog">
+
+      <div class="modal-header token-details-modal-header">
+        <div class="token-details-header-content">
+          <div id="token-details-logo-wrap" class="token-details-logo-wrap"></div>
+          <div class="token-details-header-info">
+            <h2 id="token-details-title">Token Details</h2>
+            <div id="token-details-sym" class="token-details-sym"></div>
+          </div>
+        </div>
+        <button id="token-details-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <!-- Tab navigation -->
+      <div class="td-tab-nav" role="tablist" aria-label="Token detail sections">
+        <button class="td-tab-btn active" data-td-tab="overview" role="tab" aria-selected="true">📊 Overview</button>
+        <button class="td-tab-btn" data-td-tab="security" role="tab" aria-selected="false">🔒 Security</button>
+        <button class="td-tab-btn" data-td-tab="whales" role="tab" aria-selected="false">🐋 Whale Tracker</button>
+      </div>
+
+      <div class="modal-body token-details-body">
+
+        <!-- Overview tab -->
+        <div id="td-tab-overview" class="td-tab-panel" role="tabpanel"></div>
+
+        <!-- Security tab -->
+        <div id="td-tab-security" class="td-tab-panel hidden" role="tabpanel">
+          <div id="token-details-security-loading" class="loading-wrap hidden">
+            <div class="pulse-loader" aria-label="Loading security data"></div>
+            <p>Analysing token security…</p>
+          </div>
+          <div id="token-details-security-content"></div>
+        </div>
+
+        <!-- Whale Tracker tab -->
+        <div id="td-tab-whales" class="td-tab-panel hidden" role="tabpanel">
+          <div id="token-details-whales-loading" class="loading-wrap hidden">
+            <div class="pulse-loader" aria-label="Loading transfer data"></div>
+            <p>Loading recent transfers…</p>
+          </div>
+          <div id="token-details-whales-content"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
 
