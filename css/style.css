@@ -949,6 +949,140 @@ li + li { margin-top: 0.35rem; }
 .theme-swatch[data-theme="pulsex"]     { background: linear-gradient(135deg, #00c853, #ff1744); }
 .theme-swatch[data-theme="incentive"]  { background: linear-gradient(135deg, #00e676, #69f0ae); }
 
+/* ── Portfolio Groups ── */
+.portfolio-groups-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.group-card {
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  transition: border-color var(--transition);
+}
+.group-card:hover { border-color: var(--border-light); }
+
+.group-card-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+.group-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-card-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-card-meta {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 0.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+
+/* Active group context banner */
+.group-context-banner {
+  align-items: center;
+  background: var(--primary-bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+  padding: 0.55rem 1rem;
+}
+
+.group-context-banner strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.group-context-addresses {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* Group modal address list */
+.group-addr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.group-addr-item {
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.group-addr-item-label {
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-addr-item-addr {
+  color: var(--text-muted);
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Add-address input row in group modal */
+.group-add-addr-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.group-add-addr-row .form-input:first-child { flex: 2; }
+.group-add-addr-row .form-input:nth-child(2) { flex: 1; }
+
 /* ── DexScreener attribution ── */
 .dex-attribution {
   color: var(--text-dim);
@@ -1178,6 +1312,7 @@ li + li { margin-top: 0.35rem; }
   .form-row-2, .form-row-3 { flex-direction: column; }
   .home-hero { padding: 2rem 1rem 1.5rem; }
   .home-coins-grid { grid-template-columns: repeat(2, 1fr); }
+  .group-add-addr-row { flex-direction: column; }
 }
 
 @media (max-width: 480px) {

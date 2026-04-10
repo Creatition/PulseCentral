@@ -119,6 +119,21 @@
 
       <div id="portfolio-error" class="error-banner hidden" role="alert"></div>
 
+      <!-- Portfolio Groups -->
+      <div class="portfolio-groups-bar">
+        <button id="create-group-btn" class="btn btn-secondary btn-sm" aria-label="Create a new portfolio group">
+          ＋ New Group
+        </button>
+      </div>
+
+      <div id="groups-list" class="groups-list" aria-label="Portfolio groups"></div>
+
+      <!-- Active group label (shown when a group is loaded) -->
+      <div id="group-context-banner" class="group-context-banner hidden">
+        <span id="group-context-name"></span>
+        <span class="group-context-addresses" id="group-context-addresses"></span>
+      </div>
+
       <!-- Summary cards -->
       <div id="portfolio-summary" class="summary-cards hidden">
         <div class="summary-card">
@@ -454,6 +469,52 @@
       <a href="https://scan.pulsechain.com" target="_blank" rel="noopener">PulseChain Scan</a>
     </p>
   </footer>
+
+  <!-- ===== CREATE / EDIT GROUP MODAL ===== -->
+  <div id="group-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="group-modal-title">New Portfolio Group</h2>
+        <button id="group-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body" id="group-modal-body">
+        <input type="hidden" id="group-id" />
+
+        <!-- Group name -->
+        <div class="form-group">
+          <label for="group-name-input">Group Name *</label>
+          <input id="group-name-input" type="text" class="form-input"
+            placeholder="e.g. My Main Wallets" maxlength="60" autocomplete="off" />
+        </div>
+
+        <!-- Address list -->
+        <div class="form-group">
+          <label>Wallet Addresses</label>
+          <ul id="group-addr-list" class="group-addr-list" aria-label="Addresses in this group"></ul>
+        </div>
+
+        <!-- Add address row -->
+        <div class="form-group">
+          <label for="group-addr-input">Add Address</label>
+          <div class="group-add-addr-row">
+            <input id="group-addr-input" type="text" class="form-input"
+              placeholder="0x… wallet address" maxlength="42" autocomplete="off" spellcheck="false" />
+            <input id="group-addr-label-input" type="text" class="form-input"
+              placeholder="Label (optional)" maxlength="40" autocomplete="off" />
+            <button id="group-add-addr-btn" class="btn btn-secondary btn-sm" type="button">＋ Add</button>
+          </div>
+        </div>
+
+        <div id="group-modal-error" class="trade-form-error hidden" role="alert"></div>
+
+        <div class="modal-footer">
+          <button id="group-modal-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="group-modal-save" class="btn btn-primary">Save Group</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ===== ADD / EDIT TRADE MODAL ===== -->
   <div id="trade-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">

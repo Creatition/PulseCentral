@@ -133,6 +133,12 @@ const $ = id => document.getElementById(id);
 const setHidden  = (el, hidden) => el.classList.toggle('hidden', hidden);
 const setVisible = (el, visible) => setHidden(el, !visible);
 
+/** Returns true if the given string is a valid EVM address (0x + 40 hex chars) */
+const isValidAddress = addr => /^0x[0-9a-fA-F]{40}$/.test(addr);
+
+/** Wrapped PLS (WPLS) contract address — used to look up the PLS/USD price */
+const WPLS_ADDRESS = '0xa1077a294dde1b09bb078844df40758a5D0f9a27';
+
 /** Build a token logo element (img if URL available, placeholder otherwise) */
 function buildTokenLogo(logoUrl, symbol) {
   if (logoUrl) {
@@ -421,7 +427,7 @@ loadBtn.addEventListener('click', () => {
     showPortfolioError('Please enter a wallet address.');
     return;
   }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+  if (!isValidAddress(address)) {
     showPortfolioError('Invalid Ethereum/PulseChain address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -448,7 +454,7 @@ walletInput.addEventListener('input', updateSaveWalletBtn);
 saveWalletBtn.addEventListener('click', () => {
   const addr = walletInput.value.trim();
   if (!addr) { showPortfolioError('Enter a wallet address first.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+  if (!isValidAddress(addr)) {
     showPortfolioError('Invalid address format. Must start with 0x and be 42 characters.');
     return;
   }
@@ -482,6 +488,7 @@ async function loadPortfolio(address) {
   setHidden($('portfolio-toolbar'), true);
   setHidden($('portfolio-table-wrap'), true);
   setVisible($('portfolio-empty'), true);
+  setHidden($('group-context-banner'), true);
 
   try {
     // Fetch PLS balance and token list in parallel
@@ -930,7 +937,347 @@ const Watchlist = (() => {
   return { addWallet, removeWallet, hasWallet, addToken, removeToken, hasToken, getWallets, getTokens };
 })();
 
-/* ── Watchlist tab rendering ─────────────────────────────── */
+/* ── Portfolio Groups module ─────────────────────────────── */
+
+/**
+ * Portfolio groups are stored in localStorage under 'pc-groups'.
+ * Shape: { groups: { id, name, addresses: { addr, label }[] }[] }
+ */
+const PortfolioGroups = (() => {
+  const KEY = 'pc-groups';
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch { /* ignore */ }
+    return [];
+  }
+
+  function save(groups) {
+    try { localStorage.setItem(KEY, JSON.stringify(groups)); } catch { /* ignore */ }
+  }
+
+  function getGroups() { return load(); }
+
+  function addGroup(name, addresses) {
+    const groups = load();
+    const id = crypto.randomUUID();
+    groups.push({ id, name, addresses });
+    save(groups);
+    return id;
+  }
+
+  function updateGroup(id, name, addresses) {
+    const groups = load();
+    const idx = groups.findIndex(g => g.id === id);
+    if (idx !== -1) { groups[idx] = { id, name, addresses }; save(groups); }
+  }
+
+  function removeGroup(id) {
+    const groups = load().filter(g => g.id !== id);
+    save(groups);
+  }
+
+  function getGroup(id) {
+    return load().find(g => g.id === id) || null;
+  }
+
+  return { getGroups, addGroup, updateGroup, removeGroup, getGroup };
+})();
+
+/* ── Portfolio Groups UI ─────────────────────────────────── */
+
+// In-modal address list being edited
+let groupModalAddresses = []; // [{addr, label}]
+
+function renderGroupsList() {
+  const groups = PortfolioGroups.getGroups();
+  const container = $('groups-list');
+  container.innerHTML = '';
+
+  groups.forEach(group => {
+    const card = document.createElement('div');
+    card.className = 'group-card';
+    card.setAttribute('role', 'listitem');
+
+    const icon = document.createElement('span');
+    icon.className = 'group-card-icon';
+    icon.textContent = '🗂';
+
+    const info = document.createElement('div');
+    info.className = 'group-card-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'group-card-name';
+    nameEl.textContent = group.name;
+
+    const meta = document.createElement('div');
+    meta.className = 'group-card-meta';
+    const labels = group.addresses.map(a => a.label || a.addr.slice(0, 8) + '…').join(', ');
+    meta.textContent = `${group.addresses.length} address${group.addresses.length !== 1 ? 'es' : ''}: ${labels}`;
+    meta.title = group.addresses.map(a => a.label ? `${a.label}: ${a.addr}` : a.addr).join('\n');
+
+    info.append(nameEl, meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'group-card-actions';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'wl-load-btn';
+    loadBtn.textContent = '▶ Load';
+    loadBtn.title = 'Load combined portfolio for this group';
+    loadBtn.addEventListener('click', () => loadGroupPortfolio(group));
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'wl-load-btn';
+    editBtn.textContent = '✎ Edit';
+    editBtn.title = 'Edit group';
+    editBtn.addEventListener('click', () => openGroupModal(group));
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'wl-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Delete group';
+    removeBtn.addEventListener('click', () => {
+      if (!confirm(`Delete group "${group.name}"?`)) return;
+      PortfolioGroups.removeGroup(group.id);
+      renderGroupsList();
+    });
+
+    actions.append(loadBtn, editBtn, removeBtn);
+    card.append(icon, info, actions);
+    container.appendChild(card);
+  });
+}
+
+async function loadGroupPortfolio(group) {
+  if (group.addresses.length === 0) {
+    showPortfolioError('This group has no addresses. Add at least one address first.');
+    return;
+  }
+
+  hidePortfolioError();
+  setPortfolioLoading(true);
+  setHidden($('portfolio-summary'), true);
+  setHidden($('portfolio-table-wrap'), true);
+  setVisible($('portfolio-empty'), true);
+  setHidden($('group-context-banner'), true);
+
+  try {
+    // Fetch PLS balance + token list for every address in the group in parallel
+    const results = await Promise.all(
+      group.addresses.map(({ addr }) =>
+        Promise.all([API.getPlsBalance(addr), API.getTokenList(addr)])
+      )
+    );
+
+    // Aggregate PLS and tokens across all addresses
+    let totalPlsBalance = 0;
+    const tokenMap = new Map(); // contractAddress (lower) -> {token object}
+
+    results.forEach(([plsBalance, tokens]) => {
+      totalPlsBalance += plsBalance;
+      tokens.filter(t => t.balance > 0).forEach(t => {
+        const key = t.contractAddress.toLowerCase();
+        if (tokenMap.has(key)) {
+          tokenMap.get(key).balance += t.balance;
+        } else {
+          tokenMap.set(key, { ...t, balance: t.balance });
+        }
+      });
+    });
+
+    const activeTokens = [...tokenMap.values()];
+
+    // Fetch DEX price data
+    const addresses = activeTokens.map(t => t.contractAddress);
+    const pairMap   = await API.getPairsByAddresses(addresses);
+
+    // Enrich with price data
+    const enriched = activeTokens.map(t => {
+      const pair  = pairMap.get(t.contractAddress.toLowerCase());
+      const price     = Number(pair?.priceUsd   || 0);
+      const change24h = Number(pair?.priceChange?.h24 || 0);
+      const value     = price * t.balance;
+      const logoUrl   = pair?.info?.imageUrl || null;
+      return { ...t, price, change24h, value, logoUrl };
+    });
+
+    enriched.sort((a, b) => b.value - a.value);
+
+    const wplsPair = pairMap.get('0xa1077a294dde1b09bb078844df40758a5D0f9a27');
+    const plsPrice = Number(wplsPair?.priceUsd || 0);
+    const plsValue = totalPlsBalance * plsPrice;
+    const totalUsd = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
+
+    renderPortfolioSummary(totalUsd, enriched.length + 1, totalPlsBalance, plsPrice);
+    renderPortfolioTable(enriched, totalPlsBalance, plsPrice);
+
+    setHidden($('portfolio-empty'), true);
+    setVisible($('portfolio-summary'), true);
+    setVisible($('portfolio-table-wrap'), true);
+
+    // Show group context banner
+    const banner    = $('group-context-banner');
+    const nameEl    = $('group-context-name');
+    nameEl.textContent = '';
+    nameEl.appendChild(document.createTextNode('🗂 '));
+    const strong = document.createElement('strong');
+    strong.textContent = group.name;
+    nameEl.appendChild(strong);
+    $('group-context-addresses').textContent =
+      `${group.addresses.length} wallet${group.addresses.length !== 1 ? 's' : ''} combined`;
+    setVisible(banner, true);
+
+    // Clear single-wallet input to avoid confusion
+    walletInput.value = '';
+    updateSaveWalletBtn();
+  } catch (err) {
+    showPortfolioError(`Error loading group portfolio: ${err.message}`);
+  } finally {
+    setPortfolioLoading(false);
+  }
+}
+
+/* ── Group modal ─────────────────────────────────────────── */
+
+function openGroupModal(group = null) {
+  groupModalAddresses = group ? group.addresses.map(a => ({ ...a })) : [];
+  $('group-id').value = group ? group.id : '';
+  $('group-name-input').value = group ? group.name : '';
+  $('group-modal-title').textContent = group ? 'Edit Portfolio Group' : 'New Portfolio Group';
+  $('group-addr-input').value = '';
+  $('group-addr-label-input').value = '';
+  hideGroupModalError();
+  renderGroupAddrList();
+  setVisible($('group-modal-overlay'), true);
+  $('group-name-input').focus();
+}
+
+function closeGroupModal() {
+  setHidden($('group-modal-overlay'), true);
+}
+
+function showGroupModalError(msg) {
+  const el = $('group-modal-error');
+  el.textContent = msg;
+  setVisible(el, true);
+}
+
+function hideGroupModalError() {
+  setHidden($('group-modal-error'), true);
+}
+
+function renderGroupAddrList() {
+  const list = $('group-addr-list');
+  list.innerHTML = '';
+
+  if (groupModalAddresses.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'wl-empty';
+    li.style.cssText = 'padding:0.5rem 0;font-size:0.85rem;';
+    li.textContent = 'No addresses added yet.';
+    list.appendChild(li);
+    return;
+  }
+
+  groupModalAddresses.forEach((entry, idx) => {
+    const li = document.createElement('li');
+    li.className = 'group-addr-item';
+
+    if (entry.label) {
+      const labelEl = document.createElement('span');
+      labelEl.className = 'group-addr-item-label';
+      labelEl.textContent = entry.label;
+      labelEl.title = entry.label;
+      li.appendChild(labelEl);
+    }
+
+    const addrEl = document.createElement('span');
+    addrEl.className = 'group-addr-item-addr';
+    addrEl.textContent = entry.addr;
+    addrEl.title = entry.addr;
+    li.appendChild(addrEl);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'wl-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove address';
+    removeBtn.type = 'button';
+    removeBtn.addEventListener('click', () => {
+      const norm = entry.addr.toLowerCase();
+      groupModalAddresses = groupModalAddresses.filter(a => a.addr.toLowerCase() !== norm);
+      renderGroupAddrList();
+    });
+    li.appendChild(removeBtn);
+
+    list.appendChild(li);
+  });
+}
+
+function addGroupAddress() {
+  const addrRaw  = $('group-addr-input').value.trim();
+  const labelRaw = $('group-addr-label-input').value.trim();
+
+  if (!addrRaw) { showGroupModalError('Enter a wallet address to add.'); return; }
+  if (!isValidAddress(addrRaw)) {
+    showGroupModalError('Invalid address format. Must start with 0x and be 42 characters.');
+    return;
+  }
+  const norm = addrRaw.toLowerCase();
+  if (groupModalAddresses.some(a => a.addr.toLowerCase() === norm)) {
+    showGroupModalError('This address is already in the group.');
+    return;
+  }
+
+  hideGroupModalError();
+  groupModalAddresses.push({ addr: addrRaw, label: labelRaw });
+  $('group-addr-input').value = '';
+  $('group-addr-label-input').value = '';
+  renderGroupAddrList();
+  $('group-addr-input').focus();
+}
+
+$('create-group-btn').addEventListener('click', () => openGroupModal());
+$('group-modal-close').addEventListener('click', closeGroupModal);
+$('group-modal-cancel').addEventListener('click', closeGroupModal);
+$('group-modal-overlay').addEventListener('click', e => {
+  if (e.target === $('group-modal-overlay')) closeGroupModal();
+});
+$('group-add-addr-btn').addEventListener('click', addGroupAddress);
+$('group-addr-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addGroupAddress(); }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('group-modal-overlay').classList.contains('hidden')) closeGroupModal();
+});
+
+$('group-modal-save').addEventListener('click', () => {
+  hideGroupModalError();
+  const name = $('group-name-input').value.trim();
+  if (!name) { showGroupModalError('Please enter a group name.'); return; }
+  if (groupModalAddresses.length === 0) { showGroupModalError('Add at least one wallet address.'); return; }
+
+  const id = $('group-id').value;
+  if (id) {
+    PortfolioGroups.updateGroup(id, name, groupModalAddresses);
+  } else {
+    PortfolioGroups.addGroup(name, groupModalAddresses);
+  }
+
+  closeGroupModal();
+  renderGroupsList();
+});
+
+// Render groups on page load
+renderGroupsList();
+
+
 
 $('wl-refresh-btn').addEventListener('click', () => loadWatchlistTokenPrices());
 
@@ -1452,7 +1799,7 @@ $('trade-form').addEventListener('submit', e => {
 
   // Validation
   if (!tokenAddress)  { showTradeFormError('Token address is required.'); return; }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(tokenAddress)) {
+  if (!isValidAddress(tokenAddress)) {
     showTradeFormError('Invalid token address — must start with 0x and be 42 characters.');
     return;
   }
