@@ -1,7 +1,37 @@
 /**
  * PulseCentral – app.js
- * Tab routing, portfolio loading, markets, and trending rendering.
+ * Tab routing, theme switching, portfolio loading, markets, and trending rendering.
  */
+
+/* ── Theme switcher ──────────────────────────────────────── */
+
+const THEMES = ['pulsechain', 'hex', 'pulsex', 'incentive'];
+
+/**
+ * Apply a named theme to the <html> element and persist it in localStorage.
+ * Updates the active state of the swatch buttons.
+ * @param {string} name  One of: 'pulsechain' | 'hex' | 'pulsex' | 'incentive'
+ */
+function applyTheme(name) {
+  if (!THEMES.includes(name)) name = 'pulsechain';
+  document.documentElement.dataset.theme = name;
+  try { localStorage.setItem('pc-theme', name); } catch { /* storage unavailable */ }
+  document.querySelectorAll('.theme-swatch').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === name);
+  });
+}
+
+// Restore saved theme (or default to pulsechain) before first paint
+(function initTheme() {
+  let saved = 'pulsechain';
+  try { saved = localStorage.getItem('pc-theme') || 'pulsechain'; } catch { /* ignore */ }
+  applyTheme(saved);
+})();
+
+// Wire swatch click handlers
+document.querySelectorAll('.theme-swatch').forEach(btn => {
+  btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+});
 
 /* ── Formatters ─────────────────────────────────────────── */
 
