@@ -423,6 +423,75 @@ li + li { margin-top: 0.35rem; }
   margin-bottom: 0.75rem;
 }
 
+/* ── Portfolio Composition Pie Chart ── */
+.portfolio-pie-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.75rem;
+  overflow: hidden;
+}
+
+.portfolio-pie-body {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 1.25rem;
+}
+
+.portfolio-pie-chart-wrap {
+  flex: 0 0 auto;
+  width: 220px;
+}
+
+#portfolio-pie-svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.portfolio-pie-legend {
+  flex: 1 1 180px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.portfolio-pie-legend-item {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.portfolio-pie-legend-swatch {
+  border-radius: 3px;
+  flex-shrink: 0;
+  height: 12px;
+  width: 12px;
+}
+
+.portfolio-pie-legend-label {
+  color: var(--text);
+  font-weight: 600;
+  min-width: 3.5rem;
+}
+
+.portfolio-pie-legend-pct {
+  color: var(--primary);
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.portfolio-pie-legend-value {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 /* ── Portfolio History Chart ── */
 .portfolio-chart-section {
   background: var(--bg-card);
@@ -1874,6 +1943,8 @@ li + li { margin-top: 0.35rem; }
   .markets-grid { grid-template-columns: repeat(2, 1fr); }
   .wl-add-token-bar { flex-direction: column; }
   .portfolio-section-header { flex-direction: column; align-items: flex-start; }
+  .portfolio-pie-body { justify-content: center; }
+  .portfolio-pie-chart-wrap { width: 180px; }
 }
 
 @media (max-width: 480px) {
