@@ -511,11 +511,33 @@ li + li { margin-top: 0.35rem; }
   padding: 1rem 1.25rem;
 }
 
+.portfolio-chart-title-row {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .portfolio-chart-title {
   color: var(--text);
   font-size: 1rem;
   font-weight: 700;
   margin: 0;
+}
+
+.chart-period-change {
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+}
+.chart-period-change.change-positive {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
+}
+.chart-period-change.change-negative {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
 }
 
 .portfolio-chart-controls {

@@ -203,16 +203,21 @@
       <!-- Portfolio History Chart -->
       <div id="portfolio-chart-section" class="portfolio-chart-section hidden">
         <div class="portfolio-chart-header">
-          <h3 class="portfolio-chart-title">📈 Portfolio History</h3>
+          <div class="portfolio-chart-title-row">
+            <h3 class="portfolio-chart-title">📈 Portfolio History</h3>
+            <span id="chart-period-change" class="chart-period-change" aria-live="polite"></span>
+          </div>
           <div class="portfolio-chart-controls">
             <div class="chart-toggle-group" role="group" aria-label="Currency">
               <button class="chart-toggle-btn active" data-chart-currency="usd" aria-pressed="true">USD</button>
               <button class="chart-toggle-btn" data-chart-currency="pls" aria-pressed="false">PLS</button>
             </div>
             <div class="chart-toggle-group" role="group" aria-label="Time frame">
-              <button class="chart-toggle-btn active" data-chart-timeframe="daily" aria-pressed="true">Daily</button>
+              <button class="chart-toggle-btn" data-chart-timeframe="7d" aria-pressed="false">7D</button>
+              <button class="chart-toggle-btn active" data-chart-timeframe="daily" aria-pressed="true">30D</button>
               <button class="chart-toggle-btn" data-chart-timeframe="weekly" aria-pressed="false">Weekly</button>
               <button class="chart-toggle-btn" data-chart-timeframe="monthly" aria-pressed="false">Monthly</button>
+              <button class="chart-toggle-btn" data-chart-timeframe="all" aria-pressed="false">All</button>
             </div>
           </div>
         </div>
