@@ -598,6 +598,7 @@ async function loadPortfolio(address) {
   setVisible($('portfolio-empty'), true);
   setHidden($('group-context-banner'), true);
   hidePortfolioChart();
+  hidePortfolioCompositionChart();
 
   try {
     // Fetch PLS balance and token list in parallel
@@ -651,6 +652,7 @@ async function loadPortfolio(address) {
     try { localStorage.setItem('pc-last-portfolio', 'wallet:' + address.toLowerCase()); } catch { /* ignore */ }
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, plsBalance, plsPrice);
+    renderPortfolioCompositionChart(enriched, plsBalance, plsPrice);
     renderPortfolioTable(enriched, plsBalance, plsPrice, plsLogoUrl, plsPairAddress);
 
     setHidden($('portfolio-empty'), true);
@@ -1223,6 +1225,153 @@ const PortfolioHistory = (() => {
   return { addSnapshot, getHistory, clearHistory };
 })();
 
+/* ── Portfolio Composition Pie Chart ─────────────────────── */
+
+// Palette cycles for pie slices (designed to work across all themes)
+const PIE_COLORS = [
+  '#7b2fff', '#e040fb', '#26c6da', '#ff7043', '#66bb6a',
+  '#ffa726', '#29b6f6', '#ef5350', '#ab47bc', '#26a69a',
+  '#d4e157', '#ff7043', '#42a5f5', '#ec407a', '#8d6e63',
+];
+
+/** Hide the composition pie chart section. */
+function hidePortfolioCompositionChart() {
+  setHidden($('portfolio-pie-section'), true);
+}
+
+/**
+ * Render a donut-style pie chart showing % allocation by token.
+ * @param {Array}  tokens      Enriched token array (each has .symbol, .value, .logoUrl)
+ * @param {number} plsBalance  Native PLS balance
+ * @param {number} plsPrice    PLS price in USD
+ */
+function renderPortfolioCompositionChart(tokens, plsBalance, plsPrice) {
+  const section = $('portfolio-pie-section');
+  const svgEl   = $('portfolio-pie-svg');
+  const legend  = $('portfolio-pie-legend');
+
+  const plsValue = plsBalance * plsPrice;
+  const totalUsd = tokens.reduce((s, t) => s + t.value, 0) + plsValue;
+
+  if (totalUsd <= 0) {
+    setHidden(section, true);
+    return;
+  }
+
+  // Build slice data: PLS first, then tokens, collapse tail into "Other"
+  const MAX_SLICES = 9;
+  const allItems = [
+    { symbol: 'PLS', value: plsValue },
+    ...tokens.map(t => ({ symbol: t.symbol, value: t.value })),
+  ].filter(t => t.value > 0);
+
+  allItems.sort((a, b) => b.value - a.value);
+
+  let slices;
+  if (allItems.length <= MAX_SLICES) {
+    slices = allItems;
+  } else {
+    const top   = allItems.slice(0, MAX_SLICES - 1);
+    const other = allItems.slice(MAX_SLICES - 1).reduce((s, t) => s + t.value, 0);
+    slices = [...top, { symbol: 'Other', value: other }];
+  }
+
+  // SVG donut chart (viewBox 220×220, centre 110,110, r=90, inner r=52)
+  const CX = 110, CY = 110, R = 90, RI = 52;
+  const svgNS = 'http://www.w3.org/2000/svg';
+  svgEl.innerHTML = '';
+
+  let startAngle = -Math.PI / 2; // start at 12 o'clock
+  const GAP_RAD  = 0.012;        // tiny gap between slices (radians)
+
+  const paths = slices.map((slice, i) => {
+    const pct      = slice.value / totalUsd;
+    const sweep    = pct * 2 * Math.PI - GAP_RAD;
+    const endAngle = startAngle + sweep;
+    const color    = PIE_COLORS[i % PIE_COLORS.length];
+
+    // Outer arc end/start points
+    const x1 = CX + R * Math.cos(startAngle);
+    const y1 = CY + R * Math.sin(startAngle);
+    const x2 = CX + R * Math.cos(endAngle);
+    const y2 = CY + R * Math.sin(endAngle);
+    // Inner arc (reverse)
+    const xi1 = CX + RI * Math.cos(endAngle);
+    const yi1 = CY + RI * Math.sin(endAngle);
+    const xi2 = CX + RI * Math.cos(startAngle);
+    const yi2 = CY + RI * Math.sin(startAngle);
+
+    const largeArc = sweep > Math.PI ? 1 : 0;
+
+    const d = [
+      `M ${x1} ${y1}`,
+      `A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2}`,
+      `L ${xi1} ${yi1}`,
+      `A ${RI} ${RI} 0 ${largeArc} 0 ${xi2} ${yi2}`,
+      'Z',
+    ].join(' ');
+
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', color);
+    path.setAttribute('stroke', 'var(--bg-card)');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('aria-label', `${slice.symbol}: ${(pct * 100).toFixed(1)}%`);
+    svgEl.appendChild(path);
+
+    startAngle = endAngle + GAP_RAD;
+    return { slice, pct, color };
+  });
+
+  // Centre label: show total USD value
+  const centreText = document.createElementNS(svgNS, 'text');
+  centreText.setAttribute('x', CX);
+  centreText.setAttribute('y', CY - 8);
+  centreText.setAttribute('text-anchor', 'middle');
+  centreText.setAttribute('font-size', '11');
+  centreText.setAttribute('fill', 'var(--text-muted)');
+  centreText.textContent = 'Total';
+  svgEl.appendChild(centreText);
+
+  const centreVal = document.createElementNS(svgNS, 'text');
+  centreVal.setAttribute('x', CX);
+  centreVal.setAttribute('y', CY + 10);
+  centreVal.setAttribute('text-anchor', 'middle');
+  centreVal.setAttribute('font-size', '13');
+  centreVal.setAttribute('font-weight', 'bold');
+  centreVal.setAttribute('fill', 'var(--text)');
+  centreVal.textContent = fmt.usd(totalUsd);
+  svgEl.appendChild(centreVal);
+
+  // Legend
+  legend.innerHTML = '';
+  paths.forEach(({ slice, pct, color }) => {
+    const li = document.createElement('li');
+    li.className = 'portfolio-pie-legend-item';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'portfolio-pie-legend-swatch';
+    swatch.style.background = color;
+
+    const label = document.createElement('span');
+    label.className = 'portfolio-pie-legend-label';
+    label.textContent = slice.symbol;
+
+    const pctEl = document.createElement('span');
+    pctEl.className = 'portfolio-pie-legend-pct';
+    pctEl.textContent = (pct * 100).toFixed(1) + '%';
+
+    const valEl = document.createElement('span');
+    valEl.className = 'portfolio-pie-legend-value';
+    valEl.textContent = fmt.usd(slice.value);
+
+    li.append(swatch, label, pctEl, valEl);
+    legend.appendChild(li);
+  });
+
+  setVisible(section, true);
+}
+
 /* ── Portfolio History chart state ───────────────────────── */
 
 let currentPortfolioHistoryKey = null;
@@ -1754,6 +1903,7 @@ async function loadGroupPortfolio(group) {
   setVisible($('portfolio-empty'), true);
   setHidden($('group-context-banner'), true);
   hidePortfolioChart();
+  hidePortfolioCompositionChart();
   currentLoadedAddress = null;
 
   try {
@@ -1811,6 +1961,7 @@ async function loadGroupPortfolio(group) {
     const totalUsd = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
 
     renderPortfolioSummary(totalUsd, enriched.length + 1, totalPlsBalance, plsPrice);
+    renderPortfolioCompositionChart(enriched, totalPlsBalance, plsPrice);
     renderPortfolioTable(enriched, totalPlsBalance, plsPrice, plsLogoUrl, plsPairAddress);
 
     setHidden($('portfolio-empty'), true);
