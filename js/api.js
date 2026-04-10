@@ -131,10 +131,10 @@ const API = (() => {
   }
 
   /**
-   * Wrapped PLS contract address — excluded from trade imports since
-   * wrapping/unwrapping PLS→WPLS is not a trade.
+   * Wrapped PLS contract address — derived from KNOWN_TOKENS and excluded from
+   * trade imports since wrapping/unwrapping PLS→WPLS is not a swap trade.
    */
-  const WPLS_ADDRESS = '0xa1077a294dde1b09bb078844df40758a5d0f9a27';
+  const WPLS_ADDRESS = KNOWN_TOKENS.find(t => t.symbol === 'WPLS').address.toLowerCase();
 
   /**
    * Fetch all token transfers, normal transactions, and internal transactions for
@@ -209,7 +209,9 @@ const API = (() => {
       ) {
         const plsSpent = toDecimal(normalTx.value, PLS_DECIMALS);
         if (plsSpent > 0) {
-          // Split PLS evenly across all received tokens in this tx
+          // Split PLS evenly across all received tokens in this tx.
+          // Note: this is an approximation — in rare multi-token swaps the actual
+          // PLS per token may differ; users can edit individual trades if needed.
           const plsPerToken = plsSpent / incoming.length;
           for (const transfer of incoming) {
             const tokenAmount = toDecimal(transfer.value, Number(transfer.tokenDecimal) || 18);
@@ -234,6 +236,7 @@ const API = (() => {
       // ── SELL: wallet sent token(s) and received PLS internally ──────────
       if (outgoing.length > 0 && internalPlsMap.has(hash)) {
         const plsReceived  = internalPlsMap.get(hash);
+        // Split PLS evenly across all sent tokens in this tx (same approximation as buys above).
         const plsPerToken  = plsReceived / outgoing.length;
         for (const transfer of outgoing) {
           const tokenAmount = toDecimal(transfer.value, Number(transfer.tokenDecimal) || 18);

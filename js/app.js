@@ -1394,7 +1394,10 @@ function renderImportPreview(candidates) {
 
     // Type badge
     const tdType = document.createElement('td');
-    tdType.innerHTML = `<span class="trade-badge trade-badge-${escHtml(trade.type)}">${escHtml(trade.type.toUpperCase())}</span>`;
+    const importBadge = document.createElement('span');
+    importBadge.className = `trade-badge trade-badge-${trade.type === 'buy' ? 'buy' : 'sell'}`;
+    importBadge.textContent = trade.type.toUpperCase();
+    tdType.appendChild(importBadge);
 
     // Token amount
     const tdAmt = document.createElement('td');
@@ -1424,7 +1427,9 @@ function renderImportPreview(candidates) {
   }
 
   $('import-confirm-btn').disabled = false;
-  $('import-select-all').checked = true;
+  // Set select-all to checked only if all non-duplicate rows are checked
+  const allCbs = [...$('import-preview-tbody').querySelectorAll('input[type="checkbox"]')];
+  $('import-select-all').checked = allCbs.length > 0 && allCbs.every(cb => cb.checked);
   updateImportSelectedCount();
 }
 
