@@ -205,6 +205,7 @@ function switchTab(name) {
   if (name === 'markets'   && !marketsLoaded)  loadMarkets();
   if (name === 'trending'  && !trendingLoaded) loadTrending();
   if (name === 'watchlist')                    renderWatchlistTab();
+  if (name === 'trades')                       initTradesTab();
   if (name === 'portfolio') {
     renderSavedWalletsInPortfolio();
     renderPortfolioQuickSelect();
@@ -2498,4 +2499,551 @@ function plSignClass(val) {
   if (n > 0) return 'change-positive';
   if (n < 0) return 'change-negative';
   return 'change-neutral';
+}
+
+/* ── Trades Tab ──────────────────────────────────────────── */
+
+let tradesView   = 'history'; // 'history' | 'pnl'
+let tradesPeriod = 'all';     // 'all' | 'year' | 'lastyear' | 'month'
+let tradesLivePriceMap = new Map(); // lowercaseAddr → DexScreener pair
+
+/**
+ * Filter trades by the current time period selection.
+ * @param {object[]} trades
+ * @returns {object[]}
+ */
+function filterTradesByPeriod(trades) {
+  if (tradesPeriod === 'all') return trades;
+
+  const now  = new Date();
+  const year = now.getFullYear();
+
+  return trades.filter(t => {
+    const d = new Date(t.date);
+    if (tradesPeriod === 'year')     return d.getFullYear() === year;
+    if (tradesPeriod === 'lastyear') return d.getFullYear() === year - 1;
+    if (tradesPeriod === 'month')    return d.getFullYear() === year && d.getMonth() === now.getMonth();
+    return true;
+  });
+}
+
+/** Fetch live prices for all token addresses in the trade log. */
+async function fetchTradesLivePrices() {
+  const trades = TradesDB.getTrades();
+  const addrs  = [...new Set(trades.map(t => t.tokenAddress).filter(Boolean))];
+  if (!addrs.length) return;
+  try {
+    tradesLivePriceMap = await API.getPairsByAddresses(addrs);
+  } catch (err) {
+    console.warn('[PulseCentral] trades live price fetch failed:', err);
+  }
+}
+
+/** Main render function for the trades tab — called whenever state changes. */
+async function renderTradesTab() {
+  const allTrades     = TradesDB.getTrades();
+  const filteredTrades = filterTradesByPeriod(allTrades);
+  const isEmpty       = allTrades.length === 0;
+
+  // Show/hide empty state
+  setHidden($('trades-empty'),        !isEmpty);
+  setHidden($('trades-summary'),       isEmpty);
+  setHidden($('trades-toolbar'),       isEmpty);
+  setHidden($('trades-history-wrap'),  isEmpty || tradesView !== 'history');
+  setHidden($('trades-pnl-wrap'),      isEmpty || tradesView !== 'pnl');
+
+  if (isEmpty) return;
+
+  // Compute P&L for the filtered period
+  const { summary, byToken } = computeProfits(filteredTrades, tradesLivePriceMap);
+
+  // Summary cards
+  const realEl  = $('trades-realized-usd');
+  const realPlsEl = $('trades-realized-pls');
+  const unrlEl  = $('trades-unrealized-usd');
+  realEl.textContent    = fmt.signedUsd(summary.totalRealizedUsd);
+  realEl.className      = 'summary-value ' + plSignClass(summary.totalRealizedUsd);
+  realPlsEl.textContent = fmt.signedPls(summary.totalRealizedPls);
+  realPlsEl.className   = 'summary-value ' + plSignClass(summary.totalRealizedPls);
+  unrlEl.textContent    = fmt.signedUsd(summary.totalUnrealizedUsd);
+  unrlEl.className      = 'summary-value ' + plSignClass(summary.totalUnrealizedUsd);
+  $('trades-token-count').textContent = summary.tokenCount;
+
+  if (tradesView === 'history') renderTradeHistoryTable(filteredTrades, byToken);
+  if (tradesView === 'pnl')     renderPnlTable(byToken);
+}
+
+/**
+ * Build a per-trade realized P&L number from the FIFO byToken summary.
+ * Returns a Map<tradeId, realizedUsd>.  This is an approximation: we assign
+ * sell-side realized P&L evenly across each sell trade for the same token,
+ * since full per-lot matching per trade would require re-running FIFO for
+ * every individual sell — cost not worth paying in a client-side app.
+ */
+function buildPerSellRealized(byToken, allTrades) {
+  const tokenRealMap = new Map(); // lowerAddr → realizedUsd
+  for (const row of byToken) {
+    tokenRealMap.set(row.tokenAddress, row.realizedUsd);
+  }
+
+  // Count sell trades per token
+  const sellCounts = new Map();
+  for (const t of allTrades) {
+    if (t.type !== 'sell') continue;
+    const addr = (t.tokenAddress || '').toLowerCase();
+    sellCounts.set(addr, (sellCounts.get(addr) || 0) + 1);
+  }
+
+  const result = new Map();
+  for (const t of allTrades) {
+    if (t.type !== 'sell') { result.set(t.id, null); continue; }
+    const addr  = (t.tokenAddress || '').toLowerCase();
+    const total = tokenRealMap.get(addr) || 0;
+    const count = sellCounts.get(addr)  || 1;
+    result.set(t.id, total / count);
+  }
+  return result;
+}
+
+/** Render the trade history table. */
+function renderTradeHistoryTable(filteredTrades, byToken) {
+  const tbody  = $('trades-history-tbody');
+  tbody.innerHTML = '';
+
+  // Sort newest first
+  const sorted = [...filteredTrades].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const perSell = buildPerSellRealized(byToken, filteredTrades);
+
+  if (sorted.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 9;
+    td.className = 'align-center';
+    td.style.padding = '2rem';
+    td.style.color   = 'var(--text-muted)';
+    td.textContent   = 'No trades in this period.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  sorted.forEach(trade => {
+    const tr = document.createElement('tr');
+
+    // Date
+    const tdDate = document.createElement('td');
+    tdDate.textContent = new Date(trade.date).toLocaleDateString('en-US', {
+      year: '2-digit', month: 'short', day: 'numeric',
+    });
+    tdDate.title = new Date(trade.date).toLocaleString();
+
+    // Type badge
+    const tdType = document.createElement('td');
+    const badge  = document.createElement('span');
+    badge.className = `trade-type-badge ${trade.type}`;
+    badge.textContent = trade.type.toUpperCase();
+    tdType.appendChild(badge);
+
+    // Token
+    const tdToken = document.createElement('td');
+    const tokenCell = document.createElement('div');
+    tokenCell.className = 'token-cell';
+    const pair = tradesLivePriceMap.get((trade.tokenAddress || '').toLowerCase());
+    const logoUrl = pair?.info?.imageUrl || null;
+    tokenCell.appendChild(buildTokenLogo(logoUrl, trade.tokenSymbol));
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'token-name';
+    nameSpan.textContent = trade.tokenSymbol || '?';
+    nameSpan.title = trade.tokenName || trade.tokenSymbol || '';
+    tokenCell.appendChild(nameSpan);
+    tdToken.appendChild(tokenCell);
+
+    // Amount
+    const tdAmt = document.createElement('td');
+    tdAmt.className = 'align-right';
+    tdAmt.textContent = fmt.balance(trade.tokenAmount);
+
+    // PLS
+    const tdPls = document.createElement('td');
+    tdPls.className = 'align-right';
+    tdPls.textContent = fmt.pls(trade.plsAmount);
+
+    // USD
+    const tdUsd = document.createElement('td');
+    tdUsd.className = 'align-right';
+    tdUsd.textContent = trade.usdValue ? fmt.usd(trade.usdValue) : '—';
+
+    // Price / token
+    const tdPpT = document.createElement('td');
+    tdPpT.className = 'align-right';
+    tdPpT.textContent = trade.pricePerTokenPls
+      ? fmt.pls(trade.pricePerTokenPls) + '/tkn'
+      : '—';
+
+    // Realized P&L (sells only)
+    const tdPnl = document.createElement('td');
+    tdPnl.className = 'align-right';
+    if (trade.type === 'sell') {
+      const pl = perSell.get(trade.id);
+      if (pl !== null && pl !== undefined) {
+        const span = document.createElement('span');
+        span.className = plSignClass(pl);
+        span.textContent = fmt.signedUsd(pl);
+        tdPnl.appendChild(span);
+      } else {
+        tdPnl.textContent = '—';
+      }
+    } else {
+      tdPnl.textContent = '—';
+    }
+
+    // Actions: edit + delete
+    const tdActions = document.createElement('td');
+    tdActions.className = 'align-center';
+    const wrap = document.createElement('div');
+    wrap.className = 'trades-row-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'trade-action-btn';
+    editBtn.textContent = '✎';
+    editBtn.title = 'Edit trade';
+    editBtn.addEventListener('click', () => openTradeModal(trade));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'trade-action-btn danger';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Delete trade';
+    delBtn.addEventListener('click', () => {
+      if (!confirm('Delete this trade record?')) return;
+      TradesDB.deleteTrade(trade.id);
+      renderTradesTab();
+    });
+
+    wrap.append(editBtn, delBtn);
+    tdActions.appendChild(wrap);
+
+    tr.append(tdDate, tdType, tdToken, tdAmt, tdPls, tdUsd, tdPpT, tdPnl, tdActions);
+    tbody.appendChild(tr);
+  });
+}
+
+/** Render the P&L by token table. */
+function renderPnlTable(byToken) {
+  const tbody = $('trades-pnl-tbody');
+  tbody.innerHTML = '';
+
+  if (byToken.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 8;
+    td.className = 'align-center';
+    td.style.padding = '2rem';
+    td.style.color   = 'var(--text-muted)';
+    td.textContent   = 'No trades in this period.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  // Sort by realized P&L desc
+  const sorted = [...byToken].sort((a, b) => b.realizedUsd - a.realizedUsd);
+
+  sorted.forEach(row => {
+    const tr = document.createElement('tr');
+
+    // Token
+    const tdToken = document.createElement('td');
+    const cell = document.createElement('div');
+    cell.className = 'token-cell';
+    const pair = tradesLivePriceMap.get(row.tokenAddress);
+    const logoUrl = pair?.info?.imageUrl || null;
+    cell.appendChild(buildTokenLogo(logoUrl, row.tokenSymbol));
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'token-name';
+    nameSpan.textContent = row.tokenSymbol || '?';
+    nameSpan.title = row.tokenName || row.tokenSymbol || '';
+    cell.appendChild(nameSpan);
+    tdToken.appendChild(cell);
+
+    // Avg cost basis (PLS per token for the remaining unsold position)
+    const tdCost = document.createElement('td');
+    tdCost.className = 'align-right';
+    tdCost.textContent = row.avgCostPls > 0 ? fmt.pls(row.avgCostPls) + '/tkn' : '—';
+    tdCost.title = row.avgCostUsd > 0 ? `$${row.avgCostUsd.toFixed(8)} USD per token` : '';
+
+    // Total bought
+    const tdBought = document.createElement('td');
+    tdBought.className = 'align-right';
+    tdBought.textContent = fmt.pls(row.totalBuyPls);
+    tdBought.title = row.totalBuyUsd ? fmt.usd(row.totalBuyUsd) : '';
+
+    // Total sold
+    const tdSold = document.createElement('td');
+    tdSold.className = 'align-right';
+    tdSold.textContent = fmt.pls(row.totalSellPls);
+    tdSold.title = row.totalSellUsd ? fmt.usd(row.totalSellUsd) : '';
+
+    // Remaining tokens
+    const tdRem = document.createElement('td');
+    tdRem.className = 'align-right';
+    tdRem.textContent = row.remainingTokens > 0 ? fmt.balance(row.remainingTokens) : '—';
+
+    // Realized P&L
+    const tdReal = document.createElement('td');
+    tdReal.className = 'align-right';
+    const realSpan = document.createElement('span');
+    realSpan.className = plSignClass(row.realizedUsd);
+    realSpan.textContent = fmt.signedUsd(row.realizedUsd);
+    tdReal.appendChild(realSpan);
+
+    // Unrealized P&L
+    const tdUnrl = document.createElement('td');
+    tdUnrl.className = 'align-right';
+    if (row.unrealizedUsd !== 0) {
+      const unrlSpan = document.createElement('span');
+      unrlSpan.className = plSignClass(row.unrealizedUsd);
+      unrlSpan.textContent = fmt.signedUsd(row.unrealizedUsd);
+      tdUnrl.appendChild(unrlSpan);
+    } else {
+      tdUnrl.textContent = '—';
+    }
+
+    // Return %
+    const tdRet = document.createElement('td');
+    tdRet.className = 'align-right';
+    if (row.returnPct !== 0) {
+      const { text, cls } = fmt.change(row.returnPct);
+      tdRet.innerHTML = `<span class="${cls}">${text}</span>`;
+    } else {
+      tdRet.textContent = '—';
+    }
+
+    tr.append(tdToken, tdCost, tdBought, tdSold, tdRem, tdReal, tdUnrl, tdRet);
+    tbody.appendChild(tr);
+  });
+}
+
+/* ── Trades tab: period & view toggle wiring ─────────────── */
+
+document.querySelectorAll('.trades-period-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    tradesPeriod = btn.dataset.period;
+    document.querySelectorAll('.trades-period-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+    });
+    renderTradesTab();
+  });
+});
+
+document.querySelectorAll('.trades-view-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    tradesView = btn.dataset.view;
+    document.querySelectorAll('.trades-view-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+    });
+    setHidden($('trades-history-wrap'), tradesView !== 'history');
+    setHidden($('trades-pnl-wrap'),     tradesView !== 'pnl');
+    renderTradesTab();
+  });
+});
+
+/* ── Import from wallet ──────────────────────────────────── */
+
+const tradesImportBtn        = $('trades-import-btn');
+const tradesImportBar        = $('trades-import-bar');
+const tradesImportAddr       = $('trades-import-addr');
+const tradesImportConfirmBtn = $('trades-import-confirm-btn');
+const tradesImportCancelBtn  = $('trades-import-cancel-btn');
+const tradesImportError      = $('trades-import-error');
+
+tradesImportBtn.addEventListener('click', () => {
+  tradesImportBar.classList.toggle('hidden');
+  if (!tradesImportBar.classList.contains('hidden')) tradesImportAddr.focus();
+  setHidden(tradesImportError, true);
+});
+
+tradesImportCancelBtn.addEventListener('click', () => {
+  setHidden(tradesImportBar, true);
+  setHidden(tradesImportError, true);
+  tradesImportAddr.value = '';
+});
+
+async function runWalletImport() {
+  const addr = tradesImportAddr.value.trim();
+  setHidden(tradesImportError, true);
+
+  if (!addr) {
+    tradesImportError.textContent = 'Please enter a wallet address.';
+    setVisible(tradesImportError, true);
+    return;
+  }
+  if (!isValidAddress(addr)) {
+    tradesImportError.textContent = 'Invalid address format. Must start with 0x and be 42 characters.';
+    setVisible(tradesImportError, true);
+    return;
+  }
+
+  // Show loading state
+  tradesImportConfirmBtn.disabled  = true;
+  $('trades-import-confirm-text').classList.add('hidden');
+  setVisible($('trades-import-confirm-spinner'), true);
+  $('trades-import-btn-text').textContent = '⬇ Importing…';
+  tradesImportBtn.disabled = true;
+
+  try {
+    const parsed  = await API.parseWalletTrades(addr);
+    const existing = TradesDB.getImportedTxHashes();
+    let   imported = 0;
+    let   skipped  = 0;
+
+    for (const trade of parsed) {
+      if (trade.txHash && existing.has(trade.txHash.toLowerCase())) {
+        skipped++;
+        continue;
+      }
+      TradesDB.addTrade(trade);
+      imported++;
+    }
+
+    // Refresh live prices then re-render
+    await fetchTradesLivePrices();
+    renderTradesTab();
+
+    // Collapse bar and show result
+    setHidden(tradesImportBar, true);
+    tradesImportAddr.value = '';
+    const msg = imported > 0
+      ? `✅ Imported ${imported} trade${imported !== 1 ? 's' : ''}` +
+        (skipped > 0 ? ` (${skipped} already existed)` : '') + '.'
+      : skipped > 0
+        ? `ℹ️ All ${skipped} transaction${skipped !== 1 ? 's' : ''} already imported.`
+        : 'ℹ️ No qualifying swap transactions found for this wallet.';
+    tradesImportError.textContent = msg;
+    tradesImportError.style.setProperty('background', 'rgba(34,197,94,0.10)');
+    tradesImportError.style.setProperty('border-color', 'var(--success)');
+    tradesImportError.style.setProperty('color', 'var(--success)');
+    setVisible(tradesImportError, true);
+    setTimeout(() => {
+      setHidden(tradesImportError, true);
+      tradesImportError.style.removeProperty('background');
+      tradesImportError.style.removeProperty('border-color');
+      tradesImportError.style.removeProperty('color');
+    }, 6000);
+  } catch (err) {
+    tradesImportError.textContent = `Import failed: ${err.message}`;
+    setVisible(tradesImportError, true);
+  } finally {
+    tradesImportConfirmBtn.disabled = false;
+    $('trades-import-confirm-text').classList.remove('hidden');
+    setHidden($('trades-import-confirm-spinner'), true);
+    $('trades-import-btn-text').textContent = '⬇ Import from Wallet';
+    tradesImportBtn.disabled = false;
+  }
+}
+
+tradesImportConfirmBtn.addEventListener('click', runWalletImport);
+tradesImportAddr.addEventListener('keydown', e => {
+  if (e.key === 'Enter') runWalletImport();
+});
+
+/* ── Add/Edit Trade modal ───────────────────────────────── */
+
+function openTradeModal(trade = null) {
+  const isEdit = trade !== null;
+  $('trade-modal-title').textContent = isEdit ? 'Edit Trade' : 'Add Trade';
+  $('trade-edit-id').value = isEdit ? trade.id : '';
+  $('trade-type-select').value = isEdit ? trade.type : 'buy';
+
+  // Convert ISO date to datetime-local (trim Z and fractional seconds)
+  if (isEdit && trade.date) {
+    const d = new Date(trade.date);
+    const pad = n => String(n).padStart(2, '0');
+    $('trade-date-input').value =
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } else {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    $('trade-date-input').value =
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+
+  $('trade-token-addr').value   = isEdit ? (trade.tokenAddress  || '') : '';
+  $('trade-token-symbol').value = isEdit ? (trade.tokenSymbol   || '') : '';
+  $('trade-token-name').value   = isEdit ? (trade.tokenName     || '') : '';
+  $('trade-token-amount').value = isEdit ? (trade.tokenAmount   || '') : '';
+  $('trade-pls-amount').value   = isEdit ? (trade.plsAmount     || '') : '';
+  $('trade-usd-value').value    = isEdit ? (trade.usdValue || '') : '';
+  $('trade-notes').value        = isEdit ? (trade.notes || '') : '';
+  setHidden($('trade-modal-error'), true);
+  setVisible($('trade-modal-overlay'), true);
+  $('trade-type-select').focus();
+}
+
+function closeTradeModal() {
+  setHidden($('trade-modal-overlay'), true);
+}
+
+function showTradeModalError(msg) {
+  const el = $('trade-modal-error');
+  el.textContent = msg;
+  setVisible(el, true);
+}
+
+$('trades-add-btn').addEventListener('click', () => openTradeModal());
+$('trade-modal-close').addEventListener('click', closeTradeModal);
+$('trade-modal-cancel').addEventListener('click', closeTradeModal);
+$('trade-modal-overlay').addEventListener('click', e => {
+  if (e.target === $('trade-modal-overlay')) closeTradeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('trade-modal-overlay').classList.contains('hidden')) closeTradeModal();
+});
+
+$('trade-modal-save').addEventListener('click', async () => {
+  setHidden($('trade-modal-error'), true);
+
+  const type         = $('trade-type-select').value;
+  const dateRaw      = $('trade-date-input').value;
+  const tokenAddr    = $('trade-token-addr').value.trim().toLowerCase();
+  const tokenSymbol  = $('trade-token-symbol').value.trim();
+  const tokenName    = $('trade-token-name').value.trim();
+  const tokenAmount  = parseFloat($('trade-token-amount').value);
+  const plsAmount    = parseFloat($('trade-pls-amount').value);
+  const usdValue     = parseFloat($('trade-usd-value').value) || 0;
+  const notes        = $('trade-notes').value.trim();
+
+  if (!dateRaw)          { showTradeModalError('Please select a date.'); return; }
+  if (!tokenAddr)        { showTradeModalError('Token contract address is required.'); return; }
+  if (!isValidAddress(tokenAddr)) { showTradeModalError('Invalid token address format.'); return; }
+  if (!tokenSymbol)      { showTradeModalError('Token symbol is required.'); return; }
+  if (!tokenAmount || tokenAmount <= 0) { showTradeModalError('Enter a valid token amount greater than 0.'); return; }
+  if (!plsAmount   || plsAmount   <= 0) { showTradeModalError('Enter a valid PLS amount greater than 0.'); return; }
+
+  const date = new Date(dateRaw).toISOString();
+  const pricePerTokenPls = plsAmount / tokenAmount;
+
+  const tradeData = {
+    type, tokenAddress: tokenAddr, tokenSymbol, tokenName, date,
+    tokenAmount, plsAmount, usdValue, pricePerTokenPls, notes,
+  };
+
+  const editId = $('trade-edit-id').value;
+  if (editId) {
+    TradesDB.editTrade(editId, tradeData);
+  } else {
+    TradesDB.addTrade(tradeData);
+  }
+
+  closeTradeModal();
+  await fetchTradesLivePrices();
+  renderTradesTab();
+});
+
+let tradesTabInitialized = false;
+
+async function initTradesTab() {
+  if (tradesTabInitialized) return;
+  tradesTabInitialized = true;
+  await fetchTradesLivePrices();
+  renderTradesTab();
 }

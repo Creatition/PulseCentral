@@ -32,6 +32,9 @@
         <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
           <span class="tab-icon">⭐</span> Watchlist
         </button>
+        <button class="tab-btn" data-tab="trades" role="tab" aria-selected="false" aria-controls="tab-trades">
+          <span class="tab-icon">📈</span> Trades
+        </button>
         <button class="tab-btn" data-tab="about" role="tab" aria-selected="false" aria-controls="tab-about">
           <span class="tab-icon">ℹ️</span> About
         </button>
@@ -368,6 +371,120 @@
       </div>
     </section>
 
+    <!-- ── TRADES TAB ── -->
+    <section id="tab-trades" class="tab-panel" role="tabpanel" aria-labelledby="btn-trades">
+      <div class="section-header trades-section-header">
+        <div>
+          <h1>Trade History &amp; P&amp;L</h1>
+          <p class="section-subtitle">Track your PulseChain swaps, realized gains, and cost basis — stored locally in your browser.</p>
+        </div>
+        <div class="trades-header-actions">
+          <button id="trades-import-btn" class="btn btn-primary">
+            <span id="trades-import-btn-text">⬇ Import from Wallet</span>
+            <span id="trades-import-spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
+          <button id="trades-add-btn" class="btn btn-secondary">＋ Add Trade</button>
+        </div>
+      </div>
+
+      <div id="trades-import-error" class="error-banner hidden" role="alert"></div>
+
+      <!-- Import address bar (collapsed by default) -->
+      <div id="trades-import-bar" class="trades-import-bar hidden">
+        <input id="trades-import-addr" type="text" class="wallet-input"
+          placeholder="0x… wallet address to import from"
+          autocomplete="off" spellcheck="false" maxlength="42"
+          aria-label="Wallet address to import trades from" />
+        <button id="trades-import-confirm-btn" class="btn btn-primary">
+          <span id="trades-import-confirm-text">Import</span>
+          <span id="trades-import-confirm-spinner" class="spinner hidden" aria-hidden="true"></span>
+        </button>
+        <button id="trades-import-cancel-btn" class="btn btn-secondary">Cancel</button>
+      </div>
+
+      <!-- P&L summary cards -->
+      <div id="trades-summary" class="trades-summary hidden">
+        <div class="summary-card">
+          <span class="summary-label">Realized P&amp;L (USD)</span>
+          <span class="summary-value" id="trades-realized-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Realized P&amp;L (PLS)</span>
+          <span class="summary-value" id="trades-realized-pls">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Unrealized P&amp;L (USD)</span>
+          <span class="summary-value" id="trades-unrealized-usd">—</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Tokens Traded</span>
+          <span class="summary-value" id="trades-token-count">—</span>
+        </div>
+      </div>
+
+      <!-- Toolbar: period filter + token filter + sub-tab toggle -->
+      <div id="trades-toolbar" class="trades-toolbar hidden">
+        <!-- Period filter -->
+        <div class="trades-period-group" role="group" aria-label="Time period">
+          <button class="trades-period-btn active" data-period="all">All Time</button>
+          <button class="trades-period-btn" data-period="year">This Year</button>
+          <button class="trades-period-btn" data-period="lastyear">Last Year</button>
+          <button class="trades-period-btn" data-period="month">This Month</button>
+        </div>
+        <!-- Sub-tab: history vs P&L by token -->
+        <div class="trades-view-group" role="group" aria-label="View">
+          <button class="trades-view-btn active" data-view="history">History</button>
+          <button class="trades-view-btn" data-view="pnl">P&amp;L by Token</button>
+        </div>
+      </div>
+
+      <!-- Trade history table -->
+      <div id="trades-history-wrap" class="table-wrap hidden">
+        <table class="data-table" id="trades-history-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Token</th>
+              <th class="align-right">Amount</th>
+              <th class="align-right">PLS Value</th>
+              <th class="align-right">USD Value</th>
+              <th class="align-right">Price / Token</th>
+              <th class="align-right">Realized P&amp;L</th>
+              <th class="align-center" aria-label="Actions"></th>
+            </tr>
+          </thead>
+          <tbody id="trades-history-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- P&L by token table -->
+      <div id="trades-pnl-wrap" class="table-wrap hidden">
+        <table class="data-table" id="trades-pnl-table">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th class="align-right">Avg Cost Basis</th>
+              <th class="align-right">Total Bought</th>
+              <th class="align-right">Total Sold</th>
+              <th class="align-right">Remaining</th>
+              <th class="align-right">Realized P&amp;L</th>
+              <th class="align-right">Unrealized P&amp;L</th>
+              <th class="align-right">Return %</th>
+            </tr>
+          </thead>
+          <tbody id="trades-pnl-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Empty state -->
+      <div id="trades-empty" class="empty-state">
+        <div class="empty-icon">📈</div>
+        <h2>No trades recorded</h2>
+        <p>Import your on-chain swaps from a wallet address, or add trades manually.</p>
+      </div>
+    </section>
+
     <!-- ── ABOUT TAB ── -->
     <section id="tab-about" class="tab-panel" role="tabpanel" aria-labelledby="btn-about">
       <div class="section-header">
@@ -516,7 +633,94 @@
     </div>
   </div>
 
+  <!-- ===== ADD / EDIT TRADE MODAL ===== -->
+  <div id="trade-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">
+    <div class="modal-dialog modal-dialog-wide">
+      <div class="modal-header">
+        <h2 id="trade-modal-title">Add Trade</h2>
+        <button id="trade-modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="trade-edit-id" />
+
+        <div class="form-row-2">
+          <!-- Type -->
+          <div class="form-group">
+            <label for="trade-type-select">Trade Type *</label>
+            <select id="trade-type-select" class="form-input">
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </div>
+          <!-- Date -->
+          <div class="form-group">
+            <label for="trade-date-input">Date *</label>
+            <input id="trade-date-input" type="datetime-local" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <!-- Token address -->
+          <div class="form-group">
+            <label for="trade-token-addr">Token Contract Address *</label>
+            <input id="trade-token-addr" type="text" class="form-input"
+              placeholder="0x…" maxlength="42" autocomplete="off" spellcheck="false" />
+          </div>
+          <!-- Token symbol -->
+          <div class="form-group">
+            <label for="trade-token-symbol">Symbol *</label>
+            <input id="trade-token-symbol" type="text" class="form-input"
+              placeholder="e.g. PLSX" maxlength="30" autocomplete="off" />
+          </div>
+        </div>
+
+        <!-- Token name (auto-filled or manual) -->
+        <div class="form-group">
+          <label for="trade-token-name">Token Name</label>
+          <input id="trade-token-name" type="text" class="form-input"
+            placeholder="e.g. PulseX" maxlength="60" autocomplete="off" />
+        </div>
+
+        <div class="form-row-3">
+          <!-- Token Amount -->
+          <div class="form-group">
+            <label for="trade-token-amount">Token Amount *</label>
+            <input id="trade-token-amount" type="number" class="form-input"
+              placeholder="0" min="0" step="any" />
+          </div>
+          <!-- PLS amount -->
+          <div class="form-group">
+            <label for="trade-pls-amount">PLS Amount *</label>
+            <input id="trade-pls-amount" type="number" class="form-input"
+              placeholder="0" min="0" step="any" />
+          </div>
+          <!-- USD value -->
+          <div class="form-group">
+            <label for="trade-usd-value">USD Value (optional)</label>
+            <input id="trade-usd-value" type="number" class="form-input"
+              placeholder="0.00" min="0" step="any" />
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+          <label for="trade-notes">Notes</label>
+          <input id="trade-notes" type="text" class="form-input"
+            placeholder="Optional notes" maxlength="200" autocomplete="off" />
+        </div>
+
+        <div id="trade-modal-error" class="trade-form-error hidden" role="alert"></div>
+
+        <div class="modal-footer">
+          <button id="trade-modal-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="trade-modal-save" class="btn btn-primary">Save Trade</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/api.js"></script>
+  <script src="js/trades.js"></script>
   <script src="js/app.js"></script>
 
 </body>
