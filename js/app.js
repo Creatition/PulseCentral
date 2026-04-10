@@ -1574,64 +1574,165 @@ function setupChartInteractivity(pts, points) {
 let groupModalAddresses = []; // [{addr, label}]
 
 function renderGroupsList() {
-  const groups = PortfolioGroups.getGroups();
-  const container = $('groups-list');
-  container.innerHTML = '';
-
-  groups.forEach(group => {
-    const card = document.createElement('div');
-    card.className = 'group-card';
-    card.setAttribute('role', 'listitem');
-
-    const icon = document.createElement('span');
-    icon.className = 'group-card-icon';
-    icon.textContent = '🗂';
-
-    const info = document.createElement('div');
-    info.className = 'group-card-info';
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'group-card-name';
-    nameEl.textContent = group.name;
-
-    const meta = document.createElement('div');
-    meta.className = 'group-card-meta';
-    const labels = group.addresses.map(a => a.label || a.addr.slice(0, 8) + '…').join(', ');
-    meta.textContent = `${group.addresses.length} address${group.addresses.length !== 1 ? 'es' : ''}: ${labels}`;
-    meta.title = group.addresses.map(a => a.label ? `${a.label}: ${a.addr}` : a.addr).join('\n');
-
-    info.append(nameEl, meta);
-
-    const actions = document.createElement('div');
-    actions.className = 'group-card-actions';
-
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'wl-load-btn';
-    loadBtn.textContent = '▶ Load';
-    loadBtn.title = 'Load combined portfolio for this group';
-    loadBtn.addEventListener('click', () => loadGroupPortfolio(group));
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'wl-load-btn';
-    editBtn.textContent = '✎ Edit';
-    editBtn.title = 'Edit group';
-    editBtn.addEventListener('click', () => openGroupModal(group));
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'wl-remove-btn';
-    removeBtn.textContent = '✕';
-    removeBtn.title = 'Delete group';
-    removeBtn.addEventListener('click', () => {
-      if (!confirm(`Delete group "${group.name}"?`)) return;
-      PortfolioGroups.removeGroup(group.id);
-      renderGroupsList();
-    });
-
-    actions.append(loadBtn, editBtn, removeBtn);
-    card.append(icon, info, actions);
-    container.appendChild(card);
-  });
+  // The inline group cards have been replaced by the manage-saved modal.
+  // Refresh the modal if it is currently open.
+  if (!$('manage-saved-overlay').classList.contains('hidden')) {
+    renderManageSavedModal();
+  }
 }
+
+/* ── Manage Saved Addresses & Groups modal ─────────────── */
+
+function openManageSavedModal() {
+  renderManageSavedModal();
+  setVisible($('manage-saved-overlay'), true);
+}
+
+function closeManageSavedModal() {
+  setHidden($('manage-saved-overlay'), true);
+}
+
+function renderManageSavedModal() {
+  const wallets = Watchlist.getWallets();
+  const groups  = PortfolioGroups.getGroups();
+
+  /* ── Saved Addresses ── */
+  const walletsList  = $('manage-saved-wallets-list');
+  const walletsEmpty = $('manage-saved-wallets-empty');
+  walletsList.innerHTML = '';
+
+  if (wallets.length === 0) {
+    setVisible(walletsEmpty, true);
+  } else {
+    setHidden(walletsEmpty, true);
+    wallets.forEach(({ addr, name }) => {
+      const row = document.createElement('div');
+      row.className = 'manage-saved-row';
+
+      const icon = document.createElement('span');
+      icon.className = 'manage-saved-icon';
+      icon.textContent = '💼';
+
+      const info = document.createElement('div');
+      info.className = 'manage-saved-info';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'form-input manage-saved-name-input';
+      nameInput.value = name || '';
+      nameInput.placeholder = 'Wallet name (optional)';
+      nameInput.maxLength = 60;
+      nameInput.title = 'Rename wallet';
+      nameInput.setAttribute('aria-label', `Name for wallet ${addr}`);
+
+      const addrEl = document.createElement('div');
+      addrEl.className = 'manage-saved-addr';
+      addrEl.textContent = addr;
+      addrEl.title = addr;
+
+      info.append(nameInput, addrEl);
+
+      const saveNameBtn = document.createElement('button');
+      saveNameBtn.className = 'btn btn-secondary btn-sm manage-saved-rename-btn';
+      saveNameBtn.textContent = '💾';
+      saveNameBtn.title = 'Save name';
+      saveNameBtn.type = 'button';
+      saveNameBtn.addEventListener('click', () => {
+        Watchlist.updateWalletName(addr, nameInput.value.trim());
+        renderPortfolioQuickSelect();
+      });
+
+      nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveNameBtn.click(); }
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'wl-remove-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove saved address';
+      removeBtn.type = 'button';
+      removeBtn.addEventListener('click', () => {
+        if (!confirm(`Remove saved address "${name || addr}"?`)) return;
+        Watchlist.removeWallet(addr);
+        renderManageSavedModal();
+        renderPortfolioQuickSelect();
+        updateSaveWalletBtn();
+      });
+
+      row.append(icon, info, saveNameBtn, removeBtn);
+      walletsList.appendChild(row);
+    });
+  }
+
+  /* ── Groups ── */
+  const groupsList  = $('manage-saved-groups-list');
+  const groupsEmpty = $('manage-saved-groups-empty');
+  groupsList.innerHTML = '';
+
+  if (groups.length === 0) {
+    setVisible(groupsEmpty, true);
+  } else {
+    setHidden(groupsEmpty, true);
+    groups.forEach(group => {
+      const row = document.createElement('div');
+      row.className = 'manage-saved-row';
+
+      const icon = document.createElement('span');
+      icon.className = 'manage-saved-icon';
+      icon.textContent = '🗂';
+
+      const info = document.createElement('div');
+      info.className = 'manage-saved-info';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'manage-saved-group-name';
+      nameEl.textContent = group.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'manage-saved-addr';
+      const labels = group.addresses.map(a => a.label || a.addr.slice(0, 8) + '…').join(', ');
+      meta.textContent = `${group.addresses.length} address${group.addresses.length !== 1 ? 'es' : ''}: ${labels}`;
+      meta.title = group.addresses.map(a => a.label ? `${a.label}: ${a.addr}` : a.addr).join('\n');
+
+      info.append(nameEl, meta);
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn btn-secondary btn-sm';
+      editBtn.textContent = '✎ Edit';
+      editBtn.title = 'Edit group';
+      editBtn.type = 'button';
+      editBtn.addEventListener('click', () => {
+        closeManageSavedModal();
+        openGroupModal(group, true);
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'wl-remove-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Delete group';
+      removeBtn.type = 'button';
+      removeBtn.addEventListener('click', () => {
+        if (!confirm(`Delete group "${group.name}"?`)) return;
+        PortfolioGroups.removeGroup(group.id);
+        renderManageSavedModal();
+        renderPortfolioQuickSelect();
+      });
+
+      row.append(icon, info, editBtn, removeBtn);
+      groupsList.appendChild(row);
+    });
+  }
+}
+
+$('edit-saved-btn').addEventListener('click', openManageSavedModal);
+$('manage-saved-close').addEventListener('click', closeManageSavedModal);
+$('manage-saved-overlay').addEventListener('click', e => {
+  if (e.target === $('manage-saved-overlay')) closeManageSavedModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('manage-saved-overlay').classList.contains('hidden')) closeManageSavedModal();
+});
 
 async function loadGroupPortfolio(group) {
   if (group.addresses.length === 0) {
@@ -1751,7 +1852,10 @@ async function loadGroupPortfolio(group) {
 
 /* ── Group modal ─────────────────────────────────────────── */
 
-function openGroupModal(group = null) {
+let groupModalFromManageSaved = false;
+
+function openGroupModal(group = null, fromManageSaved = false) {
+  groupModalFromManageSaved = fromManageSaved;
   groupModalAddresses = group ? group.addresses.map(a => ({ ...a })) : [];
   $('group-id').value = group ? group.id : '';
   $('group-name-input').value = group ? group.name : '';
@@ -1783,6 +1887,10 @@ function populateGroupSavedWalletSelect() {
 
 function closeGroupModal() {
   setHidden($('group-modal-overlay'), true);
+  if (groupModalFromManageSaved) {
+    groupModalFromManageSaved = false;
+    openManageSavedModal();
+  }
 }
 
 function showGroupModalError(msg) {
