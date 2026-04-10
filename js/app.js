@@ -7,9 +7,16 @@
 
 const THEMES = ['pulsechain', 'hex', 'pulsex', 'incentive'];
 
+const THEME_NAMES = {
+  pulsechain: 'PulseChain',
+  hex: 'HEX',
+  pulsex: 'PulseX',
+  incentive: 'Incentive',
+};
+
 /**
  * Apply a named theme to the <html> element and persist it in localStorage.
- * Updates the active state of the swatch buttons.
+ * Updates the active state of the swatch buttons and the network badge label.
  * @param {string} name  One of: 'pulsechain' | 'hex' | 'pulsex' | 'incentive'
  */
 function applyTheme(name) {
@@ -19,6 +26,8 @@ function applyTheme(name) {
   document.querySelectorAll('.theme-swatch').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === name);
   });
+  const badge = document.querySelector('.network-badge');
+  if (badge) badge.textContent = '⛓ ' + (THEME_NAMES[name] || name);
 }
 
 // Restore saved theme (or default to pulsechain) before first paint
