@@ -421,6 +421,21 @@ $('home-refresh-btn').addEventListener('click', () => {
 // Auto-load the home tab on first page load
 loadHomeTab();
 
+/* ── "Add Wallet" toggle button ──────────────────────────── */
+
+const addWalletToggleBtn = $('add-wallet-toggle-btn');
+const walletAddCollapse  = $('wallet-add-collapse');
+
+if (addWalletToggleBtn && walletAddCollapse) {
+  addWalletToggleBtn.addEventListener('click', () => {
+    const isHidden = walletAddCollapse.classList.contains('hidden');
+    walletAddCollapse.classList.toggle('hidden', !isHidden);
+    addWalletToggleBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+    addWalletToggleBtn.textContent = isHidden ? '✕ Close' : '➕ Add Wallet';
+    if (isHidden) walletInput.focus();
+  });
+}
+
 /* ── Portfolio tab ──────────────────────────────────────── */
 
 const loadBtn    = $('load-portfolio-btn');
@@ -601,6 +616,15 @@ async function loadPortfolio(address) {
     setVisible($('portfolio-summary'), true);
     setVisible($('portfolio-toolbar'), true);
     setVisible($('portfolio-table-wrap'), true);
+
+    // Collapse the "Add Wallet" panel once the portfolio is loaded
+    if (walletAddCollapse && !walletAddCollapse.classList.contains('hidden')) {
+      walletAddCollapse.classList.add('hidden');
+      if (addWalletToggleBtn) {
+        addWalletToggleBtn.setAttribute('aria-expanded', 'false');
+        addWalletToggleBtn.textContent = '➕ Add Wallet';
+      }
+    }
 
     // Snapshot and show chart if wallet is saved
     if (Watchlist.hasWallet(address)) {
@@ -1666,6 +1690,15 @@ async function loadGroupPortfolio(group) {
     // Clear single-wallet input to avoid confusion
     walletInput.value = '';
     updateSaveWalletBtn();
+
+    // Collapse the "Add Wallet" panel if open
+    if (walletAddCollapse && !walletAddCollapse.classList.contains('hidden')) {
+      walletAddCollapse.classList.add('hidden');
+      if (addWalletToggleBtn) {
+        addWalletToggleBtn.setAttribute('aria-expanded', 'false');
+        addWalletToggleBtn.textContent = '➕ Add Wallet';
+      }
+    }
   } catch (err) {
     showPortfolioError(`Error loading group portfolio: ${err.message}`);
   } finally {
@@ -1914,78 +1947,9 @@ async function renderWatchlistTab() {
 /* ── Saved wallets in Portfolio tab ────────────────────── */
 
 function renderSavedWalletsInPortfolio() {
-  const wallets = Watchlist.getWallets();
-  $('portfolio-wl-wallet-count').textContent = wallets.length;
-  const list  = $('portfolio-wl-wallets-list');
-  const empty = $('portfolio-wl-wallets-empty');
-  list.innerHTML = '';
-
-  setVisible(empty, wallets.length === 0);
-  setHidden(list, wallets.length === 0);
-
-  wallets.forEach(({ addr, name }) => {
-    const li = document.createElement('li');
-    li.className = 'wl-wallet-item';
-
-    const infoWrap = document.createElement('div');
-    infoWrap.className = 'wl-wallet-info';
-
-    if (name) {
-      const nameEl = document.createElement('span');
-      nameEl.className = 'wl-wallet-name';
-      nameEl.textContent = name;
-      infoWrap.appendChild(nameEl);
-    }
-
-    const addrSpan = document.createElement('span');
-    addrSpan.className = 'wl-wallet-addr';
-    addrSpan.textContent = addr;
-    addrSpan.title = addr;
-    infoWrap.appendChild(addrSpan);
-
-    const actions = document.createElement('div');
-    actions.className = 'wl-wallet-actions';
-
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'wl-load-btn';
-    loadBtn.textContent = '▶ Load';
-    loadBtn.addEventListener('click', () => {
-      walletInput.value = addr;
-      if (walletNameInput) walletNameInput.value = name || '';
-      updateSaveWalletBtn();
-      loadPortfolio(addr);
-    });
-
-    const editNameBtn = document.createElement('button');
-    editNameBtn.className = 'wl-load-btn';
-    editNameBtn.textContent = '✎ Name';
-    editNameBtn.title = 'Edit wallet name';
-    editNameBtn.addEventListener('click', () => {
-      const newName = prompt('Enter a name for this wallet:', name || '');
-      if (newName === null) return; // cancelled
-      Watchlist.updateWalletName(addr, newName.trim());
-      renderSavedWalletsInPortfolio();
-      renderPortfolioQuickSelect();
-      if (walletInput.value.trim().toLowerCase() === addr.toLowerCase()) {
-        if (walletNameInput) walletNameInput.value = newName.trim();
-      }
-    });
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'wl-remove-btn';
-    removeBtn.textContent = '✕';
-    removeBtn.title = 'Remove from Saved Wallets';
-    removeBtn.addEventListener('click', () => {
-      Watchlist.removeWallet(addr);
-      renderSavedWalletsInPortfolio();
-      renderPortfolioQuickSelect();
-      updateSaveWalletBtn();
-    });
-
-    actions.append(loadBtn, editNameBtn, removeBtn);
-    li.append(infoWrap, actions);
-    list.appendChild(li);
-  });
+  // The saved-wallets section has been replaced by the quick-select dropdown;
+  // this function is kept for compatibility with call sites that also call
+  // renderPortfolioQuickSelect() — nothing to render here any more.
 }
 
 // Render saved wallets immediately on page load (portfolio tab is the default after home)
