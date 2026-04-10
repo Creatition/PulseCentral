@@ -419,6 +419,7 @@ async function loadHomeTab() {
     const coinData = await API.getCoreCoinPairs();
     renderHomeCoinCards(coinData);
     updateHomeTimestamp();
+    checkCoreCoinAlerts(coinData);
     setHidden($('home-loading'), true);
     setVisible($('home-coins-grid'), true);
     setVisible($('home-footer'), true);
@@ -429,6 +430,7 @@ async function loadHomeTab() {
         const fresh = await API.getCoreCoinPairs();
         renderHomeCoinCards(fresh);
         updateHomeTimestamp();
+        checkCoreCoinAlerts(fresh);
       } catch (err) {
         console.error('[PulseCentral] Home auto-refresh failed:', err);
       }
@@ -2319,6 +2321,176 @@ function escHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+/* ── Price Alerts module ──────────────────────────────────── */
+
+/**
+ * Tracks tokens that surged ≥10% in 5 minutes.
+ * Alerts are kept in memory (not persisted) and capped at MAX_ALERTS.
+ * Each token has a per-symbol cooldown to prevent duplicate firing.
+ */
+const PriceAlerts = (() => {
+  const MAX_ALERTS  = 50;
+  const COOLDOWN_MS = 10 * 60 * 1000; // 10-min cooldown per symbol
+  const THRESHOLD   = 10;              // minimum m5 % gain
+
+  let alerts    = []; // [{ symbol, name, change, time }] newest first
+  let unread    = 0;
+  const lastFired = new Map(); // symbol → timestamp
+
+  /** Check one token; fires an alert when m5Change ≥ THRESHOLD and cooldown passed. */
+  function check(symbol, name, m5Change) {
+    if (m5Change < THRESHOLD) return;
+    const now  = Date.now();
+    const last = lastFired.get(symbol);
+    if (last && now - last < COOLDOWN_MS) return;
+    lastFired.set(symbol, now);
+    alerts.unshift({ symbol, name, change: m5Change, time: now });
+    if (alerts.length > MAX_ALERTS) alerts = alerts.slice(0, MAX_ALERTS);
+    unread++;
+    renderBellBadge();
+  }
+
+  function getAlerts() { return alerts; }
+  function getUnread()  { return unread;  }
+  function markRead()   { unread = 0; renderBellBadge(); }
+  function clear()      { alerts = []; unread = 0; renderBellBadge(); }
+
+  return { check, getAlerts, getUnread, markRead, clear };
+})();
+
+/* ── Bell button & dropdown ──────────────────────────────── */
+
+const bellBtn        = $('price-alerts-btn');
+const bellBadgeEl    = $('bell-badge');
+const alertsDropdown = $('alerts-dropdown');
+
+function renderBellBadge() {
+  const count = PriceAlerts.getUnread();
+  if (count > 0) {
+    bellBadgeEl.textContent = count > 99 ? '99+' : count;
+    setVisible(bellBadgeEl, true);
+  } else {
+    setHidden(bellBadgeEl, true);
+  }
+}
+
+function renderAlertsDropdown() {
+  const list   = $('alerts-list');
+  const alerts = PriceAlerts.getAlerts();
+  list.innerHTML = '';
+
+  if (alerts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'alerts-empty';
+    empty.textContent = 'No alerts yet. Tokens up +10% in 5 min will appear here.';
+    list.appendChild(empty);
+    return;
+  }
+
+  alerts.forEach(({ symbol, name, change, time }) => {
+    const item = document.createElement('div');
+    item.className = 'alert-item';
+    item.setAttribute('role', 'menuitem');
+
+    const icon = document.createElement('span');
+    icon.className = 'alert-item-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '🚀';
+
+    const info = document.createElement('div');
+    info.className = 'alert-item-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'alert-item-name';
+    nameEl.textContent = name && name !== symbol ? `${name} (${symbol})` : symbol;
+
+    const changeEl = document.createElement('div');
+    changeEl.className = 'alert-item-change';
+    changeEl.textContent = `+${change.toFixed(2)}% in 5 min`;
+
+    info.append(nameEl, changeEl);
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'alert-item-time';
+    timeEl.textContent = new Date(time).toLocaleTimeString();
+
+    item.append(icon, info, timeEl);
+    list.appendChild(item);
+  });
+}
+
+bellBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const isOpen = !alertsDropdown.classList.contains('hidden');
+  if (isOpen) {
+    setHidden(alertsDropdown, true);
+    bellBtn.setAttribute('aria-expanded', 'false');
+  } else {
+    renderAlertsDropdown();
+    PriceAlerts.markRead();
+    setVisible(alertsDropdown, true);
+    bellBtn.setAttribute('aria-expanded', 'true');
+  }
+});
+
+$('alerts-clear-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  PriceAlerts.clear();
+  renderAlertsDropdown();
+});
+
+// Close the dropdown when clicking outside it
+document.addEventListener('click', e => {
+  if (!$('price-alerts-wrap').contains(e.target)) {
+    setHidden(alertsDropdown, true);
+    bellBtn.setAttribute('aria-expanded', 'false');
+  }
+});
+
+// Close with Escape (add to existing keydown listener)
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !alertsDropdown.classList.contains('hidden')) {
+    setHidden(alertsDropdown, true);
+    bellBtn.setAttribute('aria-expanded', 'false');
+  }
+});
+
+/* ── Alert check helpers ─────────────────────────────────── */
+
+/** Check all core-coin pairs for a 5-minute price surge ≥ 10%. */
+function checkCoreCoinAlerts(coinData) {
+  coinData.forEach(({ symbol, pair }) => {
+    if (!pair) return;
+    const m5   = Number(pair.priceChange?.m5 || 0);
+    const name = pair.baseToken?.name || symbol;
+    // Normalise WPLS display name to PLS
+    const displaySymbol = (symbol === 'WPLS') ? 'PLS' : symbol;
+    const displayName   = (symbol === 'WPLS' || symbol === 'PLS') ? 'PulseChain' : name;
+    PriceAlerts.check(displaySymbol, displayName, m5);
+  });
+}
+
+/** Fetch watchlist token prices and check for surges. */
+async function checkWatchlistAlerts() {
+  const tokens = Watchlist.getTokens();
+  if (!tokens.length) return;
+  try {
+    const addresses = tokens.map(t => t.address);
+    const pairMap   = await API.getPairsByAddresses(addresses);
+    tokens.forEach(token => {
+      const pair = pairMap.get(token.address.toLowerCase());
+      if (!pair) return;
+      const m5 = Number(pair.priceChange?.m5 || 0);
+      PriceAlerts.check(token.symbol, token.name || token.symbol, m5);
+    });
+  } catch (err) {
+    console.warn('[PulseCentral] Watchlist alert check failed:', err);
+  }
+}
+
+// Poll watchlist tokens every 5 minutes for price alerts
+setInterval(checkWatchlistAlerts, 5 * 60 * 1000);
 
 /** CSS class name for a signed numeric value — kept for backward compatibility */
 function plSignClass(val) {
