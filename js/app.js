@@ -1239,6 +1239,225 @@ $('trade-form').addEventListener('submit', e => {
   if (activeTab === 'profits') renderProfitsTab();
 });
 
+/* ── Import from Wallet modal ────────────────────────────── */
+
+/**
+ * Discovered trades from the most recent wallet fetch.
+ * Array of trade objects returned by API.parseWalletTrades().
+ * @type {Array<object>}
+ */
+let _importCandidates = [];
+
+function openImportModal() {
+  showImportStep('input');
+  $('import-wallet-input').value = '';
+  $('import-step1-error').textContent = '';
+  setHidden($('import-step1-error'), true);
+  setVisible($('import-modal-overlay'), true);
+  $('import-wallet-input').focus();
+}
+
+function closeImportModal() {
+  setHidden($('import-modal-overlay'), true);
+}
+
+/** Show one of the three import steps and hide the others */
+function showImportStep(step) {
+  setVisible($('import-step-input'),   step === 'input');
+  setVisible($('import-step-preview'), step === 'preview');
+  setVisible($('import-step-done'),    step === 'done');
+}
+
+function showImportError(msg) {
+  const el = $('import-step1-error');
+  el.textContent = msg;
+  setVisible(el, true);
+}
+
+$('import-wallet-btn').addEventListener('click', openImportModal);
+$('import-modal-close').addEventListener('click', closeImportModal);
+$('import-modal-cancel').addEventListener('click', closeImportModal);
+$('import-modal-overlay').addEventListener('click', e => {
+  if (e.target === $('import-modal-overlay')) closeImportModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('import-modal-overlay').classList.contains('hidden')) closeImportModal();
+});
+
+$('import-back-btn').addEventListener('click', () => showImportStep('input'));
+$('import-done-close').addEventListener('click', () => {
+  closeImportModal();
+  if (activeTab === 'profits') renderProfitsTab();
+});
+
+/** Update the "Import Selected (N)" button count */
+function updateImportSelectedCount() {
+  const checked = $('import-preview-tbody').querySelectorAll('input[type="checkbox"]:checked').length;
+  $('import-selected-count').textContent = checked;
+}
+
+/** Select-all checkbox logic */
+$('import-select-all').addEventListener('change', function () {
+  $('import-preview-tbody')
+    .querySelectorAll('input[type="checkbox"]')
+    .forEach(cb => { cb.checked = this.checked; });
+  updateImportSelectedCount();
+});
+
+$('import-wallet-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('import-fetch-btn').click();
+});
+
+/** Fetch trades from the blockchain and show the preview step */
+$('import-fetch-btn').addEventListener('click', async () => {
+  const address = $('import-wallet-input').value.trim();
+  setHidden($('import-step1-error'), true);
+
+  if (!address) {
+    showImportError('Please enter a wallet address.');
+    return;
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/i.test(address)) {
+    showImportError('Invalid address — must start with 0x and be 42 characters.');
+    return;
+  }
+
+  const btn     = $('import-fetch-btn');
+  const btnTxt  = $('import-fetch-btn-text');
+  const spinner = $('import-fetch-spinner');
+  btn.disabled  = true;
+  btnTxt.textContent = 'Fetching…';
+  setVisible(spinner, true);
+
+  try {
+    _importCandidates = await API.parseWalletTrades(address);
+    renderImportPreview(_importCandidates);
+    showImportStep('preview');
+  } catch (err) {
+    showImportError(`Failed to fetch trades: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btnTxt.textContent = 'Fetch Trades';
+    setHidden(spinner, true);
+  }
+});
+
+/** Render the preview table from discovered trade candidates */
+function renderImportPreview(candidates) {
+  const alreadyImported = TradesDB.getImportedTxHashes();
+  const tbody           = $('import-preview-tbody');
+  tbody.innerHTML       = '';
+
+  const infoEl = $('import-preview-info');
+  const warnEl = $('import-duplicate-warning');
+
+  if (candidates.length === 0) {
+    infoEl.textContent = 'No trades could be detected for this wallet. Only swaps involving native PLS are supported.';
+    setHidden(warnEl, true);
+    $('import-confirm-btn').disabled = true;
+    updateImportSelectedCount();
+    return;
+  }
+
+  let dupCount = 0;
+  candidates.forEach((trade, idx) => {
+    const isDup = alreadyImported.has(trade.txHash);
+    if (isDup) dupCount++;
+
+    const tr = document.createElement('tr');
+    if (isDup) tr.classList.add('import-row-dup');
+
+    // Checkbox
+    const tdCb = document.createElement('td');
+    tdCb.className = 'align-center';
+    const cb = document.createElement('input');
+    cb.type        = 'checkbox';
+    cb.dataset.idx = idx;
+    cb.checked     = !isDup;   // pre-uncheck duplicates
+    cb.addEventListener('change', updateImportSelectedCount);
+    tdCb.appendChild(cb);
+
+    // Date
+    const tdDate = document.createElement('td');
+    tdDate.textContent = new Date(trade.date).toLocaleDateString();
+
+    // Token
+    const tdToken = document.createElement('td');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'token-name';
+    nameSpan.textContent = trade.tokenName || trade.tokenSymbol;
+    const symSpan = document.createElement('span');
+    symSpan.className = 'token-symbol';
+    symSpan.textContent = ' ' + trade.tokenSymbol;
+    tdToken.appendChild(nameSpan);
+    tdToken.appendChild(symSpan);
+
+    // Type badge
+    const tdType = document.createElement('td');
+    tdType.innerHTML = `<span class="trade-badge trade-badge-${escHtml(trade.type)}">${escHtml(trade.type.toUpperCase())}</span>`;
+
+    // Token amount
+    const tdAmt = document.createElement('td');
+    tdAmt.className = 'align-right';
+    tdAmt.textContent = fmt.balance(trade.tokenAmount);
+
+    // PLS amount
+    const tdPls = document.createElement('td');
+    tdPls.className = 'align-right';
+    tdPls.textContent = fmt.pls(trade.plsAmount);
+
+    // Status
+    const tdStatus = document.createElement('td');
+    tdStatus.textContent = isDup ? '⚠ Already imported' : 'New';
+    if (isDup) tdStatus.style.color = 'var(--warning)';
+
+    tr.append(tdCb, tdDate, tdToken, tdType, tdAmt, tdPls, tdStatus);
+    tbody.appendChild(tr);
+  });
+
+  infoEl.textContent = `Found ${candidates.length} trade${candidates.length !== 1 ? 's' : ''}.`;
+  if (dupCount > 0) {
+    warnEl.textContent = `${dupCount} trade${dupCount !== 1 ? 's' : ''} appear to already be in your trade log and are pre-deselected.`;
+    setVisible(warnEl, true);
+  } else {
+    setHidden(warnEl, true);
+  }
+
+  $('import-confirm-btn').disabled = false;
+  $('import-select-all').checked = true;
+  updateImportSelectedCount();
+}
+
+/** Import the checked trades from the preview into TradesDB */
+$('import-confirm-btn').addEventListener('click', () => {
+  const checkboxes = $('import-preview-tbody').querySelectorAll('input[type="checkbox"]:checked');
+  let count = 0;
+  checkboxes.forEach(cb => {
+    const trade = _importCandidates[Number(cb.dataset.idx)];
+    if (!trade) return;
+    TradesDB.addTrade({
+      tokenAddress:     trade.tokenAddress,
+      tokenSymbol:      trade.tokenSymbol,
+      tokenName:        trade.tokenName,
+      type:             trade.type,
+      date:             trade.date,
+      tokenAmount:      trade.tokenAmount,
+      plsAmount:        trade.plsAmount,
+      usdValue:         trade.usdValue || 0,
+      pricePerTokenPls: trade.pricePerTokenPls || 0,
+      notes:            trade.notes || '',
+      txHash:           trade.txHash || '',
+    });
+    count++;
+  });
+
+  $('import-done-text').textContent =
+    count > 0
+      ? `${count} trade${count !== 1 ? 's' : ''} imported successfully. USD values are set to 0 — you can edit individual trades to add historical USD values.`
+      : 'No trades were imported.';
+  showImportStep('done');
+});
+
 /* ── CSV export ──────────────────────────────────────────── */
 
 $('export-csv-btn').addEventListener('click', () => {

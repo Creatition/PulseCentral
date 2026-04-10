@@ -74,7 +74,20 @@ const TradesDB = (() => {
     save(data);
   }
 
-  return { getTrades, addTrade, editTrade, deleteTrade };
+  /**
+   * Return a Set of all txHash values already present in the trade log.
+   * Used for duplicate detection during wallet import.
+   * @returns {Set<string>}
+   */
+  function getImportedTxHashes() {
+    return new Set(
+      load().trades
+        .map(t => t.txHash)
+        .filter(Boolean)
+    );
+  }
+
+  return { getTrades, addTrade, editTrade, deleteTrade, getImportedTxHashes };
 })();
 
 /* ── FIFO P&L engine ─────────────────────────────────────── */
