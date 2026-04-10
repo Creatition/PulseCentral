@@ -200,6 +200,18 @@ const loadBtnTxt = $('load-portfolio-btn-text');
 const loadSpinner= $('load-portfolio-spinner');
 const walletInput= $('wallet-input');
 
+let hideSmallBalances = true;      // default: hide coins < $0.05
+let cachedPortfolioTokens  = [];   // enriched token list from last load
+let cachedPlsBalance = 0;
+let cachedPlsPrice   = 0;
+
+$('hide-small-balances').addEventListener('change', e => {
+  hideSmallBalances = e.target.checked;
+  if (cachedPortfolioTokens.length || cachedPlsBalance) {
+    renderPortfolioTable(cachedPortfolioTokens, cachedPlsBalance, cachedPlsPrice);
+  }
+});
+
 loadBtn.addEventListener('click', () => {
   const address = walletInput.value.trim();
   if (!address) {
@@ -264,6 +276,7 @@ async function loadPortfolio(address) {
   hidePortfolioError();
   setPortfolioLoading(true);
   setHidden($('portfolio-summary'), true);
+  setHidden($('portfolio-toolbar'), true);
   setHidden($('portfolio-table-wrap'), true);
   setVisible($('portfolio-empty'), true);
 
@@ -300,11 +313,17 @@ async function loadPortfolio(address) {
     const plsValue  = plsBalance * plsPrice;
     const totalUsd  = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
 
+    // Cache for re-render when toggle changes
+    cachedPortfolioTokens = enriched;
+    cachedPlsBalance      = plsBalance;
+    cachedPlsPrice        = plsPrice;
+
     renderPortfolioSummary(totalUsd, enriched.length + 1, plsBalance, plsPrice);
     renderPortfolioTable(enriched, plsBalance, plsPrice);
 
     setHidden($('portfolio-empty'), true);
     setVisible($('portfolio-summary'), true);
+    setVisible($('portfolio-toolbar'), true);
     setVisible($('portfolio-table-wrap'), true);
   } catch (err) {
     showPortfolioError(`Error loading portfolio: ${err.message}`);
@@ -323,8 +342,23 @@ function renderPortfolioSummary(totalUsd, tokenCount, plsBalance, plsPrice) {
 }
 
 function renderPortfolioTable(tokens, plsBalance, plsPrice) {
+  const DUST_THRESHOLD = 0.05;
   const tbody = $('portfolio-tbody');
   tbody.innerHTML = '';
+
+  // Apply small-balance filter to tokens (PLS native is always shown)
+  const visibleTokens = hideSmallBalances
+    ? tokens.filter(t => t.value >= DUST_THRESHOLD)
+    : tokens;
+
+  const hiddenCount = tokens.length - visibleTokens.length;
+  const countEl = $('hidden-coins-count');
+  if (hideSmallBalances && hiddenCount > 0) {
+    countEl.textContent = `(${hiddenCount} coin${hiddenCount !== 1 ? 's' : ''} hidden)`;
+    setVisible(countEl, true);
+  } else {
+    setHidden(countEl, true);
+  }
 
   // PLS native row (first)
   const plsRow = buildPortfolioRow(
@@ -336,7 +370,7 @@ function renderPortfolioTable(tokens, plsBalance, plsPrice) {
   );
   tbody.appendChild(plsRow);
 
-  tokens.forEach((t, i) => {
+  visibleTokens.forEach((t, i) => {
     tbody.appendChild(buildPortfolioRow(i + 2, t, t.balance, t.price, t.change24h));
   });
 }
