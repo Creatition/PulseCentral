@@ -287,9 +287,9 @@ function buildCoinCard(symbol, pair) {
   const { text: changeText, cls: changeCls } = fmt.change(change24h);
   const isUp      = change24h >= 0;
 
-  // WPLS and PLS are the same token — always display as PLS
-  const displaySymbol = symbol === 'WPLS' ? 'PLS' : symbol;
-  const displayName   = symbol === 'WPLS' ? 'PulseChain' : (token.name || symbol);
+  // PLS (native) — always display as PLS / PulseChain
+  const displaySymbol = (symbol === 'PLS' || symbol === 'WPLS') ? 'PLS' : symbol;
+  const displayName   = (symbol === 'PLS' || symbol === 'WPLS') ? 'PulseChain' : (token.name || symbol);
 
   card.classList.toggle('coin-card-up',   isUp);
   card.classList.toggle('coin-card-down', !isUp);

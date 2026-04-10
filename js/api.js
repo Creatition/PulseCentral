@@ -34,14 +34,14 @@ const API = (() => {
 
   /**
    * The 5 core coins shown on the Home landing page (in display order).
-   * PRVX is resolved by symbol search since its address may change.
+   * `pairAddress` is the specific DEX pair contract to pull price data from.
    */
   const CORE_COINS = [
-    { symbol: 'WPLS', address: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27' },
-    { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39' },
-    { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d' },
-    { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab' },
-    { symbol: 'PRVX', address: null }, // resolved via symbol search
+    { symbol: 'PLS',  address: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', pairAddress: '0xe56043671df55de5cdf8459710433c10324de0ae' }, // address is WPLS (wrapped PLS)
+    { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9' },
+    { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65' },
+    { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa' },
+    { symbol: 'PRVX', address: null,                                           pairAddress: '0x62f7d076c92db76cf84223b6309801ea461d7afe' },
   ];
 
   /* ── Helpers ────────────────────────────────────────────── */
@@ -466,37 +466,30 @@ const API = (() => {
   }
 
   /**
-   * Fetch live pair data for the 5 core coins shown on the Home landing page:
-   * WPLS, HEX, INC, PLSX (by address) and PRVX (by symbol search).
+   * Fetch live pair data for the 5 core coins shown on the Home landing page
+   * using the exact pair contract addresses defined in CORE_COINS.
    * Returns an array of { symbol, pair } objects in the order defined by CORE_COINS.
    * `pair` is null when no data is available for a coin.
    * @returns {Promise<Array<{symbol: string, pair: object|null}>>}
    */
   async function getCoreCoinPairs() {
-    const knownAddresses = CORE_COINS.filter(c => c.address).map(c => c.address);
+    const pairAddresses = CORE_COINS.map(c => c.pairAddress);
+    const url = `${DSX_BASE}/pairs/pulsechain/${pairAddresses.join(',')}`;
 
-    const [pairMapResult, prvxResult] = await Promise.allSettled([
-      getPairsByAddresses(knownAddresses),
-      fetchJSON(`${DSX_BASE}/search/?q=${encodeURIComponent('PRVX')}`),
-    ]);
+    let pairsById = new Map();
+    try {
+      const data = await fetchJSON(url);
+      for (const pair of (data.pairs || [])) {
+        if (pair.pairAddress) {
+          pairsById.set(pair.pairAddress.toLowerCase(), pair);
+        }
+      }
+    } catch (err) { console.warn('[PulseCentral] getCoreCoinPairs failed:', err); }
 
-    const pairMap = pairMapResult.status === 'fulfilled' ? pairMapResult.value : new Map();
-
-    // Find the best PRVX pair on PulseChain (highest liquidity, symbol must match)
-    let prvxPair = null;
-    if (prvxResult.status === 'fulfilled') {
-      const candidates = (prvxResult.value.pairs || [])
-        .filter(p => p.chainId === 'pulsechain' &&
-                     p.baseToken?.symbol?.toUpperCase() === 'PRVX')
-        .sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
-      prvxPair = candidates[0] || null;
-    }
-
-    return CORE_COINS.map(coin => {
-      if (coin.symbol === 'PRVX') return { symbol: 'PRVX', pair: prvxPair };
-      const pair = pairMap.get(coin.address.toLowerCase()) || null;
-      return { symbol: coin.symbol, pair };
-    });
+    return CORE_COINS.map(coin => ({
+      symbol: coin.symbol,
+      pair: pairsById.get(coin.pairAddress.toLowerCase()) || null,
+    }));
   }
 
   /* ── Public API ─────────────────────────────────────────── */
