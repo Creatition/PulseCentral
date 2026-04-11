@@ -2942,6 +2942,16 @@ function renderTokenDetailsOverview(pair) {
     dexLink.textContent = '📈 View on DexScreener';
     dexLink.addEventListener('click', e => e.stopPropagation());
     dexSection.appendChild(dexLink);
+
+    const dexToolsLink = document.createElement('a');
+    dexToolsLink.href      = `https://www.dextools.io/app/pulse/pair-explorer/${pair.pairAddress}`;
+    dexToolsLink.target    = '_blank';
+    dexToolsLink.rel       = 'noopener';
+    dexToolsLink.className = 'td-social-link';
+    dexToolsLink.textContent = '🔍 View on DexTools';
+    dexToolsLink.addEventListener('click', e => e.stopPropagation());
+    dexSection.appendChild(dexToolsLink);
+
     content.appendChild(dexSection);
   }
 }
