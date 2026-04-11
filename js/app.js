@@ -810,10 +810,15 @@ function buildPortfolioRow(index, token, balance, price, change24h, pairAddress 
     const badge = document.createElement('span');
     badge.className = 'league-badge';
     badge.textContent = rank.emoji;
-    const pctDisplay = token.supplyPct >= 1
-      ? token.supplyPct.toFixed(2) + '%'
-      : token.supplyPct.toExponential(2) + '%';
-    badge.title = `${rank.name} — ${pctDisplay} of supply`;
+    const pct = token.supplyPct;
+    const pctDisplay = pct >= 1
+      ? pct.toFixed(2) + '%'
+      : pct >= 0.0001
+        ? pct.toPrecision(3) + '%'
+        : pct.toFixed(10).replace(/\.?0+$/, '') + '%';
+    const tooltipText = `${rank.name} — ${pctDisplay} of supply`;
+    badge.title = tooltipText;
+    badge.dataset.tooltip = tooltipText;
     tokenCell.appendChild(badge);
   }
 
