@@ -73,6 +73,17 @@ const fmt = {
     return '$' + n.toFixed(2);
   },
 
+  /** Format a raw token supply count (no $ sign, uses T/B/M/K suffixes) */
+  supply(val) {
+    const n = Number(val);
+    if (!n || isNaN(n)) return '—';
+    if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+    if (n >= 1e9)  return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3)  return (n / 1e3).toFixed(2) + 'K';
+    return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  },
+
   /** Format token balance with commas */
   balance(val) {
     const n = Number(val);
@@ -340,11 +351,14 @@ function buildCoinCard(symbol, pair) {
   const token     = pair?.baseToken || { symbol, name: symbol };
   const price     = Number(pair?.priceUsd || 0);
   const change24h = Number(pair?.priceChange?.h24 || 0);
-  const vol24h    = pair?.volume?.h24;
   const liq       = pair?.liquidity?.usd;
+  const marketCap = pair?.marketCap || pair?.fdv;
   const logoUrl   = pair?.info?.imageUrl || null;
   const { text: changeText, cls: changeCls } = fmt.change(change24h);
   const isUp      = change24h >= 0;
+
+  // Derive circulating supply: marketCap / price (or fdv / price for total supply)
+  const supplyVal = (marketCap && price) ? marketCap / price : null;
 
   // PLS (native) — always display as PLS / PulseChain
   const displaySymbol = (symbol === 'PLS' || symbol === 'WPLS') ? 'PLS' : symbol;
@@ -384,13 +398,17 @@ function buildCoinCard(symbol, pair) {
   chart.className = 'coin-chart';
   chart.innerHTML = buildSparklineSvg(pair);
 
-  // Stats row
+  // Stats row: Supply, Market Cap, Liquidity
   const stats = document.createElement('div');
   stats.className = 'coin-stats';
   stats.innerHTML = `
     <div class="coin-stat">
-      <span class="coin-stat-label">Vol 24h</span>
-      <span class="coin-stat-value">${fmt.large(vol24h)}</span>
+      <span class="coin-stat-label">Supply</span>
+      <span class="coin-stat-value">${supplyVal ? fmt.supply(supplyVal) : '—'}</span>
+    </div>
+    <div class="coin-stat">
+      <span class="coin-stat-label">Mkt Cap</span>
+      <span class="coin-stat-value">${fmt.large(marketCap)}</span>
     </div>
     <div class="coin-stat">
       <span class="coin-stat-label">Liquidity</span>
