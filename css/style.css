@@ -178,7 +178,7 @@ li + li { margin-top: 0.35rem; }
   white-space: nowrap;
   will-change: transform;
   /* 20s is the initial fallback; JS overrides this after measuring content width */
-  animation: ticker-scroll 10s linear infinite;
+  animation: ticker-scroll 20s linear infinite;
 }
 
 .ticker-track:hover {

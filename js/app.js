@@ -632,7 +632,7 @@ loadHomeTab();
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
 /** Duration (seconds) of the current ticker animation — kept in sync by renderTicker. */
-let _tickerDuration = 10;
+let _tickerDuration = 20;
 
 /** Resume-after-idle timer handle for manual scroll. */
 let _tickerResumeTimer = null;
@@ -719,20 +719,21 @@ function renderTicker(pairs) {
     return;
   }
 
-  // Build items × 2 for seamless loop; show rank badges only on the first pass
+  // Build items × 2 for seamless loop; show rank badges on both passes so
+  // the ticker continuously scrolls #1 → #N → #1 without a no-badge gap.
   const fragment = document.createDocumentFragment();
   for (let pass = 0; pass < 2; pass++) {
     items.forEach((pair, i) => {
-      fragment.appendChild(buildTickerItem(pair, pass === 0 ? i + 1 : 0));
+      fragment.appendChild(buildTickerItem(pair, i + 1));
     });
   }
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~200 px/s (2× faster); bounds [3, 10] keep it snappy at any viewport width.
+  // Targets ~100 px/s so all 25 tokens are readable; minimum 20 s.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(3, Math.min(10, totalWidth / 200));
+    const speed = Math.max(20, totalWidth / 100);
     track.style.animationDuration = `${speed}s`;
     _tickerDuration = speed;
   });
