@@ -194,15 +194,17 @@ const API = (() => {
 
       // Determine which slot (token0 / token1) is the base token we care about
       const token0Addr = (d.token0?.id || d.token0?.address || '').toLowerCase();
+      const t0 = { address: d.token0?.id || d.token0?.address, name: d.token0?.name, symbol: d.token0?.symbol };
+      const t1 = { address: d.token1?.id || d.token1?.address, name: d.token1?.name, symbol: d.token1?.symbol };
 
       let baseToken, quoteToken, priceUsd;
       if (token0Addr === tokenAddrLower) {
-        baseToken  = { address: d.token0?.id || d.token0?.address, name: d.token0?.name, symbol: d.token0?.symbol };
-        quoteToken = { address: d.token1?.id || d.token1?.address, name: d.token1?.name, symbol: d.token1?.symbol };
+        baseToken  = t0;
+        quoteToken = t1;
         priceUsd   = d.price ?? d.price0;
       } else {
-        baseToken  = { address: d.token1?.id || d.token1?.address, name: d.token1?.name, symbol: d.token1?.symbol };
-        quoteToken = { address: d.token0?.id || d.token0?.address, name: d.token0?.name, symbol: d.token0?.symbol };
+        baseToken  = t1;
+        quoteToken = t0;
         priceUsd   = d.price1 ?? d.price;
       }
 
