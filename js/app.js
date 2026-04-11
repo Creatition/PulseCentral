@@ -440,7 +440,7 @@ function buildSparklineSvg(pair) {
  * @param {string}     tokenColor Hex brand colour for border + chart line
  * @returns {HTMLElement}
  */
-function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff', colorSecondary = null) {
+function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff') {
   const card = document.createElement('article');
   card.className = 'coin-card';
 
@@ -464,14 +464,8 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
   card.classList.toggle('coin-card-down', !isUp);
 
   // Apply token brand colour as the card border via CSS custom property.
-  // When a secondary colour is provided (e.g. PLSX), use a gradient border instead.
-  if (colorSecondary) {
-    card.classList.add('coin-card--gradient-border');
-    card.style.setProperty('--coin-border-color',           tokenColor);
-    card.style.setProperty('--coin-border-color-secondary', colorSecondary);
-  } else {
-    card.style.setProperty('--coin-border-color', tokenColor);
-  }
+  // The CSS rule reads --coin-border-color for both normal and hover states.
+  card.style.setProperty('--coin-border-color', tokenColor);
 
   // Header: logo + name + 24h badge
   const header = document.createElement('div');
@@ -542,13 +536,13 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
 
 /**
  * Render all core coin cards into the home grid.
- * @param {Array<{symbol: string, pair: object|null, chartBars: object[], chartRes: string, color: string, colorSecondary?: string}>} coinData
+ * @param {Array<{symbol: string, pair: object|null, chartBars: object[], chartRes: string, color: string}>} coinData
  */
 function renderHomeCoinCards(coinData) {
   const grid = $('home-coins-grid');
   grid.innerHTML = '';
-  coinData.forEach(({ symbol, pair, chartBars, chartRes, color, colorSecondary }) => {
-    grid.appendChild(buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff', colorSecondary || null));
+  coinData.forEach(({ symbol, pair, chartBars, chartRes, color }) => {
+    grid.appendChild(buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff'));
   });
 }
 
