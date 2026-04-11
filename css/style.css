@@ -1662,7 +1662,7 @@ li + li { margin-top: 0.35rem; }
 /* Core coin cards grid */
 .home-coins-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -1749,7 +1749,7 @@ li + li { margin-top: 0.35rem; }
 
 .coin-stats {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   border-top: 1px solid var(--border);
   padding-top: 0.65rem;
   margin-top: 0.1rem;
@@ -2568,7 +2568,7 @@ li + li { margin-top: 0.35rem; }
   .dex-attribution { text-align: left; }
   .form-row-2, .form-row-3 { flex-direction: column; }
   .home-hero { padding: 2rem 1rem 1.5rem; }
-  .home-coins-grid { grid-template-columns: repeat(2, 1fr); }
+  .home-coins-grid { grid-template-columns: 1fr; }
   .group-add-addr-row { flex-direction: column; }
   .group-saved-wallets-row { flex-direction: column; }
   .markets-grid { grid-template-columns: repeat(2, 1fr); }
