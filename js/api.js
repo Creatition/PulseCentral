@@ -615,6 +615,24 @@ const API = (() => {
     }
   }
 
+  /**
+   * Fetch the total supply of an ERC-20 token (raw on-chain value as a string).
+   * Uses the PulseChain Scan BlockScout v1 stats endpoint.
+   * Returns null on error or when the token is not found.
+   * @param {string} contractAddress  Token contract address (0x-prefixed)
+   * @returns {Promise<string|null>}  Raw total supply string, e.g. "1000000000000000000000000"
+   */
+  async function getTotalSupply(contractAddress) {
+    const url = `${SCAN_BASE}?module=stats&action=tokensupply&contractaddress=${contractAddress}`;
+    try {
+      const data = await fetchJSON(url, 10000);
+      if (data.status !== '1' || !data.result) return null;
+      return data.result;
+    } catch {
+      return null;
+    }
+  }
+
   /* ── Public API ─────────────────────────────────────────── */
   return {
     getPlsBalance,
@@ -628,6 +646,7 @@ const API = (() => {
     getTokenSecurity,
     getTokenMetadata,
     getTokenTransferHistory,
+    getTotalSupply,
     KNOWN_TOKENS,
     CORE_COINS,
   };

@@ -489,6 +489,28 @@ if (addWalletToggleBtn && walletAddCollapse) {
   });
 }
 
+/* ── League rank helper ─────────────────────────────────── */
+
+/**
+ * League tiers based on percent of a token's total supply held.
+ * Returns { name, emoji } for the highest matching tier, or null if below Shell.
+ * @param {number|null} supplyPct  Percentage of total supply (e.g. 5.5 for 5.5%)
+ * @returns {{ name: string, emoji: string }|null}
+ */
+function getLeagueRank(supplyPct) {
+  if (supplyPct === null || supplyPct === undefined) return null;
+  if (supplyPct >= 10)        return { name: 'Poseidon', emoji: '🔱' };
+  if (supplyPct >= 1)         return { name: 'Whale',    emoji: '🐋' };
+  if (supplyPct >= 0.1)       return { name: 'Shark',    emoji: '🦈' };
+  if (supplyPct >= 0.01)      return { name: 'Dolphin',  emoji: '🐬' };
+  if (supplyPct >= 0.001)     return { name: 'Squid',    emoji: '🦑' };
+  if (supplyPct >= 0.0001)    return { name: 'Turtle',   emoji: '🐢' };
+  if (supplyPct >= 0.00001)   return { name: 'Crab',     emoji: '🦀' };
+  if (supplyPct >= 0.000001)  return { name: 'Shrimp',   emoji: '🦐' };
+  if (supplyPct >= 0.0000001) return { name: 'Shell',    emoji: '🐚' };
+  return null;
+}
+
 /* ── Portfolio tab ──────────────────────────────────────── */
 
 const loadBtn    = $('load-portfolio-btn');
@@ -635,17 +657,23 @@ async function loadPortfolio(address) {
     if (!addresses.some(a => a.toLowerCase() === WPLS_ADDRESS.toLowerCase())) {
       addresses.push(WPLS_ADDRESS);
     }
-    const pairMap   = await API.getPairsByAddresses(addresses);
+    const [pairMap, supplyResults] = await Promise.all([
+      API.getPairsByAddresses(addresses),
+      Promise.allSettled(activeTokens.map(t => API.getTotalSupply(t.contractAddress))),
+    ]);
 
-    // Enrich tokens with price data
-    const enriched = activeTokens.map(t => {
+    // Enrich tokens with price data and supply percentage
+    const enriched = activeTokens.map((t, idx) => {
       const pair  = pairMap.get(t.contractAddress.toLowerCase());
       const price = Number(pair?.priceUsd || 0);
       const change24h = Number(pair?.priceChange?.h24 || 0);
       const value = price * t.balance;
       const logoUrl = pair?.info?.imageUrl || null;
       const pairAddress = pair?.pairAddress || null;
-      return { ...t, price, change24h, value, logoUrl, pairAddress };
+      const rawSupply = supplyResults[idx].status === 'fulfilled' ? supplyResults[idx].value : null;
+      const totalSupply = rawSupply ? Number(rawSupply) / Math.pow(10, t.decimals) : null;
+      const supplyPct = (totalSupply && totalSupply > 0) ? (t.balance / totalSupply) * 100 : null;
+      return { ...t, price, change24h, value, logoUrl, pairAddress, supplyPct };
     });
 
     // Sort by USD value descending
@@ -775,6 +803,20 @@ function buildPortfolioRow(index, token, balance, price, change24h, pairAddress 
   nameSpan.className = 'token-name';
   nameSpan.textContent = token.name || token.symbol;
   tokenCell.appendChild(nameSpan);
+
+  // League rank badge
+  const rank = getLeagueRank(token.supplyPct ?? null);
+  if (rank) {
+    const badge = document.createElement('span');
+    badge.className = 'league-badge';
+    badge.textContent = rank.emoji;
+    const pctDisplay = token.supplyPct >= 1
+      ? token.supplyPct.toFixed(2) + '%'
+      : token.supplyPct.toExponential(2) + '%';
+    badge.title = `${rank.name} — ${pctDisplay} of supply`;
+    tokenCell.appendChild(badge);
+  }
+
   tdToken.appendChild(tokenCell);
 
   // Symbol
@@ -1958,17 +2000,23 @@ async function loadGroupPortfolio(group) {
     if (!addresses.some(a => a.toLowerCase() === WPLS_ADDRESS.toLowerCase())) {
       addresses.push(WPLS_ADDRESS);
     }
-    const pairMap   = await API.getPairsByAddresses(addresses);
+    const [pairMap, supplyResults] = await Promise.all([
+      API.getPairsByAddresses(addresses),
+      Promise.allSettled(activeTokens.map(t => API.getTotalSupply(t.contractAddress))),
+    ]);
 
-    // Enrich with price data
-    const enriched = activeTokens.map(t => {
+    // Enrich with price data and supply percentage
+    const enriched = activeTokens.map((t, idx) => {
       const pair  = pairMap.get(t.contractAddress.toLowerCase());
       const price     = Number(pair?.priceUsd   || 0);
       const change24h = Number(pair?.priceChange?.h24 || 0);
       const value     = price * t.balance;
       const logoUrl   = pair?.info?.imageUrl || null;
       const pairAddress = pair?.pairAddress || null;
-      return { ...t, price, change24h, value, logoUrl, pairAddress };
+      const rawSupply = supplyResults[idx].status === 'fulfilled' ? supplyResults[idx].value : null;
+      const totalSupply = rawSupply ? Number(rawSupply) / Math.pow(10, t.decimals) : null;
+      const supplyPct = (totalSupply && totalSupply > 0) ? (t.balance / totalSupply) * 100 : null;
+      return { ...t, price, change24h, value, logoUrl, pairAddress, supplyPct };
     });
 
     enriched.sort((a, b) => b.value - a.value);
