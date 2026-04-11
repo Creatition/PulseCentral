@@ -558,7 +558,10 @@ function renderTicker(pairs) {
   }
   track.appendChild(fragment);
 
-  // Adjust animation speed based on content width so scroll feels consistent
+  // Adjust animation speed based on content width so scroll feels consistent.
+  // The divisor 8 maps pixels/s → seconds; bounds [30, 90] keep it readable
+  // at any token count (30s minimum so it isn't dizzying; 90s maximum so it
+  // doesn't crawl on very wide viewports).
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
     const speed = Math.max(30, Math.min(90, totalWidth / 8));
@@ -580,7 +583,7 @@ async function loadTicker() {
 
 // Initial load + refresh every 5 minutes
 loadTicker();
-setInterval(loadTicker, 5 * 60_000);
+let tickerInterval = setInterval(loadTicker, 5 * 60_000);
 
 
 
