@@ -407,6 +407,14 @@ li + li { margin-top: 0.35rem; }
 .token-name { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .token-symbol { color: var(--text-muted); font-size: 0.8rem; }
 
+/* League rank badge */
+.league-badge {
+  cursor: default;
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 /* Change colours */
 .change-positive { color: var(--success); font-weight: 700; }
 .change-negative { color: var(--danger);  font-weight: 700; }
