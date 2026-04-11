@@ -1240,6 +1240,20 @@ function renderMarketsGrid() {
     ].slice(0, 12);
     container.appendChild(buildMarketsSection('🏆 Top Coins', topPairs, true));
 
+    // ── Top Memes ──────────────────────────────────────────
+    const coreCoinAddrs = new Set(
+      API.CORE_COINS.map(c => (c.address || '').toLowerCase())
+    );
+    const memePairs = allMarketPairs
+      .filter(p => {
+        const addr = (p.baseToken?.address || '').toLowerCase();
+        return !coreCoinAddrs.has(addr) && (p.marketCap || p.fdv) > 0;
+      })
+      .slice()
+      .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0))
+      .slice(0, 12);
+    container.appendChild(buildMarketsSection('🐸 Top Memes', memePairs, true));
+
     // ── Top Gainers ────────────────────────────────────────
     const gainerPairs = allMarketPairs
       .filter(p => p.priceChange?.h24 != null)
