@@ -177,8 +177,8 @@ li + li { margin-top: 0.35rem; }
   gap: 0;
   white-space: nowrap;
   will-change: transform;
-  /* 40s is the initial fallback; JS overrides this after measuring content width */
-  animation: ticker-scroll 40s linear infinite;
+  /* 20s is the initial fallback; JS overrides this after measuring content width */
+  animation: ticker-scroll 20s linear infinite;
 }
 
 .ticker-track:hover {
@@ -262,35 +262,6 @@ li + li { margin-top: 0.35rem; }
   min-width: 1.4rem;
   text-align: right;
   flex-shrink: 0;
-}
-
-.ticker-controls {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  border-left: 1px solid var(--border);
-}
-
-.ticker-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 1.3rem;
-  line-height: 1;
-  height: 36px;
-  width: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: color var(--transition), background var(--transition);
-  flex-shrink: 0;
-}
-
-.ticker-btn:hover {
-  color: var(--text);
-  background: var(--bg-card-hover);
 }
 
 /* ── Header ── */
