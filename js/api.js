@@ -483,6 +483,40 @@ const API = (() => {
     // Step 3: Fetch pair data for all addresses (getPairsByAddresses deduplicates by token address)
     const rawMap = await getPairsByAddresses(allAddresses);
 
+    // Step 3.5: For KNOWN_TOKENS pairs that have a price but lack both marketCap
+    // and fdv (DexScreener omits these when it doesn't know the token's total
+    // supply), fetch on-chain total supply from PulseChain BlockScout v2 and
+    // compute an FDV estimate.  This prevents valid meme coins from being
+    // silently dropped by the (marketCap || fdv) > 0 filter in the UI.
+    const knownAddrs = new Set(KNOWN_TOKENS.map(t => t.address.toLowerCase()));
+    const noCapPairs = [...rawMap.entries()].filter(
+      ([addr, pair]) =>
+        knownAddrs.has(addr) &&
+        !pair.marketCap && !pair.fdv &&
+        Number(pair.priceUsd || 0) > 0
+    );
+
+    if (noCapPairs.length > 0) {
+      await Promise.allSettled(
+        noCapPairs.map(async ([, pair]) => {
+          try {
+            const meta = await fetchJSON(
+              `https://scan.pulsechain.com/api/v2/tokens/${pair.baseToken.address}`,
+              8000
+            );
+            const decimals  = Number(meta?.decimals  || 18);
+            const rawSupply = meta?.total_supply;
+            if (rawSupply && rawSupply !== '0') {
+              const supply = Number(rawSupply) / Math.pow(10, decimals);
+              pair.fdv = supply * Number(pair.priceUsd);
+            }
+          } catch {
+            // Non-fatal – pair remains without fdv and may still appear via volume ranking
+          }
+        })
+      );
+    }
+
     // Step 4: Sort by 24h volume descending – no additional filters, dedup is the only constraint
     return [...rawMap.values()].sort(
       (a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0)
