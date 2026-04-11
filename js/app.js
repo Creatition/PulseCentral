@@ -632,7 +632,7 @@ loadHomeTab();
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
 /** Duration (seconds) of the current ticker animation — kept in sync by renderTicker. */
-let _tickerDuration = 10;
+let _tickerDuration = 20;
 
 /** Resume-after-idle timer handle for manual scroll. */
 let _tickerResumeTimer = null;
@@ -730,10 +730,10 @@ function renderTicker(pairs) {
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~200 px/s (2× faster); bounds [3, 10] keep it snappy at any viewport width.
+  // Targets ~100 px/s so all 25 tokens are readable; minimum 20 s.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(3, Math.min(10, totalWidth / 200));
+    const speed = Math.max(20, totalWidth / 100);
     track.style.animationDuration = `${speed}s`;
     _tickerDuration = speed;
   });
