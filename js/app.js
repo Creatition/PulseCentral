@@ -275,6 +275,12 @@ function autoLoadLastPortfolio() {
 let homeLoaded       = false;
 let homeRefreshTimer = null;
 
+/** Milliseconds in one day — used for fallback date range calculation. */
+const MS_PER_DAY = 86_400_000;
+
+/** Separator used between start and end dates in the chart date-range label. */
+const DATE_RANGE_SEP = ' – ';
+
 /**
  * Build a date/time label string for a chart bar timestamp.
  * @param {number} ts         Unix timestamp in milliseconds
@@ -334,7 +340,7 @@ function buildDetailedChartSvg(bars, resolution, tokenColor, pair) {
       // Date range label
       const first = display[0];
       const last  = display[display.length - 1];
-      const dateLabel = `${fmtChartBarLabel(first.time, resolution)} – ${fmtChartBarLabel(last.time, resolution)}`;
+      const dateLabel = `${fmtChartBarLabel(first.time, resolution)}${DATE_RANGE_SEP}${fmtChartBarLabel(last.time, resolution)}`;
 
       const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -395,8 +401,8 @@ function buildDetailedChartSvg(bars, resolution, tokenColor, pair) {
 
   // Build a human-readable fallback date range (past 24 h)
   const now   = new Date();
-  const yest  = new Date(now - 86400000);
-  const dateFallback = `${yest.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const yest  = new Date(now - MS_PER_DAY);
+  const dateFallback = `${yest.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${DATE_RANGE_SEP}${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
   return {
     svg: `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">

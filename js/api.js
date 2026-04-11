@@ -548,7 +548,7 @@ const API = (() => {
    * @returns {Promise<Array<{time:number, open:number, high:number, low:number, close:number, volume:number}>>}
    */
   async function getCoreCoinChartBars(pairAddress, resolution) {
-    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&cb=0`;
+    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&cb=0`; // cb=0 is a cache-bust parameter
     try {
       const data = await fetchJSON(url, 10000);
       const rawBars = data?.bars || [];

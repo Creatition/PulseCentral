@@ -1673,11 +1673,11 @@ li + li { margin-top: 0.35rem; }
   border: 2px solid var(--coin-border-color, var(--border));
   border-radius: var(--radius);
   padding: 1.25rem 1.25rem 1rem;
-  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition), opacity var(--transition);
   cursor: pointer;
   overflow: hidden;
   position: relative;
-  opacity: 0.88;
+  opacity: var(--coin-card-resting-opacity, 0.88);
 }
 
 .coin-card::before {
@@ -1688,13 +1688,13 @@ li + li { margin-top: 0.35rem; }
   opacity: 0;
   transition: opacity var(--transition);
   pointer-events: none;
-  background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--coin-border-color, #7b2fff) 12%, transparent) 0%, transparent 70%);
+  background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--coin-border-color, #7b2fff) var(--coin-card-glow-pct, 12%), transparent) 0%, transparent 70%);
 }
 
 .coin-card:hover {
   transform: translateY(-4px);
   opacity: 1;
-  box-shadow: 0 8px 32px color-mix(in srgb, var(--coin-border-color, #7b2fff) 25%, transparent);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--coin-border-color, #7b2fff) var(--coin-card-hover-glow-pct, 25%), transparent);
 }
 .coin-card:hover::before { opacity: 1; }
 
