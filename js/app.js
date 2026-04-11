@@ -276,23 +276,94 @@ let homeLoaded       = false;
 let homeRefreshTimer = null;
 
 /**
- * Build an SVG sparkline from a DexScreener pair's priceChange data.
- * Uses the h24, h6, h1, m5 change percentages to approximate 5 historical
- * price points and draws a filled area + line chart.
- * @param {object|null} pair  DexScreener pair object
- * @returns {string}  SVG markup string
+ * Build a date/time label string for a chart bar timestamp.
+ * @param {number} ts         Unix timestamp in milliseconds
+ * @param {string} resolution 'D' for daily bars, '60' for hourly bars
+ * @returns {string}
  */
-function buildSparklineSvg(pair) {
-  const W = 200, H = 56;
-  const currentPrice = Number(pair?.priceUsd || 0);
+function fmtChartBarLabel(ts, resolution) {
+  const d = new Date(ts);
+  if (resolution === 'D') {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  // Hourly bars — show hour
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+}
 
-  if (!currentPrice) {
-    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-      <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="var(--border-light)" stroke-width="1.5" stroke-dasharray="4 3"/>
-    </svg>`;
+/**
+ * Build an SVG chart from OHLCV bar data (line + area fill).
+ * Falls back to the sparkline approach when no bars are available.
+ *
+ * @param {object[]} bars       Array of { time, close } OHLCV bars
+ * @param {string}   resolution 'D' = daily (monthly view), '60' = hourly (daily view)
+ * @param {string}   tokenColor Hex colour for the line/fill (token brand colour)
+ * @param {object|null} pair    DexScreener pair (used for sparkline fallback)
+ * @returns {{ svg: string, dateLabel: string }}
+ *          svg       – SVG markup for the chart area
+ *          dateLabel – human-readable date range string for below the chart
+ */
+function buildDetailedChartSvg(bars, resolution, tokenColor, pair) {
+  const W = 300, H = 72;
+  const maxBars = resolution === 'D' ? 30 : 24;
+  const color   = tokenColor || '#7b2fff';
+
+  // ── Use OHLCV bars when available ──────────────────────────
+  const useBars = bars && bars.length >= 3;
+  if (useBars) {
+    const display = bars.slice(-maxBars);
+    const prices  = display.map(b => b.close).filter(v => v > 0);
+
+    if (prices.length >= 2) {
+      const minP  = Math.min(...prices);
+      const maxP  = Math.max(...prices);
+      const range = maxP - minP || maxP * 0.02 || 1;
+      const pad   = 6;
+
+      const pts = prices.map((p, i) => [
+        (i / (prices.length - 1)) * W,
+        H - pad - ((p - minP) / range) * (H - pad * 2),
+      ]);
+
+      const linePath = pts.map((p, i) =>
+        `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`
+      ).join(' ');
+      const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+
+      const gid = `sg${Math.random().toString(36).slice(2, 8)}`;
+
+      // Date range label
+      const first = display[0];
+      const last  = display[display.length - 1];
+      const dateLabel = `${fmtChartBarLabel(first.time, resolution)} – ${fmtChartBarLabel(last.time, resolution)}`;
+
+      const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="${areaPath}" fill="url(#${gid})"/>
+  <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+      return { svg, dateLabel };
+    }
   }
 
-  // Reconstruct approximate price at each historical point (oldest → newest)
+  // ── Sparkline fallback (no OHLCV data) ─────────────────────
+  const currentPrice = Number(pair?.priceUsd || 0);
+  const isUp         = Number(pair?.priceChange?.h24 || 0) >= 0;
+  const fallbackColor = isUp ? '#22c55e' : '#ef4444';
+
+  if (!currentPrice) {
+    return {
+      svg: `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="var(--border-light)" stroke-width="1.5" stroke-dasharray="4 3"/>
+</svg>`,
+      dateLabel: '',
+    };
+  }
+
   const pctChanges = [
     Number(pair?.priceChange?.h24 || 0),
     Number(pair?.priceChange?.h6  || 0),
@@ -319,32 +390,51 @@ function buildSparklineSvg(pair) {
   const linePath = pts.map((p, i) =>
     `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`
   ).join(' ');
-
   const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+  const gid = `sg${Math.random().toString(36).slice(2, 8)}`;
 
-  const isUp  = Number(pair?.priceChange?.h24 || 0) >= 0;
-  const color = isUp ? '#22c55e' : '#ef4444';
-  const gid   = `sg${Math.random().toString(36).slice(2, 8)}`;
+  // Build a human-readable fallback date range (past 24 h)
+  const now   = new Date();
+  const yest  = new Date(now - 86400000);
+  const dateFallback = `${yest.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
-        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <path d="${areaPath}" fill="url(#${gid})"/>
-    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`;
+  return {
+    svg: `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${fallbackColor}" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="${fallbackColor}" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="${areaPath}" fill="url(#${gid})"/>
+  <path d="${linePath}" fill="none" stroke="${fallbackColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`,
+    dateLabel: dateFallback,
+  };
+}
+
+/**
+ * Build an SVG sparkline from a DexScreener pair's priceChange data.
+ * Uses the h24, h6, h1, m5 change percentages to approximate 5 historical
+ * price points and draws a filled area + line chart.
+ * @param {object|null} pair  DexScreener pair object
+ * @returns {string}  SVG markup string
+ * @deprecated Use buildDetailedChartSvg instead
+ */
+function buildSparklineSvg(pair) {
+  return buildDetailedChartSvg([], 'D', null, pair).svg;
 }
 
 /**
  * Build a coin card DOM element for one core token.
- * @param {string} symbol  Token symbol (e.g. 'WPLS')
- * @param {object|null} pair  DexScreener pair object, or null if unavailable
+ * @param {string}     symbol     Token symbol (e.g. 'WPLS')
+ * @param {object|null} pair      DexScreener pair object, or null if unavailable
+ * @param {object[]}   chartBars  OHLCV bar array from the chart API (may be empty)
+ * @param {string}     chartRes   Chart resolution ('D' = monthly, '60' = daily)
+ * @param {string}     tokenColor Hex brand colour for border + chart line
  * @returns {HTMLElement}
  */
-function buildCoinCard(symbol, pair) {
+function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff') {
   const card = document.createElement('article');
   card.className = 'coin-card';
 
@@ -366,6 +456,10 @@ function buildCoinCard(symbol, pair) {
 
   card.classList.toggle('coin-card-up',   isUp);
   card.classList.toggle('coin-card-down', !isUp);
+
+  // Apply token brand colour as the card border via CSS custom property.
+  // The CSS rule reads --coin-border-color for both normal and hover states.
+  card.style.setProperty('--coin-border-color', tokenColor);
 
   // Header: logo + name + 24h badge
   const header = document.createElement('div');
@@ -393,10 +487,17 @@ function buildCoinCard(symbol, pair) {
   priceEl.className = 'coin-price';
   priceEl.textContent = price ? fmt.price(price) : '—';
 
-  // Sparkline chart
+  // Detailed chart (OHLCV or sparkline fallback)
+  const { svg: chartSvg, dateLabel } = buildDetailedChartSvg(chartBars, chartRes, tokenColor, pair);
+
   const chart = document.createElement('div');
   chart.className = 'coin-chart';
-  chart.innerHTML = buildSparklineSvg(pair);
+  chart.innerHTML = chartSvg;
+
+  // Date range label beneath the chart
+  const dateLabelEl = document.createElement('div');
+  dateLabelEl.className = 'coin-chart-dates';
+  dateLabelEl.textContent = dateLabel || '';
 
   // Stats row: Supply, Market Cap, Liquidity
   const stats = document.createElement('div');
@@ -423,19 +524,19 @@ function buildCoinCard(symbol, pair) {
     });
   }
 
-  card.append(header, priceEl, chart, stats);
+  card.append(header, priceEl, chart, dateLabelEl, stats);
   return card;
 }
 
 /**
  * Render all core coin cards into the home grid.
- * @param {Array<{symbol: string, pair: object|null}>} coinData
+ * @param {Array<{symbol: string, pair: object|null, chartBars: object[], chartRes: string, color: string}>} coinData
  */
 function renderHomeCoinCards(coinData) {
   const grid = $('home-coins-grid');
   grid.innerHTML = '';
-  coinData.forEach(({ symbol, pair }) => {
-    grid.appendChild(buildCoinCard(symbol, pair));
+  coinData.forEach(({ symbol, pair, chartBars, chartRes, color }) => {
+    grid.appendChild(buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff'));
   });
 }
 
