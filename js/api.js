@@ -38,7 +38,7 @@ const API = (() => {
     { symbol: 'usdl',         address: '0x0dEEd1486bc52aA0d3E6f8849cEC5adD6598A162' },
     { symbol: 'emit',         address: '0x32fB5663619A657839A80133994E45c5e5cDf427' },
     { symbol: 'pulseguy',     address: '0x67922D590BA6C784f468B6B562d201113a8FbD2D' },
-    { symbol: 'Peacock',      address: '0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F' },
+    { symbol: 'Peacock',      address: '0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F', pairAddress: '0xCb99800B71B7FB0696D19c3aaAa20c03d2D7e449' },
     { symbol: 'Zero',         address: '0xf6703DBff070F231eEd966D33B1B6D7eF5207d26' },
     { symbol: 'pTGC',         address: '0x94534EeEe131840b1c0F61847c572228bdfDDE93' },
     { symbol: 'UFO',          address: '0x456548A9B56eFBbD89Ca0309edd17a9E20b04018' },
@@ -112,11 +112,14 @@ const API = (() => {
    * that has a known token address. Used in getPairsByAddresses to pin the exact
    * trading pair for Portfolio, Watchlist, Trades, and any other price lookup.
    */
-  const CORE_PAIR_OVERRIDES = new Map(
-    CORE_COINS
+  const CORE_PAIR_OVERRIDES = new Map([
+    ...CORE_COINS
       .filter(c => c.address && c.pairAddress)
-      .map(c => [c.address.toLowerCase(), c.pairAddress])
-  );
+      .map(c => [c.address.toLowerCase(), c.pairAddress]),
+    ...KNOWN_TOKENS
+      .filter(t => t.pairAddress)
+      .map(t => [t.address.toLowerCase(), t.pairAddress]),
+  ]);
 
   /* ── Helpers ────────────────────────────────────────────── */
 
