@@ -712,8 +712,8 @@ function renderTicker(pairs) {
   if (!track) return;
   track.innerHTML = '';
 
-  // Limit to top 15 tokens
-  const items = pairs.slice(0, 15);
+  // Limit to top 25 tokens
+  const items = pairs.slice(0, 25);
   if (!items.length) {
     track.innerHTML = '<div class="ticker-loading">No trending data available.</div>';
     return;
@@ -796,9 +796,11 @@ function _scrollTickerBy(deltaPx) {
   const halfWidth = track.scrollWidth / 2;
   if (!halfWidth) return;
 
-  // Capture the current visual position and pause the animation.
+  // Capture the current visual position and stop the animation so the
+  // inline transform can take effect immediately (CSS animations override
+  // inline transform even when paused, so we must remove the animation).
   let x = _tickerCurrentX(track);
-  track.style.animationPlayState = 'paused';
+  track.style.animation = 'none';
 
   // Apply delta and wrap to keep within [-halfWidth, 0].
   x += deltaPx;
@@ -815,11 +817,12 @@ function _scrollTickerBy(deltaPx) {
 /* ── Ticker mouse-wheel scroll ─────────────────────────────── */
 
 (function _initTickerWheel() {
-  const wrap = document.querySelector('.ticker-track-wrap');
-  if (!wrap) return;
-  wrap.addEventListener('wheel', (e) => {
+  // Attach to the full ticker bar so the wheel works over the label too.
+  const bar = document.querySelector('.ticker-bar');
+  if (!bar) return;
+  bar.addEventListener('wheel', (e) => {
     e.preventDefault();
-    // deltaY > 0 = scroll down → advance ticker (move left); flip sign so it feels natural
+    // deltaY > 0 = scroll down → advance ticker (move left); flip sign so it feels natural.
     _scrollTickerBy(-e.deltaY);
   }, { passive: false });
 }());
