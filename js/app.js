@@ -440,7 +440,7 @@ function buildSparklineSvg(pair) {
  * @param {string}     tokenColor Hex brand colour for border + chart line
  * @returns {HTMLElement}
  */
-function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff') {
+function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff', tokenAddress = '') {
   const card = document.createElement('article');
   card.className = 'coin-card';
 
@@ -486,7 +486,37 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
   changeBadge.className = `coin-change ${changeCls}`;
   changeBadge.textContent = changeText;
 
-  header.append(logoWrap, info, changeBadge);
+  const coinTokenAddr = (pair?.baseToken?.address || tokenAddress || '').toLowerCase();
+  const isWatched = coinTokenAddr ? Watchlist.hasToken(coinTokenAddr) : false;
+  const starBtn = document.createElement('button');
+  starBtn.className = `star-btn${isWatched ? ' active' : ''}`;
+  starBtn.textContent = isWatched ? '★' : '☆';
+  starBtn.title = isWatched ? 'Remove from Watchlist' : 'Add to Watchlist';
+  starBtn.setAttribute('aria-label', isWatched ? 'Remove from Watchlist' : 'Add to Watchlist');
+  starBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!coinTokenAddr) return;
+    if (Watchlist.hasToken(coinTokenAddr)) {
+      Watchlist.removeToken(coinTokenAddr);
+      starBtn.textContent = '☆';
+      starBtn.classList.remove('active');
+      starBtn.title = 'Add to Watchlist';
+      starBtn.setAttribute('aria-label', 'Add to Watchlist');
+    } else {
+      Watchlist.addToken({
+        address: coinTokenAddr,
+        symbol:  displaySymbol,
+        name:    displayName,
+        logoUrl: logoUrl,
+      });
+      starBtn.textContent = '★';
+      starBtn.classList.add('active');
+      starBtn.title = 'Remove from Watchlist';
+      starBtn.setAttribute('aria-label', 'Remove from Watchlist');
+    }
+  });
+
+  header.append(logoWrap, info, changeBadge, starBtn);
 
   // Price
   const priceEl = document.createElement('div');
@@ -541,8 +571,8 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
 function renderHomeCoinCards(coinData) {
   const grid = $('home-coins-grid');
   grid.innerHTML = '';
-  coinData.forEach(({ symbol, pair, chartBars, chartRes, color }) => {
-    grid.appendChild(buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff'));
+  coinData.forEach(({ symbol, address, pair, chartBars, chartRes, color }) => {
+    grid.appendChild(buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff', address || ''));
   });
 }
 
@@ -602,7 +632,7 @@ loadHomeTab();
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
 /** Duration (seconds) of the current ticker animation — kept in sync by renderTicker. */
-let _tickerDuration = 20;
+let _tickerDuration = 10;
 
 /** Resume-after-idle timer handle for manual scroll. */
 let _tickerResumeTimer = null;
@@ -699,10 +729,10 @@ function renderTicker(pairs) {
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~100 px/s; bounds [6, 20] keep it snappy at any viewport width.
+  // Targets ~200 px/s (2× faster); bounds [3, 10] keep it snappy at any viewport width.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(6, Math.min(20, totalWidth / 100));
+    const speed = Math.max(3, Math.min(10, totalWidth / 200));
     track.style.animationDuration = `${speed}s`;
     _tickerDuration = speed;
   });
