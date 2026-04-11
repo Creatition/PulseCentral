@@ -727,10 +727,10 @@ function renderTicker(pairs) {
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~400 px/s (4x faster than original 100 px/s); minimum 5 s.
+  // Targets ~800 px/s; minimum 5 s.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(5, totalWidth / 400);
+    const speed = Math.max(5, totalWidth / 800);
     track.style.animationDuration = `${speed}s`;
     _tickerDuration = speed;
   });
@@ -762,10 +762,36 @@ function _tickerCurrentX(track) {
   return new DOMMatrix(getComputedStyle(track).transform).m41;
 }
 
+/** Timer handle used to debounce resuming auto-scroll after manual scrolling. */
+let _tickerScrollTimer = null;
+
+/**
+ * Resume the CSS ticker animation from the position the user left it at.
+ * Uses a negative animation-delay so the animation continues seamlessly
+ * from the current visual offset rather than jumping back to the start.
+ */
+function _resumeTickerAnim() {
+  const track = $('ticker-track');
+  if (!track || !_tickerDuration) return;
+  const halfWidth = track.scrollWidth / 2;
+  if (!halfWidth) return;
+
+  // Fraction of the loop already consumed at the current position.
+  const x = _tickerCurrentX(track);
+  const fraction = Math.abs(x) / halfWidth;
+  const delay = -(fraction * _tickerDuration);
+
+  // Clear the inline transform so the keyframe animation takes over,
+  // and start the animation mid-loop using a negative delay.
+  track.style.transform = '';
+  track.style.animation = `ticker-scroll ${_tickerDuration}s ${delay}s linear infinite`;
+}
+
 /**
  * Scroll the ticker track by `deltaPx` pixels (positive = scroll right / back,
  * negative = scroll left / forward).  Pauses the animation while the user is
- * interacting and leaves it at the new position when scrolling stops.
+ * interacting, then resumes auto-scrolling from the new position after a short
+ * idle period.
  */
 function _scrollTickerBy(deltaPx) {
   const track = $('ticker-track');
@@ -786,6 +812,10 @@ function _scrollTickerBy(deltaPx) {
   if (x < -halfWidth) x += halfWidth;
 
   track.style.transform = `translateX(${x}px)`;
+
+  // Resume auto-scrolling from the new position after the user stops scrolling.
+  clearTimeout(_tickerScrollTimer);
+  _tickerScrollTimer = setTimeout(_resumeTickerAnim, 1500);
 }
 
 /* ── Ticker mouse-wheel scroll ─────────────────────────────── */
