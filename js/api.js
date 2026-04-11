@@ -476,12 +476,17 @@ const API = (() => {
       const url  = `${DEXTOOLS_BASE}/ranking/pulse/hotpairs`;
       const data = await fetchJSON(url, 10000);
 
-      // Normalise the two known response shapes
-      const items = Array.isArray(data?.data?.token)
-        ? data.data.token
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
+      // Normalise the two known response shapes:
+      //   { data: { token: [...] } }  (DexTools v2 ranking)
+      //   { data: [...] }             (flattened variant)
+      let items;
+      if (Array.isArray(data?.data?.token)) {
+        items = data.data.token;
+      } else if (Array.isArray(data?.data)) {
+        items = data.data;
+      } else {
+        items = [];
+      }
 
       const addresses = [];
       for (const item of items) {

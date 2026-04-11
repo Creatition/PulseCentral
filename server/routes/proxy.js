@@ -53,12 +53,39 @@ const UPSTREAM_HEADERS = {
 };
 
 /**
- * Fetch JSON from an upstream URL, with caching and timeout.
+ * Allowlist of upstream hostnames this proxy is permitted to contact.
+ * Any URL whose host is not in this set is rejected before the request is made,
+ * preventing server-side request forgery (SSRF).
+ */
+const ALLOWED_UPSTREAM_HOSTS = new Set([
+  'scan.pulsechain.com',
+  'api.dexscreener.com',
+  'io.dexscreener.com',
+  'api.gopluslabs.io',
+  'public-api.dextools.io',
+]);
+
+/**
+ * Fetch JSON from an upstream URL, with host validation, caching, and timeout.
  * @param {string} url
  * @param {Record<string,string>} [extraHeaders]  Additional headers merged with UPSTREAM_HEADERS
  * @returns {Promise<any>}
  */
 async function upstreamFetch(url, extraHeaders = {}) {
+  // Reject URLs that don't target a known upstream host (SSRF guard)
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw Object.assign(new Error('Invalid upstream URL'), { status: 400 });
+  }
+  if (!ALLOWED_UPSTREAM_HOSTS.has(parsedUrl.hostname)) {
+    throw Object.assign(
+      new Error(`Blocked upstream host: ${parsedUrl.hostname}`),
+      { status: 403 }
+    );
+  }
+
   const cached = getCached(url);
   if (cached !== null) return cached;
 
