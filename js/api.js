@@ -1,6 +1,6 @@
 /**
  * PulseCentral – api.js
- * Handles all external data fetching: PulseChain Scan + DexScreener.
+ * Handles all external data fetching: PulseChain Scan + DexScreener + DexTools.
  */
 
 const API = (() => {
@@ -14,6 +14,9 @@ const API = (() => {
 
   /** DexScreener chart / OHLCV API base URL */
   const DSX_CHART_BASE = 'https://io.dexscreener.com/dex/chart/amm/v3/pulsechain';
+
+  /** DexTools shared-data API base URL (chain slug: "pulse" for PulseChain) */
+  const DEXTOOLS_BASE = 'https://www.dextools.io/shared/data/pair';
 
   /** PulseChain native coin decimals */
   const PLS_DECIMALS = 18;
@@ -122,6 +125,16 @@ const API = (() => {
       .map(t => [t.address.toLowerCase(), t.pairAddress]),
   ]);
 
+  /**
+   * Token addresses (lowercase) whose pair data must be fetched from DexTools
+   * because DexScreener does not index their designated pair contract.
+   * Maps token address → pair address.
+   */
+  const DEXTOOLS_PAIR_OVERRIDES = new Map([
+    // pDAI – PulseX V1 pair not indexed by DexScreener
+    ['0x6b175474e89094c44da98b954eedeac495271d0f', '0xae8429918fdbf9a5867e3243697637dc56aa76a1'],
+  ]);
+
   /* ── Helpers ────────────────────────────────────────────── */
 
   /**
@@ -153,6 +166,78 @@ const API = (() => {
     if (!rawBalance) return 0;
     const factor = Math.pow(10, decimals);
     return Number(rawBalance) / factor;
+  }
+
+  /* ── DexTools API ───────────────────────────────────────── */
+
+  /**
+   * Fetch pair data from the DexTools shared-data API and normalise it into
+   * the DexScreener pair-object shape consumed by the rest of the app.
+   *
+   * DexTools uses "pulse" as the chain slug for PulseChain.
+   * The baseToken is whichever of token0/token1 matches `tokenAddress`.
+   *
+   * Returns null on any error so callers can skip silently.
+   *
+   * @param {string} pairAddress   DEX pair contract address (0x-prefixed)
+   * @param {string} tokenAddress  Token contract address that should be the base token
+   * @returns {Promise<object|null>}
+   */
+  async function fetchDexToolsPairData(pairAddress, tokenAddress) {
+    const url = `${DEXTOOLS_BASE}?address=${pairAddress}&chain=pulse&audit=true&locks=true`;
+    try {
+      const data = await fetchJSON(url, 12000);
+      const d = data?.data;
+      if (!d) return null;
+
+      const tokenAddrLower = tokenAddress.toLowerCase();
+
+      // Determine which slot (token0 / token1) is the base token we care about
+      const token0Addr = (d.token0?.id || d.token0?.address || '').toLowerCase();
+
+      let baseToken, quoteToken, priceUsd;
+      if (token0Addr === tokenAddrLower) {
+        baseToken  = { address: d.token0?.id || d.token0?.address, name: d.token0?.name, symbol: d.token0?.symbol };
+        quoteToken = { address: d.token1?.id || d.token1?.address, name: d.token1?.name, symbol: d.token1?.symbol };
+        priceUsd   = d.price ?? d.price0;
+      } else {
+        baseToken  = { address: d.token1?.id || d.token1?.address, name: d.token1?.name, symbol: d.token1?.symbol };
+        quoteToken = { address: d.token0?.id || d.token0?.address, name: d.token0?.name, symbol: d.token0?.symbol };
+        priceUsd   = d.price1 ?? d.price;
+      }
+
+      // Normalise price-change percentages (DexTools uses variation*)
+      const priceChange = {
+        m5:  Number(d.variation5m  ?? 0),
+        h1:  Number(d.variation1h  ?? 0),
+        h6:  Number(d.variation6h  ?? 0),
+        h24: Number(d.variation24h ?? 0),
+      };
+
+      return {
+        chainId:     'pulsechain',
+        pairAddress: pairAddress.toLowerCase(),
+        baseToken,
+        quoteToken,
+        priceUsd:    priceUsd != null ? String(priceUsd) : undefined,
+        priceChange,
+        txns: {
+          m5:  { buys: 0, sells: 0 },
+          h1:  { buys: 0, sells: 0 },
+          h6:  { buys: 0, sells: 0 },
+          h24: { buys: d.buys24h ?? 0, sells: d.sells24h ?? 0 },
+        },
+        volume:    { h24: Number(d.volume24h ?? 0) },
+        liquidity: { usd: Number(d.liquidity ?? 0) },
+        fdv:       Number(d.fdv ?? d.mcap ?? 0) || undefined,
+        marketCap: Number(d.mcap ?? 0) || undefined,
+        url:       `https://www.dextools.io/app/pulse/pair-explorer/${pairAddress}`,
+        _source:   'dextools',
+      };
+    } catch (err) {
+      console.warn('[PulseCentral] DexTools fetch failed for', pairAddress, err);
+      return null;
+    }
   }
 
   /* ── PulseChain Scan API ────────────────────────────────── */
@@ -433,6 +518,22 @@ const API = (() => {
       } catch (err) {
         console.warn('[PulseCentral] Core pair override fetch failed:', err);
       }
+    }
+
+    // DexTools fallback: for tokens whose pair is not indexed by DexScreener,
+    // fetch price data directly from the DexTools shared-data API.
+    const dextoolsTokenAddrs = addresses
+      .map(a => a.toLowerCase())
+      .filter(a => DEXTOOLS_PAIR_OVERRIDES.has(a) && !pairMap.has(a));
+
+    if (dextoolsTokenAddrs.length > 0) {
+      await Promise.allSettled(
+        dextoolsTokenAddrs.map(async tokenAddr => {
+          const pairAddr = DEXTOOLS_PAIR_OVERRIDES.get(tokenAddr);
+          const pair = await fetchDexToolsPairData(pairAddr, tokenAddr);
+          if (pair) pairMap.set(tokenAddr, pair);
+        })
+      );
     }
 
     return pairMap;
