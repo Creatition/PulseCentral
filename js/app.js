@@ -1241,22 +1241,17 @@ function renderMarketsGrid() {
     container.appendChild(buildMarketsSection('🏆 Top Coins', topPairs, true));
 
     // ── Top Memes ──────────────────────────────────────────
-    // Peacock (PINNED_8TH) is pinned at position #2; all others ranked by market cap.
     const coreCoinAddrs = new Set(
       API.CORE_COINS.map(c => (c.address || '').toLowerCase())
     );
-    const memeOthers = allMarketPairs
+    const memePairs = allMarketPairs
       .filter(p => {
         const addr = (p.baseToken?.address || '').toLowerCase();
-        return !coreCoinAddrs.has(addr) && addr !== PINNED_8TH && (p.marketCap || p.fdv) > 0;
+        return !coreCoinAddrs.has(addr) && (p.marketCap || p.fdv) > 0;
       })
       .slice()
-      .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0));
-    const memePairs = [
-      ...(memeOthers[0]  ? [memeOthers[0]]  : []),
-      ...(peacockPair    ? [peacockPair]     : []),
-      ...memeOthers.slice(1, 11),
-    ].slice(0, 12);
+      .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0))
+      .slice(0, 12);
     container.appendChild(buildMarketsSection('🐸 Top Memes', memePairs, true));
 
     // ── Top Gainers ────────────────────────────────────────
