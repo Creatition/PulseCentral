@@ -357,7 +357,7 @@ function buildCoinCard(symbol, pair) {
   const { text: changeText, cls: changeCls } = fmt.change(change24h);
   const isUp      = change24h >= 0;
 
-  // Derive circulating supply: marketCap / price (or fdv / price for total supply)
+  // Derive supply from market cap / price (circulating supply) or fdv / price (total supply)
   const supplyVal = (marketCap && price) ? marketCap / price : null;
 
   // PLS (native) — always display as PLS / PulseChain
