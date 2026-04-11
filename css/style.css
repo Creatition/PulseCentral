@@ -1698,21 +1698,6 @@ li + li { margin-top: 0.35rem; }
 }
 .coin-card:hover::before { opacity: 1; }
 
-/* Gradient border variant (e.g. PLSX green→red).
-   Uses ::after with negative z-index behind the card background. */
-.coin-card--gradient-border {
-  border-color: transparent;
-}
-.coin-card--gradient-border::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, var(--coin-border-color, #00e676), var(--coin-border-color-secondary, #e8002d));
-  z-index: -1;
-  pointer-events: none;
-}
-
 .coin-card-header {
   display: flex;
   align-items: center;
