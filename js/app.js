@@ -773,10 +773,14 @@ function _resumeTickerFrom(track, xPx) {
   const fraction  = Math.max(0, Math.min(1, -xPx / halfWidth));
   const delay     = -(fraction * _tickerDuration);
 
-  // Reset animation then re-apply with the correct negative delay.
-  track.style.transform = '';
+  // 1. Ensure animation is off while the inline transform still holds the
+  //    current position — this prevents a flash at x=0.
   track.style.animation = 'none';
-  void track.offsetHeight;   // intentional reflow so the browser registers the reset before re-applying the animation
+  // 2. Force reflow so the browser commits the 'none' state.
+  void track.offsetHeight;   // intentional reflow
+  // 3. Clear the inline transform and start the animation in the same style
+  //    flush so there is no intermediate frame where the element sits at x=0.
+  track.style.transform = '';
   track.style.animation = `ticker-scroll ${_tickerDuration}s ${delay}s linear infinite`;
 }
 
