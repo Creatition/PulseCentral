@@ -632,10 +632,7 @@ loadHomeTab();
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
 /** Duration (seconds) of the current ticker animation — kept in sync by renderTicker. */
-let _tickerDuration = 20;
-
-/** Resume-after-idle timer handle for manual scroll. */
-let _tickerResumeTimer = null;
+let _tickerDuration = 5;
 
 /**
  * Build a single ticker item element for a DexScreener pair.
@@ -730,10 +727,10 @@ function renderTicker(pairs) {
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~100 px/s so all 25 tokens are readable; minimum 20 s.
+  // Targets ~400 px/s (4x faster than original 100 px/s); minimum 5 s.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(20, totalWidth / 100);
+    const speed = Math.max(5, totalWidth / 400);
     track.style.animationDuration = `${speed}s`;
     _tickerDuration = speed;
   });
@@ -766,29 +763,9 @@ function _tickerCurrentX(track) {
 }
 
 /**
- * Restart the ticker CSS animation starting from the given pixel offset
- * so playback continues seamlessly from wherever the user left off.
- */
-function _resumeTickerFrom(track, xPx) {
-  const halfWidth = track.scrollWidth / 2;
-  const fraction  = Math.max(0, Math.min(1, -xPx / halfWidth));
-  const delay     = -(fraction * _tickerDuration);
-
-  // 1. Ensure animation is off while the inline transform still holds the
-  //    current position — this prevents a flash at x=0.
-  track.style.animation = 'none';
-  // 2. Force reflow so the browser commits the 'none' state.
-  void track.offsetHeight;   // intentional reflow
-  // 3. Clear the inline transform and start the animation in the same style
-  //    flush so there is no intermediate frame where the element sits at x=0.
-  track.style.transform = '';
-  track.style.animation = `ticker-scroll ${_tickerDuration}s ${delay}s linear infinite`;
-}
-
-/**
  * Scroll the ticker track by `deltaPx` pixels (positive = scroll right / back,
  * negative = scroll left / forward).  Pauses the animation while the user is
- * interacting and resumes it automatically after 0.5 s of inactivity.
+ * interacting and leaves it at the new position when scrolling stops.
  */
 function _scrollTickerBy(deltaPx) {
   const track = $('ticker-track');
@@ -809,10 +786,6 @@ function _scrollTickerBy(deltaPx) {
   if (x < -halfWidth) x += halfWidth;
 
   track.style.transform = `translateX(${x}px)`;
-
-  // Schedule auto-resume after 0.5 s of no scroll activity.
-  clearTimeout(_tickerResumeTimer);
-  _tickerResumeTimer = setTimeout(() => _resumeTickerFrom(track, x), 500);
 }
 
 /* ── Ticker mouse-wheel scroll ─────────────────────────────── */
