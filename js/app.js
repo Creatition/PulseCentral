@@ -719,11 +719,12 @@ function renderTicker(pairs) {
     return;
   }
 
-  // Build items × 2 for seamless loop; show rank badges only on the first pass
+  // Build items × 2 for seamless loop; show rank badges on both passes so
+  // the ticker continuously scrolls #1 → #N → #1 without a no-badge gap.
   const fragment = document.createDocumentFragment();
   for (let pass = 0; pass < 2; pass++) {
     items.forEach((pair, i) => {
-      fragment.appendChild(buildTickerItem(pair, pass === 0 ? i + 1 : 0));
+      fragment.appendChild(buildTickerItem(pair, i + 1));
     });
   }
   track.appendChild(fragment);
