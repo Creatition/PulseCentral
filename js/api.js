@@ -9,6 +9,9 @@ const API = (() => {
   /** PulseChain Scan (BlockScout) base URL */
   const SCAN_BASE = 'https://api.scan.pulsechain.com/api';
 
+  /** GigaTheMinter Scan base URL — used for wallet token balance lookups */
+  const GIGA_SCAN_BASE = 'https://scan.gigatheminter.com/api';
+
   /** DexScreener API base URL */
   const DSX_BASE = 'https://api.dexscreener.com/latest/dex';
 
@@ -336,7 +339,7 @@ const API = (() => {
    * @returns {Promise<Array<{symbol:string, name:string, balance:number, decimals:number, contractAddress:string}>>}
    */
   async function getTokenList(address) {
-    const url = `${SCAN_BASE}?module=account&action=tokenlist&address=${address}`;
+    const url = `${GIGA_SCAN_BASE}?module=account&action=tokenlist&address=${address}`;
     const data = await fetchJSON(url);
     if (data.status !== '1') {
       // status '0' with empty result means no tokens — not an error
