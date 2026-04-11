@@ -18,7 +18,7 @@ const API = (() => {
   /** PulseChain Scan (BlockScout) base URL — direct or via proxy */
   const SCAN_BASE = USE_BACKEND
     ? `${API_BASE}/api/proxy/scan`
-    : 'https://scan.pulsechain.com/api';
+    : 'https://api.scan.pulsechain.com/api';
 
   /** DexScreener API base URL — direct or via proxy */
   const DSX_BASE = USE_BACKEND
@@ -44,16 +44,6 @@ const API = (() => {
   const SCAN_V2_BASE = USE_BACKEND
     ? `${API_BASE}/api/proxy/scan-v2`
     : 'https://scan.pulsechain.com/api/v2';
-
-  /**
-   * DexTools public API base URL — direct or via proxy.
-   * Hot pairs / ranking data for PulseChain (chain key: 'pulse').
-   * Requires a DexTools API key (X-API-KEY header) for server-side requests;
-   * the proxy reads it from the DEXTOOLS_API_KEY environment variable.
-   */
-  const DEXTOOLS_BASE = USE_BACKEND
-    ? `${API_BASE}/api/proxy/dextools`
-    : 'https://public-api.dextools.io/free/v2';
 
   /** PulseChain native coin decimals */
   const PLS_DECIMALS = 18;
@@ -461,64 +451,20 @@ const API = (() => {
   }
 
   /**
-   * Fetch hot pair token addresses from DexTools for PulseChain.
-   * Uses the public free-tier ranking API (chain key 'pulse').
-   * Returns an empty array on any error so callers degrade gracefully.
-   *
-   * DexTools response shape (may vary between API versions):
-   *   { data: { token: [{ id: { token: '0x...' }, tokenRef: { address: '0x...' } }] } }
-   *   or: { data: [{ id: { token: '0x...' } }] }
-   *
-   * @returns {Promise<string[]>}  Array of 0x token contract addresses
-   */
-  async function getDexToolsHotPairAddresses() {
-    try {
-      const url  = `${DEXTOOLS_BASE}/ranking/pulse/hotpairs`;
-      const data = await fetchJSON(url, 10000);
-
-      // Normalise the two known response shapes:
-      //   { data: { token: [...] } }  (DexTools v2 ranking)
-      //   { data: [...] }             (flattened variant)
-      let items;
-      if (Array.isArray(data?.data?.token)) {
-        items = data.data.token;
-      } else if (Array.isArray(data?.data)) {
-        items = data.data;
-      } else {
-        items = [];
-      }
-
-      const addresses = [];
-      for (const item of items) {
-        const addr = item?.id?.token || item?.tokenRef?.address || item?.address;
-        if (addr && /^0x[0-9a-fA-F]{40}$/.test(addr)) {
-          addresses.push(addr);
-        }
-      }
-      return addresses;
-    } catch {
-      return [];
-    }
-  }
-
-  /**
    * Fetch top PulseChain pairs from DexScreener sorted by 24-hour volume.
    * Collects addresses from token profiles, boosted tokens (latest and top),
-   * DexTools hot pairs, and hardcoded KNOWN_TOKENS, then deduplicates by
-   * token address.
+   * and hardcoded KNOWN_TOKENS, then deduplicates by token address.
    *
    * @returns {Promise<object[]>} array of DexScreener pair objects sorted by 24h volume
    */
   async function getTopPulsechainPairs() {
-    // Step 1: Fetch PulseChain token profiles, boosted tokens, and DexTools hot pairs
-    //         in parallel for a wider address pool
+    // Step 1: Fetch PulseChain token profiles and boosted tokens for a wider address pool
     const profileAddresses = [];
     try {
-      const [profiles, latestBoosts, topBoosts, dexToolsAddrs] = await Promise.allSettled([
+      const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
         fetchJSON(`${DSX_PROFILES_BASE}/token-profiles/latest/v1`),
         fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/latest/v1`),
         fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/top/v1`),
-        getDexToolsHotPairAddresses(),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
@@ -534,9 +480,6 @@ const API = (() => {
         (topBoosts.value || [])
           .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
           .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-      if (dexToolsAddrs.status === 'fulfilled') {
-        (dexToolsAddrs.value || []).forEach(a => profileAddresses.push(a));
       }
     } catch (_) {
       // Non-fatal – fall back to KNOWN_TOKENS only
@@ -568,17 +511,15 @@ const API = (() => {
    * of DexScreener's proprietary trendingScoreH6 — it uses (h6 buys + h6 sells)
    * as a publicly available proxy that correlates with recent trading momentum.
    * Mirrors the spirit of: https://dexscreener.com/pulsechain?rankBy=trendingScoreH6&order=desc
-   * Also incorporates DexTools hot pairs to widen the candidate pool.
    * @returns {Promise<object[]>}
    */
   async function getTrendingPairs() {
     const profileAddresses = [];
     try {
-      const [profiles, latestBoosts, topBoosts, dexToolsAddrs] = await Promise.allSettled([
+      const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
         fetchJSON(`${DSX_PROFILES_BASE}/token-profiles/latest/v1`),
         fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/latest/v1`),
         fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/top/v1`),
-        getDexToolsHotPairAddresses(),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
@@ -594,9 +535,6 @@ const API = (() => {
         (topBoosts.value || [])
           .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
           .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-      if (dexToolsAddrs.status === 'fulfilled') {
-        (dexToolsAddrs.value || []).forEach(a => profileAddresses.push(a));
       }
     } catch (_) {
       // Non-fatal – fall back to KNOWN_TOKENS only
