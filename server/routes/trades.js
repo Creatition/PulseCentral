@@ -36,10 +36,9 @@ function rowToRecord(row) {
   };
 }
 
-/** Generate a short unique ID (same algorithm as the original TradesDB). */
+/** Generate a unique ID using the Web Crypto API for unpredictability. */
 function generateId() {
-  const rand = Math.random().toString(36).slice(2, 5);
-  return Date.now().toString(36) + rand + Math.random().toString(36).slice(2, 5);
+  return crypto.randomUUID().replace(/-/g, '');
 }
 
 /** Validate and coerce the body fields for a trade record. Returns an object or throws. */

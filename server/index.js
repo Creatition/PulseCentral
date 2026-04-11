@@ -74,7 +74,7 @@ app.get('*', staticLimiter, (req, res) => {
 /* ── Global error handler ────────────────────────────────── */
 
 // eslint-disable-next-line no-unused-vars
-app.use((err, req, res, _next) => {
+app.use((err, req, res, next) => {
   console.error('[PulseCentral]', err);
   res.status(500).json({ error: 'Internal server error' });
 });

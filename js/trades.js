@@ -32,7 +32,7 @@
  */
 const TradesDB = (() => {
   const USE_BACKEND = (typeof PulseCentralConfig !== 'undefined') && PulseCentralConfig.USE_BACKEND;
-  const API_BASE    = USE_BACKEND ? ((typeof PulseCentralConfig !== 'undefined' ? PulseCentralConfig.API_BASE : '') || '') : '';
+  const API_BASE    = USE_BACKEND ? (PulseCentralConfig.API_BASE || '') : '';
   const ENDPOINT    = `${API_BASE}/api/trades`;
 
   /** Fetch timeout for backend API calls (ms). */
@@ -40,10 +40,11 @@ const TradesDB = (() => {
 
   /* ── in-memory fallback ────────────────────────────────── */
   let _fallbackTrades = [];
-  let _idCounter = 0;
 
   function _generateId() {
-    return Date.now().toString(36) + (++_idCounter).toString(36) + Math.random().toString(36).slice(2, 5);
+    const buf = new Uint8Array(8);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
   }
 
   /* ── backend helpers ───────────────────────────────────── */

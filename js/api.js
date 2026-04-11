@@ -11,7 +11,7 @@ const API = (() => {
 
   /** True when the page is served by the PulseCentral Express backend. */
   const USE_BACKEND = (typeof PulseCentralConfig !== 'undefined') && PulseCentralConfig.USE_BACKEND;
-  const API_BASE    = USE_BACKEND ? ((typeof PulseCentralConfig !== 'undefined' ? PulseCentralConfig.API_BASE : '') || '') : '';
+  const API_BASE    = USE_BACKEND ? (PulseCentralConfig.API_BASE || '') : '';
 
   /* ── Constants ─────────────────────────────────────────── */
 
