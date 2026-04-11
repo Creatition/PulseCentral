@@ -35,7 +35,7 @@ const API = (() => {
     { symbol: 'USDT',         address: '0x0Cb6F5a34ad42ec934882A05265A7d5F59b51A2f' },
     { symbol: 'WETH',         address: '0x02DcdD04e3F455D838cd1249292C58f3B79e3C3C' },
     { symbol: 'WBTC',         address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', pairAddress: '0xe0e1F83A1C64Cf65C1a86D7f3445fc4F58f7Dcbf' },
-    { symbol: 'pDAI',         address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', pairAddress: '0xae8429918fdbf9a5867e3243697637dc56aa76a1' },
+    { symbol: 'pDAI',         address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', pairAddress: '0xfC64556FAA683e6087F425819C7Ca3C558e13aC1' },
     { symbol: 'eHex',         address: '0x57fde0a71132198BBeC939B98976993d8D89D225' },
     { symbol: 'PRVX',         address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11' },
     { symbol: 'usdl',         address: '0x0dEEd1486bc52aA0d3E6f8849cEC5adD6598A162' },
@@ -132,7 +132,7 @@ const API = (() => {
    */
   const DEXTOOLS_PAIR_OVERRIDES = new Map([
     // pDAI – PulseX V1 pair not indexed by DexScreener
-    ['0x6b175474e89094c44da98b954eedeac495271d0f', '0xae8429918fdbf9a5867e3243697637dc56aa76a1'],
+    ['0x6b175474e89094c44da98b954eedeac495271d0f', '0xfC64556FAA683e6087F425819C7Ca3C558e13aC1'],
   ]);
 
   /* ── Helpers ────────────────────────────────────────────── */
@@ -748,6 +748,7 @@ const API = (() => {
 
     return CORE_COINS.map((coin, i) => ({
       symbol:   coin.symbol,
+      address:  coin.address,
       pair:     pairsById.get(coin.pairAddress.toLowerCase()) || null,
       chartBars: chartResults[i] || [],
       chartRes:  coin.chartRes,
