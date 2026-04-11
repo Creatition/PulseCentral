@@ -75,6 +75,20 @@ const API = (() => {
     { symbol: 'solidx',       address: '0x8Da17Db850315A34532108f0f5458fc0401525f6' },
     { symbol: 'lbrty',        address: '0xB261Fa283aBf9CcE0b493B50b57cb654A490f339' },
     { symbol: 'coffee',       address: '0x707C905DF6104eAE3B116eD9635cBee0A9EBA6E6' },
+    { symbol: 'ICSA',         address: '0xfc4913214444aF5c715cc9F7b52655e788A569ed' },
+    { symbol: 'LOAN',         address: '0x9159f1D2a9f51998Fc9Ab03fbd8f265ab14A1b3B' },
+    { symbol: 'PLSD',         address: '0x34F0915a5f15a66Eba86F6a58bE1A471FB7836A7' },
+    { symbol: '9INCH',        address: '0x3ca80d83277e721171284667829c686527b8b3c5' },
+    { symbol: 'GENI',         address: '0x444444444444c1a66f394025ac839a535246fcc8' },
+    { symbol: 'MAXI',         address: '0x0d86b6aE6cA3E1a08E3d2C4796D30616897C1eE4' },
+    { symbol: 'PHIAT',        address: '0x96e035ae0905efac8f733f133462f971cfa45db1' },
+    { symbol: 'MINT',         address: '0x207e6b4529840a4fd518f73c68bc9c19b2a15944' },
+    { symbol: 'WATT',         address: '0xDfdc2836FD2E63Bba9f0eE07901aD465Bff4DE71' },
+    { symbol: 'HDRN',         address: '0x3819f64f282bf135d62168C1e513280dAF905e06' },
+    { symbol: 'PLSB',         address: '0x5ee84583f67d5ecea5420dbb42b462896e7f8d06' },
+    { symbol: 'TEAM',         address: '0xc6a2cDf807F251e4b82C236D9A23C5156D3fB3A2' },
+    { symbol: 'BASE',         address: '0x7B3cFA85D9F31E0DB007D12aC6f47982C2Ac41fc' },
+    { symbol: 'EARN',         address: '0xb513038bbfdf9d40b676f41606f4f61d4b02c4a2' },
   ];
 
   /**
