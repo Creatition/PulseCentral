@@ -557,7 +557,7 @@ const API = (() => {
    */
   async function getCoreCoinChartBars(pairAddress, resolution, fromTimestamp) {
     const fromParam = fromTimestamp ? `&from=${fromTimestamp}` : '';
-    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&cb=${Date.now()}${fromParam}`;
+    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&cb=0${fromParam}`; // cb=0 is a cache-bust parameter
     try {
       const data = await fetchJSON(url, 10000);
       const rawBars = data?.bars || [];
