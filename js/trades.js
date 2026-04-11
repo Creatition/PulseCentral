@@ -1,17 +1,22 @@
 /**
  * PulseCentral – trades.js
- * Trade log CRUD (localStorage) and FIFO profit/loss engine.
+ * Trade log CRUD (backend API) and FIFO profit/loss engine.
+ *
+ * TradesDB methods are async — they communicate with the Express
+ * backend at /api/trades.  When USE_BACKEND is false in config.js,
+ * the module gracefully degrades to an in-memory store so the app
+ * still works when opened directly as a file.
  */
 
 /* ── TradesDB ────────────────────────────────────────────── */
 
 /**
- * Persistent store for trade records.
- * localStorage key: 'pc-trades'
- * Shape: { trades: TradeRecord[] }
+ * Persistent store for trade records backed by the Express API.
+ * Falls back to an in-memory store when the backend is unavailable.
  *
  * TradeRecord: {
  *   id              string   — unique id
+ *   wallet          string   — lowercase wallet address (optional)
  *   type            'buy'|'sell'
  *   tokenAddress    string   — lowercase 0x address
  *   tokenSymbol     string
@@ -19,72 +24,120 @@
  *   date            string   — ISO-8601 UTC
  *   tokenAmount     number   — token units traded
  *   plsAmount       number   — PLS spent (buy) or received (sell)
- *   usdValue        number   — USD value at trade time (optional, 0 if unknown)
+ *   usdValue        number   — USD value at trade time (0 if unknown)
  *   pricePerTokenPls number  — derived: plsAmount / tokenAmount
+ *   txHash          string   — on-chain tx hash (empty for manual entries)
  *   notes           string
  * }
  */
 const TradesDB = (() => {
-  const KEY = 'pc-trades';
+  const USE_BACKEND = (typeof PulseCentralConfig !== 'undefined') && PulseCentralConfig.USE_BACKEND;
+  const API_BASE    = USE_BACKEND ? (PulseCentralConfig.API_BASE || '') : '';
+  const ENDPOINT    = `${API_BASE}/api/trades`;
 
-  function load() {
+  /** Fetch timeout for backend API calls (ms). */
+  const REQUEST_TIMEOUT_MS = 10_000;
+
+  /* ── in-memory fallback ────────────────────────────────── */
+  let _fallbackTrades = [];
+
+  function _generateId() {
+    const buf = new Uint8Array(8);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  /* ── backend helpers ───────────────────────────────────── */
+
+  async function _apiFetch(path, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return { trades: Array.isArray(parsed.trades) ? parsed.trades : [] };
-      }
-    } catch { /* ignore corrupt data */ }
-    return { trades: [] };
+      const res = await fetch(ENDPOINT + path, {
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        ...options,
+      });
+      if (res.status === 204) return null;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  function save(data) {
-    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  /* ── public API (all async) ────────────────────────────── */
+
+  /**
+   * Return all trades, optionally filtered by wallet address.
+   * @param {string} [wallet]
+   * @returns {Promise<TradeRecord[]>}
+   */
+  async function getTrades(wallet) {
+    if (!USE_BACKEND) return _fallbackTrades.slice();
+    const qs = wallet ? `?wallet=${encodeURIComponent(wallet.toLowerCase())}` : '';
+    return await _apiFetch(qs);
   }
 
-  let _idCounter = 0;
-  function generateId() {
-    return Date.now().toString(36) + (++_idCounter).toString(36) + Math.random().toString(36).slice(2, 5);
+  /**
+   * Add a new trade record and return the saved record (with server-assigned id).
+   * @param {object} trade
+   * @returns {Promise<TradeRecord>}
+   */
+  async function addTrade(trade) {
+    if (!USE_BACKEND) {
+      const newTrade = { ...trade, id: _generateId() };
+      _fallbackTrades.push(newTrade);
+      return newTrade;
+    }
+    return await _apiFetch('', {
+      method: 'POST',
+      body: JSON.stringify(trade),
+    });
   }
 
-  function getTrades() {
-    return load().trades;
+  /**
+   * Update fields of an existing trade by id.
+   * @param {string} id
+   * @param {object} updates
+   * @returns {Promise<TradeRecord>}
+   */
+  async function editTrade(id, updates) {
+    if (!USE_BACKEND) {
+      const idx = _fallbackTrades.findIndex(t => t.id === id);
+      if (idx === -1) return null;
+      _fallbackTrades[idx] = { ..._fallbackTrades[idx], ...updates, id };
+      return _fallbackTrades[idx];
+    }
+    return await _apiFetch(`/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
   }
 
-  function addTrade(trade) {
-    const data = load();
-    const newTrade = { ...trade, id: generateId() };
-    data.trades.push(newTrade);
-    save(data);
-    return newTrade;
-  }
-
-  function editTrade(id, updates) {
-    const data = load();
-    const idx = data.trades.findIndex(t => t.id === id);
-    if (idx === -1) return false;
-    data.trades[idx] = { ...data.trades[idx], ...updates, id };
-    save(data);
-    return true;
-  }
-
-  function deleteTrade(id) {
-    const data = load();
-    data.trades = data.trades.filter(t => t.id !== id);
-    save(data);
+  /**
+   * Delete a trade by id.
+   * @param {string} id
+   * @returns {Promise<void>}
+   */
+  async function deleteTrade(id) {
+    if (!USE_BACKEND) {
+      _fallbackTrades = _fallbackTrades.filter(t => t.id !== id);
+      return;
+    }
+    await _apiFetch(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
   /**
    * Return a Set of all txHash values already present in the trade log.
    * Used for duplicate detection during wallet import.
-   * @returns {Set<string>}
+   * @param {string} [wallet]
+   * @returns {Promise<Set<string>>}
    */
-  function getImportedTxHashes() {
-    return new Set(
-      load().trades
-        .map(t => t.txHash)
-        .filter(Boolean)
-    );
+  async function getImportedTxHashes(wallet) {
+    const trades = await getTrades(wallet);
+    return new Set(trades.map(t => t.txHash).filter(Boolean));
   }
 
   return { getTrades, addTrade, editTrade, deleteTrade, getImportedTxHashes };

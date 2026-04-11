@@ -1,0 +1,15 @@
+# Node.js dependencies
+node_modules/
+
+# SQLite database (generated at runtime)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Environment variables (may contain secrets)
+server/.env
+
+# macOS metadata
+.DS_Store
+
+# npm lock files are tracked; yarn.lock is not used

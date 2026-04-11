@@ -1,19 +1,49 @@
 /**
  * PulseCentral – api.js
  * Handles all external data fetching: PulseChain Scan + DexScreener.
+ * When the backend server is running (PulseCentralConfig.USE_BACKEND === true),
+ * all external requests are routed through the local proxy to benefit from
+ * server-side caching and avoid CORS issues.
  */
 
 const API = (() => {
+  /* ── Backend / direct URL resolution ─────────────────────── */
+
+  /** True when the page is served by the PulseCentral Express backend. */
+  const USE_BACKEND = (typeof PulseCentralConfig !== 'undefined') && PulseCentralConfig.USE_BACKEND;
+  const API_BASE    = USE_BACKEND ? (PulseCentralConfig.API_BASE || '') : '';
+
   /* ── Constants ─────────────────────────────────────────── */
 
-  /** PulseChain Scan (BlockScout) base URL */
-  const SCAN_BASE = 'https://api.scan.pulsechain.com/api';
+  /** PulseChain Scan (BlockScout) base URL — direct or via proxy */
+  const SCAN_BASE = USE_BACKEND
+    ? `${API_BASE}/api/proxy/scan`
+    : 'https://api.scan.pulsechain.com/api';
 
-  /** DexScreener API base URL */
-  const DSX_BASE = 'https://api.dexscreener.com/latest/dex';
+  /** DexScreener API base URL — direct or via proxy */
+  const DSX_BASE = USE_BACKEND
+    ? `${API_BASE}/api/proxy/dexscreener`
+    : 'https://api.dexscreener.com/latest/dex';
 
-  /** DexScreener chart / OHLCV API base URL */
-  const DSX_CHART_BASE = 'https://io.dexscreener.com/dex/chart/amm/v3/pulsechain';
+  /** DexScreener chart / OHLCV API base URL — direct or via proxy */
+  const DSX_CHART_BASE = USE_BACKEND
+    ? `${API_BASE}/api/proxy/dexchart`
+    : 'https://io.dexscreener.com/dex/chart/amm/v3/pulsechain';
+
+  /** DexScreener profiles & boosts base URL — direct or via proxy */
+  const DSX_PROFILES_BASE = USE_BACKEND
+    ? `${API_BASE}/api/proxy/dexprofiles`
+    : 'https://api.dexscreener.com';
+
+  /** GoPlus Security API base URL — direct or via proxy */
+  const GOPLUS_BASE = USE_BACKEND
+    ? `${API_BASE}/api/proxy/gopluslabs`
+    : 'https://api.gopluslabs.io/api/v1';
+
+  /** BlockScout v2 REST API base URL — direct or via proxy */
+  const SCAN_V2_BASE = USE_BACKEND
+    ? `${API_BASE}/api/proxy/scan-v2`
+    : 'https://scan.pulsechain.com/api/v2';
 
   /** PulseChain native coin decimals */
   const PLS_DECIMALS = 18;
@@ -432,9 +462,9 @@ const API = (() => {
     const profileAddresses = [];
     try {
       const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
-        fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/top/v1'),
+        fetchJSON(`${DSX_PROFILES_BASE}/token-profiles/latest/v1`),
+        fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/latest/v1`),
+        fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/top/v1`),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
@@ -487,9 +517,9 @@ const API = (() => {
     const profileAddresses = [];
     try {
       const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
-        fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/top/v1'),
+        fetchJSON(`${DSX_PROFILES_BASE}/token-profiles/latest/v1`),
+        fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/latest/v1`),
+        fetchJSON(`${DSX_PROFILES_BASE}/token-boosts/top/v1`),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
@@ -611,7 +641,7 @@ const API = (() => {
    */
   async function getTokenSecurity(address) {
     const addr = address.toLowerCase();
-    const url = `https://api.gopluslabs.io/api/v1/token_security/369?contract_addresses=${addr}`;
+    const url = `${GOPLUS_BASE}/token_security/369?contract_addresses=${addr}`;
     try {
       const data = await fetchJSON(url, 12000);
       if (data.code !== 1) return null;
@@ -629,7 +659,7 @@ const API = (() => {
    * @returns {Promise<object|null>}
    */
   async function getTokenMetadata(address) {
-    const url = `https://scan.pulsechain.com/api/v2/tokens/${address}`;
+    const url = `${SCAN_V2_BASE}/tokens/${address}`;
     try {
       return await fetchJSON(url, 10000);
     } catch {
@@ -645,7 +675,7 @@ const API = (() => {
    * @returns {Promise<object[]>}  Array of BlockScout transfer objects
    */
   async function getTokenTransferHistory(address) {
-    const url = `https://scan.pulsechain.com/api/v2/tokens/${address}/transfers?limit=50`;
+    const url = `${SCAN_V2_BASE}/tokens/${address}/transfers?limit=50`;
     try {
       const data = await fetchJSON(url, 12000);
       return data?.items || [];
