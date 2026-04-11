@@ -477,7 +477,7 @@ loadHomeTab();
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
 /** Duration (seconds) of the current ticker animation — kept in sync by renderTicker. */
-let _tickerDuration = 40;
+let _tickerDuration = 20;
 
 /** Resume-after-idle timer handle for manual scroll. */
 let _tickerResumeTimer = null;
@@ -574,10 +574,10 @@ function renderTicker(pairs) {
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~50 px/s; bounds [12, 40] keep it snappy at any viewport width.
+  // Targets ~100 px/s; bounds [6, 20] keep it snappy at any viewport width.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(12, Math.min(40, totalWidth / 50));
+    const speed = Math.max(6, Math.min(20, totalWidth / 100));
     track.style.animationDuration = `${speed}s`;
     _tickerDuration = speed;
   });
@@ -628,7 +628,7 @@ function _resumeTickerFrom(track, xPx) {
 /**
  * Scroll the ticker track by `deltaPx` pixels (positive = scroll right / back,
  * negative = scroll left / forward).  Pauses the animation while the user is
- * interacting and resumes it automatically after 2.5 s of inactivity.
+ * interacting and resumes it automatically after 0.5 s of inactivity.
  */
 function _scrollTickerBy(deltaPx) {
   const track = $('ticker-track');
@@ -648,17 +648,21 @@ function _scrollTickerBy(deltaPx) {
 
   track.style.transform = `translateX(${x}px)`;
 
-  // Schedule auto-resume after 2.5 s of no button presses.
+  // Schedule auto-resume after 0.5 s of no scroll activity.
   clearTimeout(_tickerResumeTimer);
-  _tickerResumeTimer = setTimeout(() => _resumeTickerFrom(track, x), 2500);
+  _tickerResumeTimer = setTimeout(() => _resumeTickerFrom(track, x), 500);
 }
 
-(function _initTickerButtons() {
-  const SCROLL_STEP = 300; // px per button click
-  const btnLeft  = $('ticker-btn-left');
-  const btnRight = $('ticker-btn-right');
-  if (btnLeft)  btnLeft.addEventListener('click',  () => _scrollTickerBy( SCROLL_STEP));  // ‹ moves content right → reveals previously-seen coins
-  if (btnRight) btnRight.addEventListener('click', () => _scrollTickerBy(-SCROLL_STEP));  // › moves content left  → advances to upcoming coins
+/* ── Ticker mouse-wheel scroll ─────────────────────────────── */
+
+(function _initTickerWheel() {
+  const wrap = document.querySelector('.ticker-track-wrap');
+  if (!wrap) return;
+  wrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    // deltaY > 0 = scroll down → advance ticker (move left); flip sign so it feels natural
+    _scrollTickerBy(-e.deltaY);
+  }, { passive: false });
 }());
 
 
