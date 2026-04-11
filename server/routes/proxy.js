@@ -86,14 +86,14 @@ async function upstreamFetch(url, extraHeaders = {}) {
     );
   }
 
-  const cached = getCached(url);
+  const cached = getCached(parsedUrl.href);
   if (cached !== null) return cached;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(parsedUrl.href, {
       signal:  controller.signal,
       headers: { ...UPSTREAM_HEADERS, ...extraHeaders },
     });
@@ -104,7 +104,7 @@ async function upstreamFetch(url, extraHeaders = {}) {
       );
     }
     const data = await res.json();
-    setCache(url, data);
+    setCache(parsedUrl.href, data);
     return data;
   } finally {
     clearTimeout(timer);
