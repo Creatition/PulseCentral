@@ -476,12 +476,19 @@ loadHomeTab();
 
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
+/** Duration (seconds) of the current ticker animation — kept in sync by renderTicker. */
+let _tickerDuration = 40;
+
+/** Resume-after-idle timer handle for manual scroll. */
+let _tickerResumeTimer = null;
+
 /**
  * Build a single ticker item element for a DexScreener pair.
  * @param {object} pair  DexScreener pair object
+ * @param {number} rank  1-based rank to display (0 = omit badge, used for cloned items)
  * @returns {HTMLElement}
  */
-function buildTickerItem(pair) {
+function buildTickerItem(pair, rank) {
   const symbol   = pair.baseToken?.symbol || '?';
   const price    = Number(pair.priceUsd || 0);
   const change   = Number(pair.priceChange?.h24 || 0);
@@ -495,6 +502,14 @@ function buildTickerItem(pair) {
   item.target = '_blank';
   item.rel = 'noopener noreferrer';
   item.title = `${symbol} — ${changeText} (24h)`;
+
+  // Rank badge
+  if (rank) {
+    const rankEl = document.createElement('span');
+    rankEl.className = 'ticker-item-rank';
+    rankEl.textContent = `#${rank}`;
+    item.appendChild(rankEl);
+  }
 
   // Logo
   if (logoUrl) {
@@ -542,30 +557,29 @@ function renderTicker(pairs) {
   if (!track) return;
   track.innerHTML = '';
 
-  // Limit to top 30 tokens
-  const items = pairs.slice(0, 30);
+  // Limit to top 15 tokens
+  const items = pairs.slice(0, 15);
   if (!items.length) {
     track.innerHTML = '<div class="ticker-loading">No trending data available.</div>';
     return;
   }
 
-  // Build items × 2 for seamless loop
+  // Build items × 2 for seamless loop; show rank badges only on the first pass
   const fragment = document.createDocumentFragment();
   for (let pass = 0; pass < 2; pass++) {
-    for (const pair of items) {
-      fragment.appendChild(buildTickerItem(pair));
-    }
+    items.forEach((pair, i) => {
+      fragment.appendChild(buildTickerItem(pair, pass === 0 ? i + 1 : 0));
+    });
   }
   track.appendChild(fragment);
 
   // Adjust animation speed based on content width so scroll feels consistent.
-  // The divisor 8 maps pixels/s → seconds; bounds [30, 90] keep it readable
-  // at any token count (30s minimum so it isn't dizzying; 90s maximum so it
-  // doesn't crawl on very wide viewports).
+  // Targets ~50 px/s; bounds [12, 40] keep it snappy at any viewport width.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(30, Math.min(90, totalWidth / 8));
+    const speed = Math.max(12, Math.min(40, totalWidth / 50));
     track.style.animationDuration = `${speed}s`;
+    _tickerDuration = speed;
   });
 }
 
@@ -584,6 +598,68 @@ async function loadTicker() {
 // Initial load + refresh every 5 minutes
 loadTicker();
 let tickerInterval = setInterval(loadTicker, 5 * 60_000);
+
+/* ── Ticker manual scroll controls ─────────────────────────── */
+
+/**
+ * Return the current CSS translateX offset (px) of the ticker track
+ * by reading the computed transform matrix.
+ */
+function _tickerCurrentX(track) {
+  return new DOMMatrix(getComputedStyle(track).transform).m41;
+}
+
+/**
+ * Restart the ticker CSS animation starting from the given pixel offset
+ * so playback continues seamlessly from wherever the user left off.
+ */
+function _resumeTickerFrom(track, xPx) {
+  const halfWidth = track.scrollWidth / 2;
+  const fraction  = Math.max(0, Math.min(1, -xPx / halfWidth));
+  const delay     = -(fraction * _tickerDuration);
+
+  // Reset animation then re-apply with the correct negative delay.
+  track.style.transform = '';
+  track.style.animation = 'none';
+  void track.offsetHeight;   // intentional reflow so the browser registers the reset before re-applying the animation
+  track.style.animation = `ticker-scroll ${_tickerDuration}s ${delay}s linear infinite`;
+}
+
+/**
+ * Scroll the ticker track by `deltaPx` pixels (positive = scroll right / back,
+ * negative = scroll left / forward).  Pauses the animation while the user is
+ * interacting and resumes it automatically after 2.5 s of inactivity.
+ */
+function _scrollTickerBy(deltaPx) {
+  const track = $('ticker-track');
+  if (!track) return;
+
+  const halfWidth = track.scrollWidth / 2;
+  if (!halfWidth) return;
+
+  // Capture the current visual position and pause the animation.
+  let x = _tickerCurrentX(track);
+  track.style.animationPlayState = 'paused';
+
+  // Apply delta and wrap to keep within [-halfWidth, 0].
+  x += deltaPx;
+  if (x > 0)          x -= halfWidth;
+  if (x < -halfWidth) x += halfWidth;
+
+  track.style.transform = `translateX(${x}px)`;
+
+  // Schedule auto-resume after 2.5 s of no button presses.
+  clearTimeout(_tickerResumeTimer);
+  _tickerResumeTimer = setTimeout(() => _resumeTickerFrom(track, x), 2500);
+}
+
+(function _initTickerButtons() {
+  const SCROLL_STEP = 300; // px per button click
+  const btnLeft  = $('ticker-btn-left');
+  const btnRight = $('ticker-btn-right');
+  if (btnLeft)  btnLeft.addEventListener('click',  () => _scrollTickerBy( SCROLL_STEP));  // ‹ moves content right → reveals previously-seen coins
+  if (btnRight) btnRight.addEventListener('click', () => _scrollTickerBy(-SCROLL_STEP));  // › moves content left  → advances to upcoming coins
+}());
 
 
 
