@@ -409,10 +409,29 @@ li + li { margin-top: 0.35rem; }
 
 /* League rank badge */
 .league-badge {
-  cursor: default;
+  cursor: help;
   flex-shrink: 0;
   font-size: 1rem;
   line-height: 1;
+  position: relative;
+}
+
+.league-badge[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-tooltip, #1e2533);
+  color: var(--text, #e2e8f0);
+  border: 1px solid var(--border, #2d3748);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 
 /* Change colours */
