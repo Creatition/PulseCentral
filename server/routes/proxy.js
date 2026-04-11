@@ -123,7 +123,7 @@ router.get('/scan', makeProxy(SCAN_BASE, req => buildQueryString(req.query)));
 router.get('/dexscreener/*', makeProxy(DSX_BASE, req => {
   const sub = req.params[0] || '';
   const qs  = buildQueryString(req.query);
-  return sub ? `/${sub}${qs}` : `/${qs}`;
+  return sub ? `/${sub}${qs}` : qs;
 }));
 
 // DexScreener chart (OHLCV) — pair address in path, params in query

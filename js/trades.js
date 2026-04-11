@@ -35,6 +35,9 @@ const TradesDB = (() => {
   const API_BASE    = USE_BACKEND ? ((typeof PulseCentralConfig !== 'undefined' ? PulseCentralConfig.API_BASE : '') || '') : '';
   const ENDPOINT    = `${API_BASE}/api/trades`;
 
+  /** Fetch timeout for backend API calls (ms). */
+  const REQUEST_TIMEOUT_MS = 10_000;
+
   /* ── in-memory fallback ────────────────────────────────── */
   let _fallbackTrades = [];
   let _idCounter = 0;
@@ -47,7 +50,7 @@ const TradesDB = (() => {
 
   async function _apiFetch(path, options = {}) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const res = await fetch(ENDPOINT + path, {
         headers: { 'Content-Type': 'application/json' },
