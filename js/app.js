@@ -474,7 +474,118 @@ $('home-refresh-btn').addEventListener('click', () => {
 // Auto-load the home tab on first page load
 loadHomeTab();
 
-/* ── "Add Wallet" toggle button ──────────────────────────── */
+/* ── Trending Ticker Bar ─────────────────────────────────── */
+
+/**
+ * Build a single ticker item element for a DexScreener pair.
+ * @param {object} pair  DexScreener pair object
+ * @returns {HTMLElement}
+ */
+function buildTickerItem(pair) {
+  const symbol   = pair.baseToken?.symbol || '?';
+  const price    = Number(pair.priceUsd || 0);
+  const change   = Number(pair.priceChange?.h24 || 0);
+  const logoUrl  = pair.info?.imageUrl || null;
+  const pairAddr = pair.pairAddress || '';
+  const { text: changeText, cls: changeCls } = fmt.change(change);
+
+  const item = document.createElement('a');
+  item.className = 'ticker-item';
+  item.href = pairAddr ? `https://dexscreener.com/pulsechain/${pairAddr}` : '#';
+  item.target = '_blank';
+  item.rel = 'noopener noreferrer';
+  item.title = `${symbol} — ${changeText} (24h)`;
+
+  // Logo
+  if (logoUrl) {
+    const img = document.createElement('img');
+    img.src = logoUrl;
+    img.alt = symbol;
+    img.className = 'ticker-item-logo';
+    img.onerror = () => {
+      const ph = document.createElement('div');
+      ph.className = 'ticker-item-logo-placeholder';
+      ph.textContent = symbol.slice(0, 3).toUpperCase();
+      img.replaceWith(ph);
+    };
+    item.appendChild(img);
+  } else {
+    const ph = document.createElement('div');
+    ph.className = 'ticker-item-logo-placeholder';
+    ph.textContent = symbol.slice(0, 3).toUpperCase();
+    item.appendChild(ph);
+  }
+
+  const sym = document.createElement('span');
+  sym.className = 'ticker-item-symbol';
+  sym.textContent = symbol;
+
+  const priceEl = document.createElement('span');
+  priceEl.className = 'ticker-item-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
+
+  const changeEl = document.createElement('span');
+  changeEl.className = `ticker-item-change ${changeCls}`;
+  changeEl.textContent = changeText;
+
+  item.append(sym, priceEl, changeEl);
+  return item;
+}
+
+/**
+ * Populate the ticker bar with trending pair data.
+ * Duplicates items so the seamless loop animation works.
+ * @param {object[]} pairs  Array of DexScreener pair objects
+ */
+function renderTicker(pairs) {
+  const track = $('ticker-track');
+  if (!track) return;
+  track.innerHTML = '';
+
+  // Limit to top 30 tokens
+  const items = pairs.slice(0, 30);
+  if (!items.length) {
+    track.innerHTML = '<div class="ticker-loading">No trending data available.</div>';
+    return;
+  }
+
+  // Build items × 2 for seamless loop
+  const fragment = document.createDocumentFragment();
+  for (let pass = 0; pass < 2; pass++) {
+    for (const pair of items) {
+      fragment.appendChild(buildTickerItem(pair));
+    }
+  }
+  track.appendChild(fragment);
+
+  // Adjust animation speed based on content width so scroll feels consistent.
+  // The divisor 8 maps pixels/s → seconds; bounds [30, 90] keep it readable
+  // at any token count (30s minimum so it isn't dizzying; 90s maximum so it
+  // doesn't crawl on very wide viewports).
+  requestAnimationFrame(() => {
+    const totalWidth = track.scrollWidth / 2;
+    const speed = Math.max(30, Math.min(90, totalWidth / 8));
+    track.style.animationDuration = `${speed}s`;
+  });
+}
+
+/** Fetch trending pairs and render the ticker; refresh every 5 minutes. */
+async function loadTicker() {
+  try {
+    const pairs = await API.getTrendingPairs();
+    renderTicker(pairs);
+  } catch (err) {
+    console.warn('[PulseCentral] Ticker load failed:', err);
+    const track = $('ticker-track');
+    if (track) track.innerHTML = '';
+  }
+}
+
+// Initial load + refresh every 5 minutes
+loadTicker();
+let tickerInterval = setInterval(loadTicker, 5 * 60_000);
+
+
 
 const addWalletToggleBtn = $('add-wallet-toggle-btn');
 const walletAddCollapse  = $('wallet-add-collapse');
