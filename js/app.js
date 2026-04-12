@@ -214,6 +214,8 @@ const tabPanels = document.querySelectorAll('.tab-panel');
 
 let activeTab = 'home';
 let marketsLoaded   = false;
+let activeMarketsPage = 'main'; // 'main' | 'top50'
+let top50Loaded = false;
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -237,7 +239,10 @@ function switchTab(name) {
   tabPanels.forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
 
   if (name === 'home'      && !homeLoaded)    loadHomeTab();
-  if (name === 'markets'   && !marketsLoaded)  loadMarkets();
+  if (name === 'markets') {
+    if (!marketsLoaded) loadMarkets();
+    showMarketsPage(activeMarketsPage);
+  }
   if (name === 'watchlist')                    renderWatchlistTab();
   if (name === 'portfolio') {
     renderSavedWalletsInPortfolio();
@@ -247,6 +252,31 @@ function switchTab(name) {
   if (name === 'swap')  initSwapIframe();
   if (name === 'stats') loadStats();
 }
+
+/** Show a markets sub-page ('main' or 'top50') and trigger loading if needed. */
+function showMarketsPage(page) {
+  activeMarketsPage = page;
+
+  const mainPage  = $('markets-page-main');
+  const top50Page = $('markets-page-top50');
+  if (mainPage)  mainPage.classList.toggle('hidden',  page !== 'main');
+  if (top50Page) top50Page.classList.toggle('hidden', page !== 'top50');
+
+  // Update active state on dropdown items
+  document.querySelectorAll('[data-markets-page]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.marketsPage === page);
+  });
+
+  if (page === 'top50' && !top50Loaded) loadTop50();
+}
+
+// Wire markets dropdown item clicks
+document.querySelectorAll('[data-markets-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    switchTab('markets');
+    showMarketsPage(btn.dataset.marketsPage);
+  });
+});
 
 /* ── Swap DEX switcher ───────────────────────────────────── */
 
@@ -305,6 +335,39 @@ document.querySelectorAll('[data-swap-dex]').forEach(btn => {
     initSwapIframe(btn.dataset.swapDex);
   });
 });
+
+/* ── Dropdown hover: keep open while mouse is on nav item OR dropdown ── */
+(function initDropdownHover() {
+  document.querySelectorAll('.tab-nav-item.has-dropdown').forEach(item => {
+    let hideTimer = null;
+
+    const cancelHide = () => {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    };
+
+    const scheduleHide = () => {
+      cancelHide();
+      hideTimer = setTimeout(() => {
+        item.classList.remove('dropdown-open');
+        hideTimer = null;
+      }, 120);
+    };
+
+    item.addEventListener('mouseenter', () => {
+      cancelHide();
+      item.classList.add('dropdown-open');
+    });
+
+    item.addEventListener('mouseleave', scheduleHide);
+
+    // Prevent hiding when moving from nav item into the dropdown
+    const dropdown = item.querySelector('.tab-dropdown');
+    if (dropdown) {
+      dropdown.addEventListener('mouseenter', cancelHide);
+      dropdown.addEventListener('mouseleave', scheduleHide);
+    }
+  });
+})();
 
 /**
  * Automatically load the last saved wallet or group when the portfolio tab is opened,
@@ -1418,6 +1481,20 @@ function buildPortfolioRow(index, token, balance, price, change24h, pairAddress 
 /* ── Markets tab ────────────────────────────────────────── */
 
 let allMarketPairs  = [];
+let marketPairsPromise = null; // shared promise to avoid double-fetching
+
+async function fetchMarketPairs() {
+  // If data is already loaded and a fetch is not already in-flight, return immediately
+  if (allMarketPairs.length > 0 && !marketPairsPromise) return allMarketPairs;
+  if (marketPairsPromise) return marketPairsPromise;
+  marketPairsPromise = API.getTopPulsechainPairs().then(pairs => {
+    allMarketPairs = pairs;
+    return pairs;
+  }).finally(() => {
+    marketPairsPromise = null;
+  });
+  return marketPairsPromise;
+}
 
 async function loadMarkets() {
   marketsLoaded = true;
@@ -1426,7 +1503,7 @@ async function loadMarkets() {
   setVisible($('markets-loading'), true);
 
   try {
-    allMarketPairs = await API.getTopPulsechainPairs();
+    await fetchMarketPairs();
     renderMarketsGrid();
   } catch (err) {
     $('markets-error').textContent = `Error loading market data: ${err.message}`;
@@ -1438,7 +1515,16 @@ async function loadMarkets() {
 
 $('markets-refresh-btn').addEventListener('click', () => {
   marketsLoaded = false;
+  top50Loaded = false;
+  allMarketPairs = [];
   loadMarkets();
+});
+
+$('top50-refresh-btn').addEventListener('click', () => {
+  top50Loaded = false;
+  allMarketPairs = [];
+  marketsLoaded = false; // also mark main page stale so it re-renders with fresh data
+  loadTop50();
 });
 
 $('market-search').addEventListener('input', () => renderMarketsGrid());
@@ -1669,6 +1755,143 @@ function buildMarketCard(index, pair) {
   }
 
   return card;
+}
+
+/* ── PLS Top 50 ──────────────────────────────────────────── */
+
+async function loadTop50() {
+  if (top50Loaded) return;
+  top50Loaded = true;
+
+  setHidden($('top50-error'), true);
+  setHidden($('top50-list'), true);
+  setVisible($('top50-loading'), true);
+
+  try {
+    // Reuse already-loaded market data if available; otherwise fetch (shared promise)
+    if (allMarketPairs.length === 0) {
+      await fetchMarketPairs();
+    }
+    renderTop50();
+  } catch (err) {
+    $('top50-error').textContent = `Error loading Top 50 data: ${err.message}`;
+    setVisible($('top50-error'), true);
+    top50Loaded = false;
+  } finally {
+    setHidden($('top50-loading'), true);
+  }
+}
+
+function renderTop50() {
+  // Sort all pairs by market cap (marketCap || fdv) descending, take top 50
+  const sorted = allMarketPairs
+    .filter(p => (p.marketCap || p.fdv) > 0 || Number(p.priceUsd || 0) > 0)
+    .slice()
+    .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0))
+    .slice(0, 50);
+
+  const container = $('top50-rows');
+  if (!container) return;
+  container.innerHTML = '';
+
+  sorted.forEach((pair, i) => {
+    container.appendChild(buildTop50Row(i + 1, pair));
+  });
+
+  setVisible($('top50-list'), true);
+}
+
+function buildTop50Row(rank, pair) {
+  const token   = pair.baseToken || {};
+  const logoUrl = pair.info?.imageUrl || null;
+  const price   = pair.priceUsd;
+  const change24h = pair.priceChange?.h24;
+  const vol24h  = pair.volume?.h24;
+  const mcap    = pair.marketCap || pair.fdv;
+  const liq     = pair.liquidity?.usd;
+  const { text: changeText, cls: changeCls } = fmt.change(change24h);
+  const tokenAddr = (token.address || '').toLowerCase();
+
+  const row = document.createElement('div');
+  row.className = 'top50-row top50-data-row';
+  if (pair.pairAddress) {
+    row.addEventListener('click', () => {
+      window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
+    });
+    row.style.cursor = 'pointer';
+  }
+
+  // Rank
+  const rankEl = document.createElement('span');
+  rankEl.className = 'top50-col top50-rank';
+  rankEl.textContent = rank;
+
+  // Name column: logo + name + symbol
+  const nameCol = document.createElement('span');
+  nameCol.className = 'top50-col top50-name';
+  const logoEl = buildTokenLogo(logoUrl, token.symbol);
+  logoEl.classList.add('top50-logo');
+  const nameWrap = document.createElement('span');
+  nameWrap.className = 'top50-name-wrap';
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'top50-token-name';
+  nameSpan.textContent = token.name || token.symbol || '—';
+  const symSpan = document.createElement('span');
+  symSpan.className = 'top50-token-sym';
+  symSpan.textContent = token.symbol || '—';
+  nameWrap.append(nameSpan, symSpan);
+
+  // Watchlist star
+  const isWatched = Watchlist.hasToken(tokenAddr);
+  const starBtn = document.createElement('button');
+  starBtn.className = `star-btn top50-star${isWatched ? ' active' : ''}`;
+  starBtn.textContent = isWatched ? '★' : '☆';
+  starBtn.title = isWatched ? 'Remove from Watchlist' : 'Add to Watchlist';
+  starBtn.setAttribute('aria-label', isWatched ? 'Remove from Watchlist' : 'Add to Watchlist');
+  starBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (Watchlist.hasToken(tokenAddr)) {
+      Watchlist.removeToken(tokenAddr);
+      starBtn.textContent = '☆';
+      starBtn.classList.remove('active');
+      starBtn.title = 'Add to Watchlist';
+    } else {
+      Watchlist.addToken({ address: tokenAddr, symbol: token.symbol || '', name: token.name || token.symbol || '', logoUrl });
+      starBtn.textContent = '★';
+      starBtn.classList.add('active');
+      starBtn.title = 'Remove from Watchlist';
+    }
+  });
+
+  nameCol.append(logoEl, nameWrap, starBtn);
+
+  // Price
+  const priceEl = document.createElement('span');
+  priceEl.className = 'top50-col top50-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
+
+  // 24h change
+  const changeEl = document.createElement('span');
+  changeEl.className = `top50-col top50-change ${changeCls}`;
+  changeEl.textContent = changeText;
+
+  // Market cap
+  const mcapEl = document.createElement('span');
+  mcapEl.className = 'top50-col top50-mcap';
+  mcapEl.textContent = fmt.large(mcap);
+
+  // Volume
+  const volEl = document.createElement('span');
+  volEl.className = 'top50-col top50-vol';
+  volEl.textContent = fmt.large(vol24h);
+
+  // Liquidity
+  const liqEl = document.createElement('span');
+  liqEl.className = 'top50-col top50-liq';
+  liqEl.textContent = fmt.large(liq);
+
+  row.append(rankEl, nameCol, priceEl, changeEl, mcapEl, volEl, liqEl);
+  return row;
 }
 
 /* ── Watchlist module ────────────────────────────────────── */
@@ -3910,18 +4133,28 @@ async function loadStats() {
   setHidden($('stats-content'), true);
 
   try {
-    const [fngRes, globalRes] = await Promise.all([
+    const [fngResult, globalResult] = await Promise.allSettled([
       fetch('/api/fear-greed'),
       fetch('/api/coingecko/global'),
     ]);
 
-    if (!fngRes.ok)    throw new Error(`Fear & Greed API error (${fngRes.status})`);
-    if (!globalRes.ok) throw new Error(`CoinGecko API error (${globalRes.status})`);
+    // Fear & Greed is optional — show the widget as unavailable if the API fails
+    if (fngResult.status === 'fulfilled' && fngResult.value.ok) {
+      const fngData = await fngResult.value.json();
+      renderFearGreed(fngData);
+    } else {
+      // Mark the gauge as unavailable
+      const valEl = $('fg-value');
+      const lblEl = $('fg-label');
+      if (valEl) valEl.textContent = '—';
+      if (lblEl) lblEl.textContent = 'Unavailable';
+    }
 
-    const fngData    = await fngRes.json();
-    const globalData = await globalRes.json();
+    if (globalResult.status === 'rejected' || !globalResult.value.ok) {
+      throw new Error(`CoinGecko API error (${globalResult.value?.status ?? 'network error'})`);
+    }
 
-    renderFearGreed(fngData);
+    const globalData = await globalResult.value.json();
     renderGlobalStats(globalData);
 
     setHidden($('stats-loading'), true);
