@@ -39,8 +39,22 @@
         <button class="tab-btn active" data-tab="home" role="tab" aria-selected="true" aria-controls="tab-home">
           <span class="tab-icon">🏠</span> Home
         </button>
+        <!-- Markets tab with hover dropdown -->
+        <div class="tab-nav-item has-dropdown" id="markets-nav-item">
+          <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets" aria-haspopup="true">
+            <span class="tab-icon">📊</span> Markets <span class="tab-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="tab-dropdown" role="menu" aria-label="Markets options">
+            <button class="tab-dropdown-item active" role="menuitem" data-markets-page="main">
+              <span class="tab-dropdown-icon">📊</span> Main
+            </button>
+            <button class="tab-dropdown-item" role="menuitem" data-markets-page="top50">
+              <span class="tab-dropdown-icon">🏅</span> PLS Top 50
+            </button>
+          </div>
+        </div>
         <!-- Swap tab with hover dropdown -->
-        <div class="tab-nav-item has-dropdown">
+        <div class="tab-nav-item has-dropdown" id="swap-nav-item">
           <button class="tab-btn" data-tab="swap" role="tab" aria-selected="false" aria-controls="tab-swap" aria-haspopup="true">
             <span class="tab-icon">🔄</span> Swap <span class="tab-caret" aria-hidden="true">▾</span>
           </button>
@@ -55,9 +69,6 @@
         </div>
         <button class="tab-btn" data-tab="portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio">
           <span class="tab-icon">💼</span> Portfolio
-        </button>
-        <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
-          <span class="tab-icon">📊</span> Markets
         </button>
         <button class="tab-btn" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats">
           <span class="tab-icon">📈</span> Stats
@@ -329,26 +340,65 @@
 
     <!-- ── MARKETS TAB ── -->
     <section id="tab-markets" class="tab-panel" role="tabpanel" aria-labelledby="btn-markets">
-      <div class="section-header">
-        <h1>Markets</h1>
 
+      <!-- ── Markets: Main sub-page ── -->
+      <div id="markets-page-main">
+        <div class="section-header">
+          <h1>Markets</h1>
+        </div>
+
+        <div class="markets-toolbar">
+          <input id="market-search" type="search" class="search-input" placeholder="🔍 Search token…" aria-label="Search token" />
+          <button id="markets-refresh-btn" class="btn btn-secondary" aria-label="Refresh market data">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <div id="markets-error" class="error-banner hidden" role="alert"></div>
+
+        <div id="markets-loading" class="loading-wrap">
+          <div class="pulse-loader" aria-label="Loading market data"></div>
+          <p>Loading market data…</p>
+        </div>
+
+        <div id="markets-sections" class="hidden"></div>
       </div>
 
-      <div class="markets-toolbar">
-        <input id="market-search" type="search" class="search-input" placeholder="🔍 Search token…" aria-label="Search token" />
-        <button id="markets-refresh-btn" class="btn btn-secondary" aria-label="Refresh market data">
-          ↻ Refresh
-        </button>
+      <!-- ── Markets: PLS Top 50 sub-page ── -->
+      <div id="markets-page-top50" class="hidden">
+        <div class="section-header">
+          <h1>PLS Top 50</h1>
+          <p class="section-subtitle">PulseChain tokens ranked by market capitalization</p>
+        </div>
+
+        <div class="markets-toolbar">
+          <button id="top50-refresh-btn" class="btn btn-secondary" aria-label="Refresh Top 50 data">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <div id="top50-error" class="error-banner hidden" role="alert"></div>
+
+        <div id="top50-loading" class="loading-wrap">
+          <div class="pulse-loader" aria-label="Loading Top 50 data"></div>
+          <p>Loading PulseChain market data…</p>
+        </div>
+
+        <div id="top50-list" class="hidden">
+          <!-- header row -->
+          <div class="top50-header top50-row">
+            <span class="top50-col top50-rank">#</span>
+            <span class="top50-col top50-name">Name</span>
+            <span class="top50-col top50-price">Price</span>
+            <span class="top50-col top50-change">24h %</span>
+            <span class="top50-col top50-mcap">Market Cap</span>
+            <span class="top50-col top50-vol">Volume (24h)</span>
+            <span class="top50-col top50-liq">Liquidity</span>
+          </div>
+          <div id="top50-rows"></div>
+        </div>
       </div>
 
-      <div id="markets-error" class="error-banner hidden" role="alert"></div>
-
-      <div id="markets-loading" class="loading-wrap">
-        <div class="pulse-loader" aria-label="Loading market data"></div>
-        <p>Loading market data…</p>
-      </div>
-
-      <div id="markets-sections" class="hidden"></div>
     </section>
 
     <!-- ── STATS TAB ── -->

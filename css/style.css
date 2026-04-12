@@ -2873,7 +2873,7 @@ li + li { margin-top: 0.35rem; }
 
 .tab-dropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: 100%;
   left: 0;
   min-width: 170px;
   background: var(--bg-card);
@@ -2882,6 +2882,7 @@ li + li { margin-top: 0.35rem; }
   box-shadow: var(--shadow), 0 0 0 1px var(--primary-glow);
   z-index: 200;
   padding: 0.35rem 0;
+  padding-top: calc(0.35rem + 6px); /* 6px transparent bridge above items */
   opacity: 0;
   visibility: hidden;
   transform: translateY(-4px);
@@ -2889,12 +2890,24 @@ li + li { margin-top: 0.35rem; }
   pointer-events: none;
 }
 
+/* CSS hover still covers the case where mouse stays on the parent */
 .tab-nav-item:hover .tab-dropdown,
-.tab-nav-item:focus-within .tab-dropdown {
+.tab-nav-item:focus-within .tab-dropdown,
+.tab-nav-item.dropdown-open .tab-dropdown {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+/* Transparent bridge above dropdown content to fill the gap between button and menu */
+.tab-dropdown::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
 }
 
 .tab-dropdown-item {
@@ -2927,6 +2940,161 @@ li + li { margin-top: 0.35rem; }
 .tab-dropdown-icon {
   font-size: 0.95rem;
   flex-shrink: 0;
+}
+
+/* ── PLS Top 50 ── */
+.top50-row {
+  display: grid;
+  grid-template-columns: 3rem 1fr 9rem 7rem 10rem 10rem 9rem;
+  align-items: center;
+  gap: 0;
+  padding: 0 0.75rem;
+}
+
+.top50-header {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.top50-data-row {
+  border: 1px solid var(--border);
+  border-top: none;
+  background: var(--bg-card);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  transition: background var(--transition);
+}
+
+.top50-data-row:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.top50-data-row:hover {
+  background: var(--bg-card-hover);
+}
+
+.top50-col {
+  padding: 0 0.5rem;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top50-rank {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding-left: 0;
+}
+
+.top50-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  padding-left: 0;
+}
+
+.top50-logo {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+
+.top50-name-wrap {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.top50-token-name {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.top50-token-sym {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.top50-star {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.top50-star.active { color: var(--warning); }
+.top50-star:hover  { color: var(--warning); }
+
+.top50-price {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.top50-change {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.top50-mcap,
+.top50-vol,
+.top50-liq {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+#top50-list {
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .top50-row {
+    grid-template-columns: 2.5rem 1fr 7rem 6rem 8rem;
+  }
+  .top50-vol,
+  .top50-liq {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .top50-row {
+    grid-template-columns: 2rem 1fr 6rem 5.5rem;
+  }
+  .top50-mcap {
+    display: none;
+  }
+  .top50-col {
+    font-size: 0.8rem;
+  }
 }
 
 /* ── Stats Tab ── */
