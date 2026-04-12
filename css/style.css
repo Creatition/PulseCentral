@@ -2975,7 +2975,7 @@ li + li { margin-top: 0.35rem; }
 }
 
 .top50-data-row:last-child {
-  border-radius: 0 0 var(--radius) var(--radius);
+  border-radius: 0;
 }
 
 .top50-data-row:hover {
@@ -3069,7 +3069,6 @@ li + li { margin-top: 0.35rem; }
 
 #top50-list {
   border-radius: var(--radius);
-  overflow: hidden;
   margin-top: 0.5rem;
 }
 
@@ -3571,6 +3570,15 @@ li + li { margin-top: 0.35rem; }
   gap: 0.75rem;
 }
 
+.top50-pagination-bottom {
+  justify-content: center;
+  padding: 0.75rem 0.75rem;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--bg-card);
+}
+
 .top50-page-info {
   font-size: 0.875rem;
   color: var(--text-muted);
@@ -3583,6 +3591,34 @@ li + li { margin-top: 0.35rem; }
   font-size: 0.8rem;
   padding: 0.3rem 0.75rem;
 }
+
+/* ── Top 50 Sortable Header Buttons ── */
+.top50-sort-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 0.5rem;
+  text-align: right;
+  white-space: nowrap;
+  user-select: none;
+  transition: color var(--transition);
+}
+
+.top50-sort-btn:hover {
+  color: var(--text);
+}
+
+.top50-sort-btn.sort-active {
+  color: var(--accent);
+}
+
+.top50-sort-btn.sort-desc::after { content: ' ↓'; }
+.top50-sort-btn.sort-asc::after  { content: ' ↑'; }
 
 @media (max-width: 480px) {
   .pulse-price-grid { grid-template-columns: repeat(2, 1fr); }
