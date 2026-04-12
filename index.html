@@ -39,9 +39,20 @@
         <button class="tab-btn active" data-tab="home" role="tab" aria-selected="true" aria-controls="tab-home">
           <span class="tab-icon">🏠</span> Home
         </button>
-        <button class="tab-btn" data-tab="swap" role="tab" aria-selected="false" aria-controls="tab-swap">
-          <span class="tab-icon">🔄</span> Swap
-        </button>
+        <!-- Swap tab with hover dropdown -->
+        <div class="tab-nav-item has-dropdown">
+          <button class="tab-btn" data-tab="swap" role="tab" aria-selected="false" aria-controls="tab-swap" aria-haspopup="true">
+            <span class="tab-icon">🔄</span> Swap <span class="tab-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="tab-dropdown" role="menu" aria-label="Swap options">
+            <button class="tab-dropdown-item active" role="menuitem" data-swap-dex="pulsex">
+              <span class="tab-dropdown-icon">🔄</span> PulseX
+            </button>
+            <button class="tab-dropdown-item" role="menuitem" data-swap-dex="piteas">
+              <span class="tab-dropdown-icon">⚡</span> Piteas
+            </button>
+          </div>
+        </div>
         <button class="tab-btn" data-tab="portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio">
           <span class="tab-icon">💼</span> Portfolio
         </button>
@@ -136,16 +147,16 @@
     <section id="tab-swap" class="tab-panel" role="tabpanel" aria-labelledby="btn-swap">
       <div class="swap-tab-wrap">
         <div class="swap-tab-header">
-          <h1>Swap</h1>
-          <p class="section-subtitle">Trade tokens on PulseX — PulseChain's native DEX.</p>
-          <a class="swap-open-link" href="https://pulsex.mypinata.cloud/ipfs/bafybeiaq4jgcpz4hdzwid6letizdnhijlp6lu5ivcjcp5vbgpgf54jknn4/" target="_blank" rel="noopener noreferrer">Open in PulseX ↗</a>
+          <h1 id="swap-dex-title">Swap</h1>
+          <p class="section-subtitle" id="swap-dex-subtitle">Trade tokens on PulseX — PulseChain's native DEX.</p>
+          <a class="swap-open-link" id="swap-open-link" href="https://pulsex.mypinata.cloud/ipfs/bafybeiaq4jgcpz4hdzwid6letizdnhijlp6lu5ivcjcp5vbgpgf54jknn4/" target="_blank" rel="noopener noreferrer">Open in PulseX ↗</a>
         </div>
         <div class="swap-iframe-wrap">
           <iframe
             id="swap-iframe"
             class="swap-iframe"
-            src="https://pulsex.mypinata.cloud/ipfs/bafybeiaq4jgcpz4hdzwid6letizdnhijlp6lu5ivcjcp5vbgpgf54jknn4/"
-            title="PulseX Swap"
+            src=""
+            title="DEX Swap"
             allow="clipboard-write"
           ></iframe>
         </div>
