@@ -741,10 +741,10 @@ function renderTicker(pairs) {
 
   // Measure content width, compute speed, and (re)start the animation from
   // the beginning so the seamless loop works regardless of prior state.
-  // Targets ~80 px/s; minimum 5 s.
+  // Targets ~320 px/s (4× the original 80 px/s); minimum 5 s.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(5, totalWidth / 80);
+    const speed = Math.max(5, totalWidth / 320);
     _tickerDuration = speed;
     // Force a reflow so the browser registers the animation = none above,
     // then start fresh with the correct duration.
