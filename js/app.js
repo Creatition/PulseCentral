@@ -460,6 +460,7 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
   const liq       = pair?.liquidity?.usd;
   const marketCap = pair?.marketCap || pair?.fdv;
   const logoUrl   = pair?.info?.imageUrl || null;
+  const pairAddress = pair?.pairAddress || '';
   const { text: changeText, cls: changeCls } = fmt.change(change24h);
   const isUp      = change24h >= 0;
 
@@ -474,23 +475,27 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
   card.classList.toggle('coin-card-down', !isUp);
 
   // Apply token brand colour as the card border via CSS custom property.
-  // The CSS rule reads --coin-border-color for both normal and hover states.
   card.style.setProperty('--coin-border-color', tokenColor);
 
-  // Header: logo + name + 24h badge
-  const header = document.createElement('div');
-  header.className = 'coin-card-header';
+  // ── Header rectangle box ─────────────────────────────────
+  const headerBox = document.createElement('div');
+  headerBox.className = 'coin-header-box';
+
+  // Top row: logo | symbol | price | change badge | star
+  const topRow = document.createElement('div');
+  topRow.className = 'coin-header-top';
 
   const logoWrap = document.createElement('div');
   logoWrap.className = 'coin-logo-wrap';
   logoWrap.appendChild(buildTokenLogo(logoUrl, symbol));
 
-  const info = document.createElement('div');
-  info.className = 'coin-info';
-  info.innerHTML = `
-    <div class="coin-name">${escHtml(displayName)}</div>
-    <div class="coin-symbol">${escHtml(displaySymbol)}</div>
-  `;
+  const symbolEl = document.createElement('div');
+  symbolEl.className = 'coin-symbol-label';
+  symbolEl.textContent = displaySymbol;
+
+  const priceEl = document.createElement('div');
+  priceEl.className = 'coin-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
 
   const changeBadge = document.createElement('div');
   changeBadge.className = `coin-change ${changeCls}`;
@@ -526,26 +531,9 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
     }
   });
 
-  header.append(logoWrap, info, changeBadge, starBtn);
+  topRow.append(logoWrap, symbolEl, priceEl, changeBadge, starBtn);
 
-  // Price
-  const priceEl = document.createElement('div');
-  priceEl.className = 'coin-price';
-  priceEl.textContent = price ? fmt.price(price) : '—';
-
-  // Detailed chart (OHLCV or sparkline fallback)
-  const { svg: chartSvg, dateLabel } = buildDetailedChartSvg(chartBars, chartRes, tokenColor, pair);
-
-  const chart = document.createElement('div');
-  chart.className = 'coin-chart';
-  chart.innerHTML = chartSvg;
-
-  // Date range label beneath the chart
-  const dateLabelEl = document.createElement('div');
-  dateLabelEl.className = 'coin-chart-dates';
-  dateLabelEl.textContent = dateLabel || '';
-
-  // Stats row: Supply, Market Cap, Liquidity
+  // Bottom row of header: Supply | Market Cap | Liquidity
   const stats = document.createElement('div');
   stats.className = 'coin-stats';
   stats.innerHTML = `
@@ -563,14 +551,24 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
     </div>
   `;
 
-  // Open DexScreener pair page when card is clicked
-  if (pair?.pairAddress) {
-    card.addEventListener('click', () => {
-      window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
-    });
+  headerBox.append(topRow, stats);
+
+  // ── DexScreener embedded chart ───────────────────────────
+  const chartWrap = document.createElement('div');
+  chartWrap.className = 'coin-dex-chart';
+
+  if (pairAddress) {
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://dexscreener.com/pulsechain/${pairAddress}?embed=1&theme=dark&trades=0&info=0`;
+    iframe.title = `${displaySymbol} / USD chart`;
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.loading = 'lazy';
+    chartWrap.appendChild(iframe);
+  } else {
+    chartWrap.innerHTML = '<div class="coin-chart-unavailable">Chart unavailable</div>';
   }
 
-  card.append(header, priceEl, chart, dateLabelEl, stats);
+  card.append(headerBox, chartWrap);
   return card;
 }
 
