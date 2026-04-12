@@ -104,6 +104,12 @@ const API = (() => {
     { symbol: 'TEAM',         address: '0xc6a2cDf807F251e4b82C236D9A23C5156D3fB3A2' },
     { symbol: 'BASE',         address: '0x7B3cFA85D9F31E0DB007D12aC6f47982C2Ac41fc' },
     { symbol: 'EARN',         address: '0xb513038bbfdf9d40b676f41606f4f61d4b02c4a2' },
+    // Tokens added via CoinGecko / DexScreener / GoPulse scan
+    { symbol: 'TEXAN',        address: '0xcfcffe432a48db53f59c301422d2edd77b2a88d7', pairAddress: '0x53bf2cc26381ea7ebb927e220008bbff3447a2ec' },
+    { symbol: 'SPARK',        address: '0x6386704cD6f7A584EA9d23cccA66aF7EBA5a727e' },
+    { symbol: 'TIME',         address: '0xCA35638A3fdDD02fEC597D8c1681198C06b23F58' },
+    { symbol: 'IM',           address: '0xBBcF895BFCb57d0f457D050bb806d1499436c0CE' },
+    { symbol: 'TRIO',         address: '0xf55c9850C528bA2533d53A5D980C8A5D7A5c3308' },
   ];
 
   /**

@@ -240,6 +240,45 @@ app.get('/api/coingecko/global', (req, res) => {
   proxyJson(res, 'https://api.coingecko.com/api/v3/global');
 });
 
+// PulseX V1 subgraph TVL / factory stats
+// Frontend: POST /api/graph/pulsex/factory  (no body needed)
+app.get('/api/pulsex/factory', async (req, res) => {
+  const cacheKey = 'pulsex-factory';
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
+
+  const query = `{
+    uniswapFactories(first: 1) {
+      totalLiquidityUSD
+      totalVolumeUSD
+      totalTransactions
+      pairCount
+    }
+  }`;
+  const PULSEX_GRAPH = 'https://graph.v2b.pulsechain.com/subgraphs/name/pulsechain/v2b-pulsex';
+  try {
+    const upstream = await fetch(PULSEX_GRAPH, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept':        'application/json',
+        'User-Agent':    'Mozilla/5.0 (compatible; PulseCentral/1.0)',
+      },
+      body:   JSON.stringify({ query }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: `Upstream returned HTTP ${upstream.status}` });
+    }
+    const data = await upstream.json();
+    setCached(cacheKey, data);
+    res.json(data);
+  } catch (err) {
+    console.error('[PulseCentral proxy] PulseX factory:', err.message);
+    res.status(502).json({ error: 'Proxy request failed', detail: err.message });
+  }
+});
+
 /* ── Static file serving ─────────────────────────────────────── */
 
 // Serve the entire repo root (index.html, js/, css/, assets/)
