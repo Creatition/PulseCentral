@@ -786,6 +786,9 @@ const API = (() => {
    */
   async function getTokenMetadata(address) {
     const url = `/api/scan-v2/tokens/${address}`;
+    try {
+      const data = await fetchJSON(url, 12000);
+      return data || null;
     } catch {
       return null;
     }
