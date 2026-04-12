@@ -319,7 +319,7 @@ function fmtChartBarLabel(ts, resolution) {
  */
 function buildDetailedChartSvg(bars, resolution, tokenColor, pair) {
   const W = 300, H = 72;
-  // Allow up to 1500 daily bars (~4 years) so the full history since May 2023 is visible.
+  // Allow up to 1500 daily bars (covering all history since May 2023) so the full price history is visible.
   const maxBars = resolution === 'D' ? 1500 : 24;
   const color   = tokenColor || '#7b2fff';
 
