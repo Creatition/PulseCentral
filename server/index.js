@@ -168,6 +168,15 @@ app.get('/api/goplus/*', (req, res) => {
   proxyJson(res, `https://api.gopluslabs.io/${subPath}${qs(req)}`);
 });
 
+/** Map a 0–100 Fear & Greed score to a label (used by the /api/fear-greed proxy). */
+function fgLabel(s) {
+  if (s <= 24) return 'Extreme Fear';
+  if (s <= 44) return 'Fear';
+  if (s <= 55) return 'Neutral';
+  if (s <= 74) return 'Greed';
+  return 'Extreme Greed';
+}
+
 // Crypto Fear & Greed Index
 // Tries CoinGlass (public, no auth) first; falls back to alternative.me.
 // Always responds with the alternative.me shape: { data: [{ value, value_classification, timestamp }] }
@@ -198,13 +207,6 @@ app.get('/api/fear-greed', async (req, res) => {
     const entry = raw?.data?.[0];
     if (entry && entry.value != null) {
       const score = Number(entry.value);
-      function fgLabel(s) {
-        if (s <= 24) return 'Extreme Fear';
-        if (s <= 44) return 'Fear';
-        if (s <= 55) return 'Neutral';
-        if (s <= 74) return 'Greed';
-        return 'Extreme Greed';
-      }
       // Normalise to the shape the frontend expects
       const normalised = {
         data: [{
