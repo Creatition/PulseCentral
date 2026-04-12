@@ -483,6 +483,7 @@ li + li { margin-top: 0.35rem; }
   padding: 1.25rem 1.5rem;
   /* position:relative required for absolutely positioned .summary-currency-toggle */
   position: relative;
+  overflow: hidden;
 }
 .summary-label {
   color: var(--text-muted);
@@ -1955,6 +1956,8 @@ li + li { margin-top: 0.35rem; }
   margin: 0 0 1rem 0;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
 }
 
 /* ── Markets card grid ── */
@@ -2703,13 +2706,14 @@ li + li { margin-top: 0.35rem; }
 /* ── Dual-color: markets sections accent ── */
 .markets-section-label::before {
   content: '';
-  display: inline-block;
+  display: block;
+  flex-shrink: 0;
   width: 3px;
   height: 1em;
   background: linear-gradient(180deg, var(--primary), var(--accent));
   border-radius: 2px;
   margin-right: 0.6rem;
-  vertical-align: middle;
+  align-self: center;
 }
 
 /* ── Custom scrollbar (Webkit) ── */
