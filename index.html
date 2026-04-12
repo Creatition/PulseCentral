@@ -48,14 +48,16 @@
         <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
           <span class="tab-icon">📊</span> Markets
         </button>
-        <button class="tab-btn" data-tab="watchlist" role="tab" aria-selected="false" aria-controls="tab-watchlist">
-          <span class="tab-icon">⭐</span> Watchlist
-        </button>
-        <button class="tab-btn" data-tab="about" role="tab" aria-selected="false" aria-controls="tab-about">
-          <span class="tab-icon">ℹ️</span> About
+        <button class="tab-btn" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats">
+          <span class="tab-icon">📈</span> Stats
         </button>
       </nav>
       <div class="header-right">
+        <!-- Watchlist Star -->
+        <button class="watchlist-star-btn" id="watchlist-star-btn" title="Watchlist" aria-label="Open watchlist" aria-controls="tab-watchlist">
+          <span aria-hidden="true">⭐</span>
+        </button>
+
         <!-- Price Alerts Bell -->
         <div class="price-alerts-wrap" id="price-alerts-wrap">
           <button class="price-alerts-btn" id="price-alerts-btn" title="Price Alerts" aria-label="Price alerts" aria-haspopup="true" aria-expanded="false">
@@ -338,6 +340,20 @@
       <div id="markets-sections" class="hidden"></div>
     </section>
 
+    <!-- ── STATS TAB ── -->
+    <section id="tab-stats" class="tab-panel" role="tabpanel" aria-labelledby="btn-stats">
+      <div class="section-header">
+        <h1>Stats</h1>
+        <p class="section-subtitle">On-chain statistics and network activity for PulseChain.</p>
+      </div>
+      <div id="stats-content" class="stats-content">
+        <div class="loading-wrap">
+          <div class="pulse-loader" aria-label="Loading stats"></div>
+          <p>Coming soon…</p>
+        </div>
+      </div>
+    </section>
+
     <!-- ── WATCHLIST TAB ── -->
     <section id="tab-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="btn-watchlist">
       <div class="section-header">
@@ -399,63 +415,6 @@
             </thead>
             <tbody id="wl-tokens-tbody"></tbody>
           </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── ABOUT TAB ── -->
-    <section id="tab-about" class="tab-panel" role="tabpanel" aria-labelledby="btn-about">
-      <div class="section-header">
-        <h1>About PulseCentral</h1>
-        <p class="section-subtitle">Your open-source PulseChain portfolio tracker.</p>
-      </div>
-
-      <div class="about-content">
-        <div class="about-card">
-          <h2>🚀 What is PulseCentral?</h2>
-          <p>
-            PulseCentral is a free, open-source portfolio and market tracker for
-            <strong>PulseChain</strong> — the EVM-compatible blockchain launched by
-            Richard Heart. PulseCentral lets you:
-          </p>
-          <ul>
-            <li>Track any PulseChain wallet's token holdings and total USD value.</li>
-            <li>Browse live market prices for popular PulseChain tokens.</li>
-            <li>Discover top gainers and losers on PulseChain DEXes.</li>
-          </ul>
-        </div>
-
-        <div class="about-card">
-          <h2>⛓ Data Sources</h2>
-          <ul>
-            <li>
-              <strong>Wallet balances</strong> — PulseChain Scan API
-              (<a href="https://scan.pulsechain.com" target="_blank" rel="noopener">scan.pulsechain.com</a>)
-            </li>
-            <li>
-              <strong>Token prices &amp; DEX data</strong> — DexScreener API
-              (<a href="https://dexscreener.com" target="_blank" rel="noopener">dexscreener.com</a>)
-            </li>
-          </ul>
-        </div>
-
-        <div class="about-card">
-          <h2>📋 Upcoming Features</h2>
-          <ul>
-            <li>Multi-wallet aggregation</li>
-            <li>NFT tab</li>
-            <li>DeFi / farming positions tab</li>
-            <li>Price alerts</li>
-          </ul>
-        </div>
-
-        <div class="about-card">
-          <h2>⚠️ Disclaimer</h2>
-          <p>
-            PulseCentral is provided for informational purposes only and does not
-            constitute financial advice. Prices are fetched from third-party APIs and
-            may not be perfectly accurate. Always do your own research (DYOR).
-          </p>
         </div>
       </div>
     </section>
