@@ -344,14 +344,147 @@
     <section id="tab-stats" class="tab-panel" role="tabpanel" aria-labelledby="btn-stats">
       <div class="section-header">
         <h1>Stats</h1>
-        <p class="section-subtitle">On-chain statistics and network activity for PulseChain.</p>
+        <p class="section-subtitle">Global crypto market indicators and sentiment data.</p>
       </div>
-      <div id="stats-content" class="stats-content">
-        <div class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading stats"></div>
-          <p>Coming soon…</p>
+
+      <div id="stats-error" class="error-banner hidden" role="alert"></div>
+
+      <div id="stats-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading stats"></div>
+        <p>Loading market stats…</p>
+      </div>
+
+      <div id="stats-content" class="stats-content hidden">
+
+        <!-- Fear & Greed Index -->
+        <div class="stats-card" id="stats-section-fear-greed">
+          <div class="stats-card-header">
+            <span class="stats-card-icon">😨</span>
+            <div>
+              <h2 class="stats-card-title">Crypto Fear &amp; Greed Index</h2>
+              <p class="stats-card-subtitle">Market sentiment indicator (0 = Extreme Fear, 100 = Extreme Greed)</p>
+            </div>
+          </div>
+          <div class="stats-card-body">
+            <div class="fg-gauge-wrap">
+              <svg class="fg-gauge" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <!-- Background arc -->
+                <path class="fg-gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none"/>
+                <!-- Color arc (dynamic) -->
+                <path class="fg-gauge-arc" id="fg-gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none" stroke-dasharray="0 251"/>
+                <!-- Needle -->
+                <line class="fg-gauge-needle" id="fg-gauge-needle" x1="100" y1="100" x2="100" y2="28" stroke-width="2.5"/>
+                <circle cx="100" cy="100" r="5" class="fg-gauge-center"/>
+              </svg>
+              <div class="fg-gauge-labels">
+                <span class="fg-label-fear">Extreme Fear</span>
+                <span class="fg-label-greed">Extreme Greed</span>
+              </div>
+              <div class="fg-value-wrap">
+                <span class="fg-value" id="fg-value">—</span>
+                <span class="fg-label" id="fg-label">—</span>
+              </div>
+            </div>
+            <div class="stats-meta" id="fg-meta"></div>
+          </div>
         </div>
-      </div>
+
+        <!-- Altcoin Season Index -->
+        <div class="stats-card" id="stats-section-altcoin-season">
+          <div class="stats-card-header">
+            <span class="stats-card-icon">🌙</span>
+            <div>
+              <h2 class="stats-card-title">Altcoin Season Index</h2>
+              <p class="stats-card-subtitle">Based on BTC dominance — below 40% signals altcoin season</p>
+            </div>
+          </div>
+          <div class="stats-card-body">
+            <div class="fg-gauge-wrap">
+              <svg class="fg-gauge" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path class="fg-gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none"/>
+                <path class="fg-gauge-arc" id="as-gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none" stroke-dasharray="0 251"/>
+                <line class="fg-gauge-needle" id="as-gauge-needle" x1="100" y1="100" x2="100" y2="28" stroke-width="2.5"/>
+                <circle cx="100" cy="100" r="5" class="fg-gauge-center"/>
+              </svg>
+              <div class="fg-gauge-labels">
+                <span class="fg-label-fear">Bitcoin Season</span>
+                <span class="fg-label-greed">Altcoin Season</span>
+              </div>
+              <div class="fg-value-wrap">
+                <span class="fg-value" id="as-value">—</span>
+                <span class="fg-label" id="as-label">—</span>
+              </div>
+            </div>
+            <div class="stats-meta" id="as-meta"></div>
+          </div>
+        </div>
+
+        <!-- Bitcoin Dominance -->
+        <div class="stats-card" id="stats-section-btc-dominance">
+          <div class="stats-card-header">
+            <span class="stats-card-icon">₿</span>
+            <div>
+              <h2 class="stats-card-title">Bitcoin Dominance</h2>
+              <p class="stats-card-subtitle">BTC share of total crypto market capitalization</p>
+            </div>
+          </div>
+          <div class="stats-card-body">
+            <div class="dominance-wrap">
+              <div class="dominance-value-row">
+                <span class="dominance-value" id="btc-dom-value">—</span>
+                <span class="dominance-coin-label">BTC</span>
+              </div>
+              <div class="dominance-bar-wrap" aria-label="BTC dominance bar">
+                <div class="dominance-bar-fill btc-bar" id="btc-dom-bar" style="width:0%"></div>
+              </div>
+              <div class="dominance-value-row">
+                <span class="dominance-value dominance-eth" id="eth-dom-value">—</span>
+                <span class="dominance-coin-label">ETH</span>
+              </div>
+              <div class="dominance-bar-wrap" aria-label="ETH dominance bar">
+                <div class="dominance-bar-fill eth-bar" id="eth-dom-bar" style="width:0%"></div>
+              </div>
+              <div class="dominance-value-row">
+                <span class="dominance-value dominance-others" id="others-dom-value">—</span>
+                <span class="dominance-coin-label">Others</span>
+              </div>
+              <div class="dominance-bar-wrap" aria-label="Others dominance bar">
+                <div class="dominance-bar-fill others-bar" id="others-dom-bar" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Crypto Market Cap -->
+        <div class="stats-card" id="stats-section-market-cap">
+          <div class="stats-card-header">
+            <span class="stats-card-icon">🌐</span>
+            <div>
+              <h2 class="stats-card-title">Total Crypto Market Cap</h2>
+              <p class="stats-card-subtitle">Combined market capitalization of all cryptocurrencies</p>
+            </div>
+          </div>
+          <div class="stats-card-body">
+            <div class="market-cap-wrap">
+              <div class="market-cap-value" id="total-mcap-value">—</div>
+              <div class="market-cap-change" id="total-mcap-change"></div>
+              <div class="market-cap-row">
+                <span class="market-cap-label">BTC Market Cap</span>
+                <span class="market-cap-sub" id="btc-mcap-value">—</span>
+              </div>
+              <div class="market-cap-row">
+                <span class="market-cap-label">ETH Market Cap</span>
+                <span class="market-cap-sub" id="eth-mcap-value">—</span>
+              </div>
+              <div class="market-cap-row">
+                <span class="market-cap-label">Active Cryptos</span>
+                <span class="market-cap-sub" id="active-cryptos-value">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#stats-content -->
     </section>
 
     <!-- ── WATCHLIST TAB ── -->
