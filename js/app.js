@@ -293,12 +293,12 @@ const DATE_RANGE_SEP = ' – ';
 /**
  * Build a date/time label string for a chart bar timestamp.
  * @param {number} ts         Unix timestamp in milliseconds
- * @param {string} resolution 'D' for daily bars, '60' for hourly bars
+ * @param {string} resolution 'W' for weekly bars, '60' for hourly bars
  * @returns {string}
  */
 function fmtChartBarLabel(ts, resolution) {
   const d = new Date(ts);
-  if (resolution === 'D') {
+  if (resolution === 'W' || resolution === 'D') {
     return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
   // Hourly bars — show hour
@@ -310,7 +310,7 @@ function fmtChartBarLabel(ts, resolution) {
  * Falls back to the sparkline approach when no bars are available.
  *
  * @param {object[]} bars       Array of { time, close } OHLCV bars
- * @param {string}   resolution 'D' = daily (all-time view since May 2023), '60' = hourly (daily view)
+ * @param {string}   resolution 'W' = weekly (all-time view since May 2023), '60' = hourly (daily view)
  * @param {string}   tokenColor Hex colour for the line/fill (token brand colour)
  * @param {object|null} pair    DexScreener pair (used for sparkline fallback)
  * @returns {{ svg: string, dateLabel: string }}
@@ -319,8 +319,8 @@ function fmtChartBarLabel(ts, resolution) {
  */
 function buildDetailedChartSvg(bars, resolution, tokenColor, pair) {
   const W = 300, H = 72;
-  // Allow up to 1500 daily bars (covering all history since May 2023) so the full price history is visible.
-  const maxBars = resolution === 'D' ? 1500 : 24;
+  // Allow up to 300 weekly bars (covering ~6 years) so the full price history since May 2023 is visible.
+  const maxBars = (resolution === 'W' || resolution === 'D') ? 300 : 24;
   const color   = tokenColor || '#7b2fff';
 
   // ── Use OHLCV bars when available ──────────────────────────
@@ -446,7 +446,7 @@ function buildSparklineSvg(pair) {
  * @param {string}     symbol     Token symbol (e.g. 'WPLS')
  * @param {object|null} pair      DexScreener pair object, or null if unavailable
  * @param {object[]}   chartBars  OHLCV bar array from the chart API (may be empty)
- * @param {string}     chartRes   Chart resolution ('D' = all-time from May 2023, '60' = daily)
+ * @param {string}     chartRes   Chart resolution ('W' = weekly all-time, '60' = daily)
  * @param {string}     tokenColor Hex brand colour for border + chart line
  * @returns {HTMLElement}
  */

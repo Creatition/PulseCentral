@@ -99,16 +99,18 @@ const API = (() => {
    * The 6 core coins shown on the Home landing page (in display order).
    * `pairAddress`  – specific DEX pair contract for price + chart data.
    * `color`        – brand/accent colour used for the card border.
-   * `chartRes`     – DexScreener chart resolution: 'D' = daily bars (all-time view
-   *                  from PulseChain launch in May 2023).
+   * `chartRes`     – DexScreener chart resolution: 'W' = weekly bars.
+   *                  Weekly resolution returns bars from pair inception with no
+   *                  count cap, giving full coverage from PulseChain launch
+   *                  (May 2023) to the present day.
    */
   const CORE_COINS = [
-    { symbol: 'PLS',  address: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', pairAddress: '0xe56043671df55de5cdf8459710433c10324de0ae', color: '#7b2fff', chartRes: 'D' }, // address is the WPLS wrapper contract
-    { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9', color: '#ff6d00', chartRes: 'D' },
-    { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65', color: '#e8002d', chartRes: 'D' },
-    { symbol: 'eHex', address: '0x57fde0a71132198BBeC939B98976993d8D89D225', pairAddress: '0xF0eA3efE42C11c8819948Ec2D3179F4084863D3F', color: '#f59e0b', chartRes: 'D' },
-    { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa', color: '#00e676', chartRes: 'D' },
-    { symbol: 'PRVX', address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11', pairAddress: '0x7f681a5ad615238357ba148c281e2eaefd2de55a', color: '#00bcd4', chartRes: 'D' },
+    { symbol: 'PLS',  address: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', pairAddress: '0xe56043671df55de5cdf8459710433c10324de0ae', color: '#7b2fff', chartRes: 'W' }, // address is the WPLS wrapper contract
+    { symbol: 'PLSX', address: '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9', color: '#ff6d00', chartRes: 'W' },
+    { symbol: 'HEX',  address: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65', color: '#e8002d', chartRes: 'W' },
+    { symbol: 'eHex', address: '0x57fde0a71132198BBeC939B98976993d8D89D225', pairAddress: '0xF0eA3efE42C11c8819948Ec2D3179F4084863D3F', color: '#f59e0b', chartRes: 'W' },
+    { symbol: 'INC',  address: '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa', color: '#00e676', chartRes: 'W' },
+    { symbol: 'PRVX', address: '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11', pairAddress: '0x7f681a5ad615238357ba148c281e2eaefd2de55a', color: '#00bcd4', chartRes: 'W' },
   ];
 
   /**
@@ -703,10 +705,7 @@ const API = (() => {
    * @returns {Promise<Array<{time:number, open:number, high:number, low:number, close:number, volume:number}>>}
    */
   async function getCoreCoinChartBars(pairAddress, resolution) {
-    // Request all daily bars from PulseChain's launch (May 2023) to now.
-    // from=1682899200 = 2023-05-01 00:00:00 UTC in seconds.
-    const from = 1682899200;
-    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&from=${from}&cb=0`; // cb=0 is a cache-bust parameter
+    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&cb=0`;
     try {
       const data = await fetchJSON(url, 10000);
       const rawBars = data?.bars || [];
