@@ -573,14 +573,148 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
 }
 
 /**
+ * Build a simplified coin card (sparkline style) for PLSX, HEX, INC, PRVX.
+ * This is the pre-PR78 style: logo, name, price, chart SVG, and stats all in one box.
+ * Clicking opens the DexScreener pair page.
+ */
+function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff', tokenAddress = '') {
+  const card = document.createElement('article');
+  card.className = 'coin-card coin-card-simple';
+
+  const token     = pair?.baseToken || { symbol, name: symbol };
+  const price     = Number(pair?.priceUsd || 0);
+  const change24h = Number(pair?.priceChange?.h24 || 0);
+  const liq       = pair?.liquidity?.usd;
+  const marketCap = pair?.marketCap || pair?.fdv;
+  const logoUrl   = pair?.info?.imageUrl || null;
+  const pairAddress = pair?.pairAddress || '';
+  const { text: changeText, cls: changeCls } = fmt.change(change24h);
+  const isUp      = change24h >= 0;
+
+  const supplyVal = (marketCap && price) ? marketCap / price : null;
+  const displaySymbol = symbol;
+  const displayName   = token.name || symbol;
+
+  card.classList.toggle('coin-card-up',   isUp);
+  card.classList.toggle('coin-card-down', !isUp);
+  card.style.setProperty('--coin-border-color', tokenColor);
+
+  // Header: logo + name/symbol + change badge + star
+  const header = document.createElement('div');
+  header.className = 'coin-card-header';
+
+  const logoWrap = document.createElement('div');
+  logoWrap.className = 'coin-logo-wrap';
+  logoWrap.appendChild(buildTokenLogo(logoUrl, symbol));
+
+  const info = document.createElement('div');
+  info.className = 'coin-info';
+  info.innerHTML = `
+    <div class="coin-name">${escHtml(displayName)}</div>
+    <div class="coin-symbol">${escHtml(displaySymbol)}</div>
+  `;
+
+  const changeBadge = document.createElement('div');
+  changeBadge.className = `coin-change ${changeCls}`;
+  changeBadge.textContent = changeText;
+
+  const coinTokenAddr = (pair?.baseToken?.address || tokenAddress || '').toLowerCase();
+  const isWatched = coinTokenAddr ? Watchlist.hasToken(coinTokenAddr) : false;
+  const starBtn = document.createElement('button');
+  starBtn.className = `star-btn${isWatched ? ' active' : ''}`;
+  starBtn.textContent = isWatched ? '★' : '☆';
+  starBtn.title = isWatched ? 'Remove from Watchlist' : 'Add to Watchlist';
+  starBtn.setAttribute('aria-label', isWatched ? 'Remove from Watchlist' : 'Add to Watchlist');
+  starBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!coinTokenAddr) return;
+    if (Watchlist.hasToken(coinTokenAddr)) {
+      Watchlist.removeToken(coinTokenAddr);
+      starBtn.textContent = '☆';
+      starBtn.classList.remove('active');
+      starBtn.title = 'Add to Watchlist';
+      starBtn.setAttribute('aria-label', 'Add to Watchlist');
+    } else {
+      Watchlist.addToken({
+        address: coinTokenAddr,
+        symbol:  displaySymbol,
+        name:    displayName,
+        logoUrl: logoUrl,
+      });
+      starBtn.textContent = '★';
+      starBtn.classList.add('active');
+      starBtn.title = 'Remove from Watchlist';
+      starBtn.setAttribute('aria-label', 'Remove from Watchlist');
+    }
+  });
+
+  header.append(logoWrap, info, changeBadge, starBtn);
+
+  // Price
+  const priceEl = document.createElement('div');
+  priceEl.className = 'coin-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
+
+  // Sparkline / detailed chart SVG
+  const { svg: chartSvg, dateLabel } = buildDetailedChartSvg(chartBars, chartRes, tokenColor, pair);
+
+  const chart = document.createElement('div');
+  chart.className = 'coin-chart';
+  chart.innerHTML = chartSvg;
+
+  const dateLabelEl = document.createElement('div');
+  dateLabelEl.className = 'coin-chart-dates';
+  dateLabelEl.textContent = dateLabel || '';
+
+  // Stats: Supply, Market Cap, Liquidity
+  const stats = document.createElement('div');
+  stats.className = 'coin-stats';
+  stats.innerHTML = `
+    <div class="coin-stat">
+      <span class="coin-stat-label">Supply</span>
+      <span class="coin-stat-value">${supplyVal ? fmt.supply(supplyVal) : '—'}</span>
+    </div>
+    <div class="coin-stat">
+      <span class="coin-stat-label">Mkt Cap</span>
+      <span class="coin-stat-value">${fmt.large(marketCap)}</span>
+    </div>
+    <div class="coin-stat">
+      <span class="coin-stat-label">Liquidity</span>
+      <span class="coin-stat-value">${fmt.large(liq)}</span>
+    </div>
+  `;
+
+  // Click card to open DexScreener pair page
+  if (pairAddress) {
+    card.addEventListener('click', () => {
+      window.open(`https://dexscreener.com/pulsechain/${pairAddress}`, '_blank', 'noopener');
+    });
+  }
+
+  card.append(header, priceEl, chart, dateLabelEl, stats);
+  return card;
+}
+
+/**
  * Render all core coin cards into the home grid.
+ * - eHex is skipped (not shown on home page).
+ * - PLS gets the full-width DexScreener interactive card.
+ * - PLSX, HEX, INC, PRVX get the simplified sparkline card.
  * @param {Array<{symbol: string, pair: object|null, chartBars: object[], chartRes: string, color: string}>} coinData
  */
 function renderHomeCoinCards(coinData) {
   const grid = $('home-coins-grid');
   grid.innerHTML = '';
   coinData.forEach(({ symbol, address, pair, chartBars, chartRes, color }) => {
-    grid.appendChild(buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff', address || ''));
+    if (symbol === 'eHex') return; // eHex stays as a core coin but is not shown on home page
+
+    if (symbol === 'PLS' || symbol === 'WPLS') {
+      const card = buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff', address || '');
+      card.classList.add('coin-card-full-row');
+      grid.appendChild(card);
+    } else {
+      grid.appendChild(buildSimpleCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff', address || ''));
+    }
   });
 }
 
