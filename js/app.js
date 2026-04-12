@@ -1523,6 +1523,7 @@ $('markets-refresh-btn').addEventListener('click', () => {
 $('top50-refresh-btn').addEventListener('click', () => {
   top50Loaded = false;
   allMarketPairs = [];
+  marketsLoaded = false; // also mark main page stale so it re-renders with fresh data
   loadTop50();
 });
 
@@ -1770,10 +1771,6 @@ async function loadTop50() {
     // Reuse already-loaded market data if available; otherwise fetch (shared promise)
     if (allMarketPairs.length === 0) {
       await fetchMarketPairs();
-      if (!marketsLoaded) {
-        marketsLoaded = true;
-        renderMarketsGrid();
-      }
     }
     renderTop50();
   } catch (err) {
