@@ -247,13 +247,8 @@ let swapIframeInit = false;
 function initSwapIframe() {
   if (swapIframeInit) return;
   swapIframeInit = true;
-  const iframe = document.getElementById('swap-iframe');
-  const fallback = document.getElementById('swap-iframe-fallback');
-  if (!iframe) return;
-  iframe.addEventListener('error', () => {
-    iframe.style.display = 'none';
-    if (fallback) fallback.classList.remove('hidden');
-  });
+  // Iframe loads immediately (no lazy attribute). The "Open in PulseX ↗" link
+  // in the tab header serves as the fallback if the browser blocks embedding.
 }
 
 /**

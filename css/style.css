@@ -418,19 +418,6 @@ li + li { margin-top: 0.35rem; }
   border: none;
   display: block;
 }
-.swap-iframe-fallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  background: var(--card-bg);
-  color: var(--text-muted);
-  font-size: 1rem;
-}
-.swap-iframe-fallback.hidden { display: none; }
 
 /* Section header */
 .section-header { margin-bottom: 1.75rem; }
