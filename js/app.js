@@ -299,7 +299,7 @@ const DATE_RANGE_SEP = ' – ';
 function fmtChartBarLabel(ts, resolution) {
   const d = new Date(ts);
   if (resolution === 'D') {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
   // Hourly bars — show hour
   return d.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
@@ -310,7 +310,7 @@ function fmtChartBarLabel(ts, resolution) {
  * Falls back to the sparkline approach when no bars are available.
  *
  * @param {object[]} bars       Array of { time, close } OHLCV bars
- * @param {string}   resolution 'D' = daily (monthly view), '60' = hourly (daily view)
+ * @param {string}   resolution 'D' = daily (all-time view since May 2023), '60' = hourly (daily view)
  * @param {string}   tokenColor Hex colour for the line/fill (token brand colour)
  * @param {object|null} pair    DexScreener pair (used for sparkline fallback)
  * @returns {{ svg: string, dateLabel: string }}
@@ -319,7 +319,8 @@ function fmtChartBarLabel(ts, resolution) {
  */
 function buildDetailedChartSvg(bars, resolution, tokenColor, pair) {
   const W = 300, H = 72;
-  const maxBars = resolution === 'D' ? 30 : 24;
+  // Allow up to 1500 daily bars (~4 years) so the full history since May 2023 is visible.
+  const maxBars = resolution === 'D' ? 1500 : 24;
   const color   = tokenColor || '#7b2fff';
 
   // ── Use OHLCV bars when available ──────────────────────────
@@ -445,7 +446,7 @@ function buildSparklineSvg(pair) {
  * @param {string}     symbol     Token symbol (e.g. 'WPLS')
  * @param {object|null} pair      DexScreener pair object, or null if unavailable
  * @param {object[]}   chartBars  OHLCV bar array from the chart API (may be empty)
- * @param {string}     chartRes   Chart resolution ('D' = monthly, '60' = daily)
+ * @param {string}     chartRes   Chart resolution ('D' = all-time from May 2023, '60' = daily)
  * @param {string}     tokenColor Hex brand colour for border + chart line
  * @returns {HTMLElement}
  */
