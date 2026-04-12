@@ -903,7 +903,6 @@ if (summaryCurrencyToggle) {
     summaryShowPls = !summaryShowPls;
     $('summary-total-usd').textContent   = summaryShowPls ? fmt.pls(summaryTotalPls) + ' PLS' : fmt.usd(summaryTotalUsd);
     $('summary-total-label').textContent = summaryShowPls ? 'Total Value (PLS)' : 'Total Value (USD)';
-    summaryCurrencyToggle.textContent    = summaryShowPls ? 'USD' : 'PLS';
   });
 }
 
@@ -1096,8 +1095,6 @@ function renderPortfolioSummary(totalUsd, tokenCount, plsBalance, plsPrice) {
     ? fmt.pls(summaryTotalPls) + ' PLS'
     : fmt.usd(summaryTotalUsd);
   $('summary-total-label').textContent = summaryShowPls ? 'Total Value (PLS)' : 'Total Value (USD)';
-  const toggle = $('summary-currency-toggle');
-  if (toggle) toggle.textContent = summaryShowPls ? 'USD' : 'PLS';
 
   $('summary-total-pls').textContent  = plsPrice > 0 ? fmt.pls(summaryTotalPls) : '—';
 
@@ -2920,7 +2917,7 @@ function escHtml(str) {
 /* ── Price Alerts module ──────────────────────────────────── */
 
 /**
- * Tracks tokens that surged ≥10% in 5 minutes.
+ * Tracks tokens that surged ≥10% in 6 hours.
  * Alerts are kept in memory (not persisted) and capped at MAX_ALERTS.
  * Each token has a per-symbol cooldown to prevent duplicate firing.
  */
@@ -2933,14 +2930,14 @@ const PriceAlerts = (() => {
   let unread    = 0;
   const lastFired = new Map(); // symbol → timestamp
 
-  /** Check one token; fires an alert when m5Change ≥ THRESHOLD and cooldown passed. */
-  function check(symbol, name, m5Change) {
-    if (m5Change < THRESHOLD) return;
+  /** Check one token; fires an alert when h6Change ≥ THRESHOLD and cooldown passed. */
+  function check(symbol, name, h6Change) {
+    if (h6Change < THRESHOLD) return;
     const now  = Date.now();
     const last = lastFired.get(symbol);
     if (last && now - last < COOLDOWN_MS) return;
     lastFired.set(symbol, now);
-    alerts.unshift({ symbol, name, change: m5Change, time: now });
+    alerts.unshift({ symbol, name, change: h6Change, time: now });
     if (alerts.length > MAX_ALERTS) alerts = alerts.slice(0, MAX_ALERTS);
     unread++;
     renderBellBadge();
@@ -2978,7 +2975,7 @@ function renderAlertsDropdown() {
   if (alerts.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'alerts-empty';
-    empty.textContent = 'No alerts yet. Tokens up +10% in 5 min will appear here.';
+    empty.textContent = 'No alerts yet. Tokens up +10% in 6 hours will appear here.';
     list.appendChild(empty);
     return;
   }
@@ -3053,16 +3050,16 @@ document.addEventListener('keydown', e => {
 
 /* ── Alert check helpers ─────────────────────────────────── */
 
-/** Check all core-coin pairs for a 5-minute price surge ≥ 10%. */
+/** Check all core-coin pairs for a 6-hour price surge ≥ 10%. */
 function checkCoreCoinAlerts(coinData) {
   coinData.forEach(({ symbol, pair }) => {
     if (!pair) return;
-    const m5   = Number(pair.priceChange?.m5 || 0);
+    const h6   = Number(pair.priceChange?.h6 || 0);
     const name = pair.baseToken?.name || symbol;
     // Normalise WPLS display name to PLS
     const displaySymbol = (symbol === 'WPLS') ? 'PLS' : symbol;
     const displayName   = (symbol === 'WPLS' || symbol === 'PLS') ? 'PulseChain' : name;
-    PriceAlerts.check(displaySymbol, displayName, m5);
+    PriceAlerts.check(displaySymbol, displayName, h6);
   });
 }
 
@@ -3076,8 +3073,8 @@ async function checkWatchlistAlerts() {
     tokens.forEach(token => {
       const pair = pairMap.get(token.address.toLowerCase());
       if (!pair) return;
-      const m5 = Number(pair.priceChange?.m5 || 0);
-      PriceAlerts.check(token.symbol, token.name || token.symbol, m5);
+      const h6 = Number(pair.priceChange?.h6 || 0);
+      PriceAlerts.check(token.symbol, token.name || token.symbol, h6);
     });
   } catch (err) {
     console.warn('[PulseCentral] Watchlist alert check failed:', err);
