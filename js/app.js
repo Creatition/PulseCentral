@@ -216,6 +216,8 @@ let activeTab = 'home';
 let marketsLoaded   = false;
 let activeMarketsPage = 'main'; // 'main' | 'top50'
 let top50Loaded = false;
+let top50CurrentPage = 1;
+let activeStatsPage = 'pulse'; // 'pulse' | 'crypto'
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -250,7 +252,7 @@ function switchTab(name) {
     autoLoadLastPortfolio();
   }
   if (name === 'swap')  initSwapIframe();
-  if (name === 'stats') loadStats();
+  if (name === 'stats') showStatsPage(activeStatsPage);
 }
 
 /** Show a markets sub-page ('main' or 'top50') and trigger loading if needed. */
@@ -278,6 +280,32 @@ document.querySelectorAll('[data-markets-page]').forEach(btn => {
   });
 });
 
+/** Show a stats sub-page ('pulse' or 'crypto') and trigger loading if needed. */
+function showStatsPage(page) {
+  activeStatsPage = page;
+
+  const pulsePage  = $('stats-page-pulse');
+  const cryptoPage = $('stats-page-crypto');
+  if (pulsePage)  pulsePage.classList.toggle('hidden',  page !== 'pulse');
+  if (cryptoPage) cryptoPage.classList.toggle('hidden', page !== 'crypto');
+
+  // Update active state on dropdown items
+  document.querySelectorAll('[data-stats-page]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.statsPage === page);
+  });
+
+  if (page === 'pulse')  loadPulseChainStats();
+  if (page === 'crypto') loadStats();
+}
+
+// Wire stats dropdown item clicks
+document.querySelectorAll('[data-stats-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    switchTab('stats');
+    showStatsPage(btn.dataset.statsPage);
+  });
+});
+
 /* ── Swap DEX switcher ───────────────────────────────────── */
 
 const SWAP_DEXES = {
@@ -286,12 +314,6 @@ const SWAP_DEXES = {
     subtitle: 'Trade tokens on PulseX — PulseChain\'s native DEX.',
     url:      'https://pulsex.mypinata.cloud/ipfs/bafybeiaq4jgcpz4hdzwid6letizdnhijlp6lu5ivcjcp5vbgpgf54jknn4/',
     openText: 'Open in PulseX ↗',
-  },
-  libertyswap: {
-    label:    'Liberty Swap',
-    subtitle: 'Find the best swap rates on Liberty Swap — PulseChain\'s DEX aggregator.',
-    url:      'https://libertyswap.finance/',
-    openText: 'Open in Liberty Swap ↗',
   },
 };
 
@@ -1543,7 +1565,23 @@ $('top50-refresh-btn').addEventListener('click', () => {
   top50Loaded = false;
   allMarketPairs = [];
   marketsLoaded = false; // also mark main page stale so it re-renders with fresh data
+  top50CurrentPage = 1;
+  pulseStatsLoaded = false; // refresh pulse stats market data too
   loadTop50();
+});
+
+$('top50-prev-btn').addEventListener('click', () => {
+  if (top50CurrentPage > 1) {
+    top50CurrentPage--;
+    renderTop50();
+    $('top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+
+$('top50-next-btn').addEventListener('click', () => {
+  top50CurrentPage++;
+  renderTop50();
+  $('top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 $('market-search').addEventListener('input', () => renderMarketsGrid());
@@ -1801,21 +1839,37 @@ async function loadTop50() {
   }
 }
 
+const TOP50_PAGE_SIZE = 50;
+
 function renderTop50() {
-  // Sort all pairs by market cap (marketCap || fdv) descending, take top 50
+  // Sort all pairs by market cap (marketCap || fdv) descending
   const sorted = allMarketPairs
     .filter(p => (p.marketCap || p.fdv) > 0 || Number(p.priceUsd || 0) > 0)
     .slice()
-    .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0))
-    .slice(0, 50);
+    .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0));
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / TOP50_PAGE_SIZE));
+  // Clamp current page to valid range
+  top50CurrentPage = Math.max(1, Math.min(top50CurrentPage, totalPages));
+
+  const startIdx = (top50CurrentPage - 1) * TOP50_PAGE_SIZE;
+  const pagePairs = sorted.slice(startIdx, startIdx + TOP50_PAGE_SIZE);
 
   const container = $('top50-rows');
   if (!container) return;
   container.innerHTML = '';
 
-  sorted.forEach((pair, i) => {
-    container.appendChild(buildTop50Row(i + 1, pair));
+  pagePairs.forEach((pair, i) => {
+    container.appendChild(buildTop50Row(startIdx + i + 1, pair));
   });
+
+  // Update pagination controls
+  const pageInfoEl  = $('top50-page-info');
+  const prevBtn     = $('top50-prev-btn');
+  const nextBtn     = $('top50-next-btn');
+  if (pageInfoEl) pageInfoEl.textContent = `Page ${top50CurrentPage} / ${totalPages}`;
+  if (prevBtn)    prevBtn.disabled = top50CurrentPage <= 1;
+  if (nextBtn)    nextBtn.disabled = top50CurrentPage >= totalPages;
 
   setVisible($('top50-list'), true);
 }
@@ -4088,7 +4142,132 @@ document.querySelectorAll('.td-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTokenDetailsTab(btn.dataset.tdTab));
 });
 
-/* ── Stats Tab ───────────────────────────────────────────── */
+/* ── PulseChain Stats Tab ─────────────────────────────────── */
+
+let pulseStatsLoaded = false;
+
+async function loadPulseChainStats() {
+  if (pulseStatsLoaded) return;
+  pulseStatsLoaded = true;
+
+  setVisible($('pulse-stats-loading'), true);
+  setHidden($('pulse-stats-error'),   true);
+  setHidden($('pulse-stats-content'), true);
+
+  try {
+    // Fetch all data in parallel; individual failures are tolerated
+    const [gasResult, supplyResult, factoryResult] = await Promise.allSettled([
+      fetch('/api/scan?module=gastracker&action=gasoracle'),
+      fetch('/api/scan?module=stats&action=ethsupply'),
+      fetch('/api/pulsex/factory'),
+    ]);
+
+    // Gas price
+    if (gasResult.status === 'fulfilled' && gasResult.value.ok) {
+      const gasData = await gasResult.value.json();
+      const safeGwei = gasData?.result?.SafeGasPrice ?? gasData?.result?.suggestBaseFee;
+      const gasEl = $('pulse-gas-value');
+      if (gasEl) gasEl.textContent = safeGwei ? Number(safeGwei).toFixed(4) + ' Gwei' : '—';
+    }
+
+    // Circulating supply
+    if (supplyResult.status === 'fulfilled' && supplyResult.value.ok) {
+      const supplyData = await supplyResult.value.json();
+      const rawSupply = supplyData?.result;
+      const supplyEl = $('pulse-supply-value');
+      if (supplyEl && rawSupply) {
+        const supply = Number(rawSupply) / 1e18;
+        supplyEl.textContent = fmt.large(supply);
+      }
+    }
+
+    // PulseX DEX factory stats
+    if (factoryResult.status === 'fulfilled' && factoryResult.value.ok) {
+      const factoryData = await factoryResult.value.json();
+      const f = factoryData?.data?.uniswapFactories?.[0];
+      if (f) {
+        const tvlEl     = $('pulse-tvl-value');
+        const volEl     = $('pulse-dex-vol-value');
+        const pairsEl   = $('pulse-pairs-value');
+        if (tvlEl)   tvlEl.textContent   = fmt.large(Number(f.totalLiquidityUSD || 0));
+        if (volEl)   volEl.textContent   = fmt.large(Number(f.totalVolumeUSD    || 0));
+        if (pairsEl) pairsEl.textContent = Number(f.pairCount || 0).toLocaleString('en-US');
+      }
+    }
+
+    // Core token price cards — use already-loaded market pairs if available, else fetch
+    await renderPulseTokenPrices();
+
+    setHidden($('pulse-stats-loading'), true);
+    setVisible($('pulse-stats-content'), true);
+  } catch (err) {
+    setHidden($('pulse-stats-loading'), true);
+    const errEl = $('pulse-stats-error');
+    if (errEl) { errEl.textContent = `Failed to load PulseChain stats: ${err.message}`; setVisible(errEl, true); }
+    pulseStatsLoaded = false;
+  }
+}
+
+/** Build and inject the core token price cards into #pulse-price-grid */
+async function renderPulseTokenPrices() {
+  // Ensure market data is loaded
+  if (allMarketPairs.length === 0) {
+    await fetchMarketPairs().catch(() => {});
+  }
+
+  const PULSE_CORE_SYMBOLS = ['PLS', 'PLSX', 'HEX', 'INC', 'PRVX', 'eHex', 'HDRN', 'PLSD', 'MAXI', 'LOAN'];
+  const grid = $('pulse-price-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  let plsPrice = null;
+
+  PULSE_CORE_SYMBOLS.forEach(sym => {
+    const pair = allMarketPairs.find(p =>
+      (p.baseToken?.symbol || '').toUpperCase() === sym.toUpperCase()
+    );
+
+    const price    = pair ? Number(pair.priceUsd || 0) : null;
+    const change   = pair ? pair.priceChange?.h24 : null;
+    const mcap     = pair ? (pair.marketCap || pair.fdv || null) : null;
+    const logoUrl  = pair?.info?.imageUrl || null;
+
+    if (sym === 'PLS' && price) plsPrice = price;
+
+    const { text: chgText, cls: chgCls } = fmt.change(change);
+
+    const card = document.createElement('div');
+    card.className = 'pulse-price-card';
+
+    const logoEl = buildTokenLogo(logoUrl, sym);
+    logoEl.classList.add('pulse-price-logo');
+
+    card.innerHTML = `
+      <div class="pulse-price-card-header"></div>
+      <div class="pulse-price-card-info">
+        <div class="pulse-price-card-sym">${sym}</div>
+        <div class="pulse-price-card-price">${price ? fmt.price(price) : '—'}</div>
+        <div class="pulse-price-card-change ${chgCls}">${chgText}</div>
+        ${mcap ? `<div class="pulse-price-card-mcap">${fmt.large(mcap)}</div>` : ''}
+      </div>`;
+
+    card.querySelector('.pulse-price-card-header').appendChild(logoEl);
+
+    if (pair?.pairAddress) {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () =>
+        window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener'));
+    }
+
+    grid.appendChild(card);
+  });
+
+  // Show PLS price in the network stats section
+  const plsPriceEl = $('pulse-pls-price-value');
+  if (plsPriceEl && plsPrice) plsPriceEl.textContent = fmt.price(plsPrice);
+}
+
+/* ── Crypto/General Stats Tab ─────────────────────────────── */
 
 let statsLoaded = false;
 
