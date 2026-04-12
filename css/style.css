@@ -2890,9 +2890,7 @@ li + li { margin-top: 0.35rem; }
   pointer-events: none;
 }
 
-/* CSS hover still covers the case where mouse stays on the parent */
-.tab-nav-item:hover .tab-dropdown,
-.tab-nav-item:focus-within .tab-dropdown,
+/* Dropdown visibility is controlled exclusively by JS via the dropdown-open class */
 .tab-nav-item.dropdown-open .tab-dropdown {
   opacity: 1;
   visibility: visible;
@@ -3329,6 +3327,54 @@ li + li { margin-top: 0.35rem; }
 ::selection {
   background: var(--primary-bg);
   color: var(--primary);
+}
+
+/* ── Tools Tab ── */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+  padding: 0.25rem 0 2rem;
+}
+
+.tools-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.tools-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary-glow), var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.tools-card-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+
+.tools-card-body h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+  color: var(--text);
+}
+
+.tools-card-body p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* ── Responsive ── */

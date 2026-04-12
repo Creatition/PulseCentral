@@ -287,11 +287,11 @@ const SWAP_DEXES = {
     url:      'https://pulsex.mypinata.cloud/ipfs/bafybeiaq4jgcpz4hdzwid6letizdnhijlp6lu5ivcjcp5vbgpgf54jknn4/',
     openText: 'Open in PulseX ↗',
   },
-  piteas: {
-    label:    'Piteas',
-    subtitle: 'Swap tokens on Piteas — PulseChain\'s DEX aggregator.',
-    url:      'https://piteas.io/',
-    openText: 'Open in Piteas ↗',
+  libertyswap: {
+    label:    'Liberty Swap',
+    subtitle: 'Find the best swap rates on Liberty Swap — PulseChain\'s DEX aggregator.',
+    url:      'https://libertyswap.finance/',
+    openText: 'Open in Liberty Swap ↗',
   },
 };
 
@@ -338,7 +338,20 @@ document.querySelectorAll('[data-swap-dex]').forEach(btn => {
 
 /* ── Dropdown hover: keep open while mouse is on nav item OR dropdown ── */
 (function initDropdownHover() {
-  document.querySelectorAll('.tab-nav-item.has-dropdown').forEach(item => {
+  const allDropdownItems = document.querySelectorAll('.tab-nav-item.has-dropdown');
+
+  function closeAll() {
+    allDropdownItems.forEach(i => i.classList.remove('dropdown-open'));
+  }
+
+  // Close dropdowns when clicking outside any dropdown nav item
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.tab-nav-item.has-dropdown')) {
+      closeAll();
+    }
+  });
+
+  allDropdownItems.forEach(item => {
     let hideTimer = null;
 
     const cancelHide = () => {
@@ -365,6 +378,12 @@ document.querySelectorAll('[data-swap-dex]').forEach(btn => {
     if (dropdown) {
       dropdown.addEventListener('mouseenter', cancelHide);
       dropdown.addEventListener('mouseleave', scheduleHide);
+
+      // Close dropdown when the user clicks a submenu item
+      dropdown.addEventListener('click', () => {
+        cancelHide();
+        item.classList.remove('dropdown-open');
+      });
     }
   });
 })();

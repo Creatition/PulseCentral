@@ -168,10 +168,70 @@ app.get('/api/goplus/*', (req, res) => {
   proxyJson(res, `https://api.gopluslabs.io/${subPath}${qs(req)}`);
 });
 
-// Crypto Fear & Greed Index (alternative.me)
+/** Map a 0–100 Fear & Greed score to a label (used by the /api/fear-greed proxy). */
+function fgLabel(s) {
+  if (s <= 24) return 'Extreme Fear';
+  if (s <= 44) return 'Fear';
+  if (s <= 55) return 'Neutral';
+  if (s <= 74) return 'Greed';
+  return 'Extreme Greed';
+}
+
+// Crypto Fear & Greed Index
+// Tries CoinGlass (public, no auth) first; falls back to alternative.me.
+// Always responds with the alternative.me shape: { data: [{ value, value_classification, timestamp }] }
 // Frontend: /api/fear-greed
-app.get('/api/fear-greed', (req, res) => {
-  proxyJson(res, 'https://api.alternative.me/fng/?limit=1');
+app.get('/api/fear-greed', async (req, res) => {
+  const cacheKey = 'fear-greed';
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
+
+  // --- Helper: fetch with timeout ---
+  async function tryFetch(url, headers = {}) {
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; PulseCentral/1.0)',
+        'Accept':     'application/json',
+        ...headers,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  // --- Source 1: CoinGlass public endpoint (no key required) ---
+  try {
+    const raw = await tryFetch('https://api.coinglass.com/pub/v2/index/fear_greed_history');
+    // CoinGlass shape: { code: "0", data: [{ value, createTime }, ...] }
+    const entry = raw?.data?.[0];
+    if (entry && entry.value != null) {
+      const score = Number(entry.value);
+      // Normalise to the shape the frontend expects
+      const normalised = {
+        data: [{
+          value:                String(score),
+          value_classification: fgLabel(score),
+          timestamp:            String(Math.floor(Date.now() / 1000)),
+        }],
+      };
+      setCached(cacheKey, normalised);
+      return res.json(normalised);
+    }
+  } catch (_) { /* fall through to next source */ }
+
+  // --- Source 2: alternative.me (original) ---
+  try {
+    const raw = await tryFetch('https://api.alternative.me/fng/?limit=1');
+    if (raw?.data?.[0]) {
+      setCached(cacheKey, raw);
+      return res.json(raw);
+    }
+  } catch (_) { /* fall through */ }
+
+  // --- All sources failed ---
+  console.error('[PulseCentral] fear-greed: all upstream sources failed');
+  res.status(502).json({ error: 'Fear & Greed data unavailable' });
 });
 
 // CoinGecko Global Market Data (BTC dominance, total market cap)
