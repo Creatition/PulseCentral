@@ -705,8 +705,8 @@ function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', token
 function renderHomeCoinCards(coinData) {
   const grid = $('home-coins-grid');
   grid.innerHTML = '';
-  coinData.forEach(({ symbol, address, pair, chartBars, chartRes, color }) => {
-    if (symbol === 'eHex') return; // eHex stays as a core coin but is not shown on home page
+  coinData.forEach(({ symbol, address, pair, chartBars, chartRes, color, hideFromHome }) => {
+    if (hideFromHome) return; // coin is a core coin but not displayed on the home page
 
     if (symbol === 'PLS' || symbol === 'WPLS') {
       const card = buildCoinCard(symbol, pair, chartBars || [], chartRes || 'D', color || '#7b2fff', address || '');
