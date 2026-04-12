@@ -741,10 +741,10 @@ function renderTicker(pairs) {
 
   // Measure content width, compute speed, and (re)start the animation from
   // the beginning so the seamless loop works regardless of prior state.
-  // Targets ~320 px/s (4× the original 80 px/s); minimum 5 s.
-  requestAnimationFrame(() => {
-    const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(5, totalWidth / 320);
+    // Targets ~960 px/s (3× the previous 320 px/s, 12× the original 80 px/s); minimum 5 s.
+    requestAnimationFrame(() => {
+      const totalWidth = track.scrollWidth / 2;
+      const speed = Math.max(5, totalWidth / 960);
     _tickerDuration = speed;
     // Force a reflow so the browser registers the animation = none above,
     // then start fresh with the correct duration.
@@ -1866,7 +1866,7 @@ document.querySelectorAll('[data-chart-timeframe]').forEach(btn => {
 /** Aggregate history snapshots for a given time frame. */
 function aggregateByTimeframe(history, timeframe) {
   if (timeframe === 'daily') {
-    return history.slice(-30);
+    return history.slice();
   }
   if (timeframe === 'weekly') {
     const byWeek = new Map();
@@ -1874,7 +1874,7 @@ function aggregateByTimeframe(history, timeframe) {
       const weekKey = getISOWeekStart(snap.date);
       byWeek.set(weekKey, snap); // keep the latest snapshot for each week
     }
-    return [...byWeek.values()].slice(-13);
+    return [...byWeek.values()];
   }
   if (timeframe === 'monthly') {
     const byMonth = new Map();
@@ -1882,7 +1882,7 @@ function aggregateByTimeframe(history, timeframe) {
       const monthKey = snap.date.slice(0, 7); // YYYY-MM
       byMonth.set(monthKey, snap);
     }
-    return [...byMonth.values()].slice(-13);
+    return [...byMonth.values()];
   }
   return history;
 }
