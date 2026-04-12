@@ -76,7 +76,7 @@
   --header-shadow: rgba(0, 200, 83, 0.12);
 }
 
-/* ── Theme: Incentive – bright green / black ── */
+/* ── Theme: Incentive – bright green / gold ── */
 [data-theme="incentive"] {
   --bg:            #07100b;
   --bg-surface:    #0b1810;
@@ -89,8 +89,8 @@
   --primary-glow:  rgba(0, 230, 118, 0.27);
   --primary-dark:  #00b248;
   --primary-bg:    rgba(0, 230, 118, 0.15);
-  --accent:        #000000;
-  --accent-glow:   rgba(0, 0, 0, 0.20);
+  --accent:        #f59e0b;
+  --accent-glow:   rgba(245, 158, 11, 0.22);
   --header-end:    #0a2618;
   --header-shadow: rgba(0, 230, 118, 0.12);
 }
@@ -131,7 +131,7 @@ li + li { margin-top: 0.35rem; }
 }
 
 .ticker-label {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
@@ -275,6 +275,18 @@ li + li { margin-top: 0.35rem; }
   transition: background var(--transition), box-shadow var(--transition);
 }
 
+/* Dual-color gradient accent line at the bottom of the header */
+.site-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--primary) 20%, var(--accent) 80%, transparent 100%);
+  pointer-events: none;
+}
+
 .header-inner {
   max-width: 1280px;
   margin: 0 auto;
@@ -294,9 +306,27 @@ li + li { margin-top: 0.35rem; }
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: filter var(--transition);
 }
+.logo:hover { filter: brightness(1.1); }
 .logo-pulse { color: var(--primary); }
 .logo-central { color: var(--accent); }
+
+/* Logo icon (Central Park SVG) */
+.logo-icon {
+  width: 38px;
+  height: 31px;
+  flex-shrink: 0;
+  display: block;
+}
+.logo-tree-dark  { fill: #0f3d1e; }
+.logo-tree-mid   { fill: #165229; }
+.logo-tree-light { fill: #1e7a3c; opacity: 0.78; }
+.logo-pulse-left  { stroke: var(--primary); }
+.logo-pulse-right { stroke: var(--accent); }
 
 /* Tab navigation */
 .tab-nav {
@@ -322,6 +352,17 @@ li + li { margin-top: 0.35rem; }
   color: var(--primary);
   background: var(--primary-bg);
   box-shadow: 0 0 0 1px var(--primary) inset;
+  position: relative;
+}
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 2px;
 }
 
 .tab-icon { margin-right: 0.3rem; }
@@ -369,7 +410,7 @@ li + li { margin-top: 0.35rem; }
 .btn:active { transform: translateY(0); }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   box-shadow: 0 0 16px var(--primary-glow);
   color: #fff;
 }
@@ -442,6 +483,7 @@ li + li { margin-top: 0.35rem; }
   padding: 1.25rem 1.5rem;
   /* position:relative required for absolutely positioned .summary-currency-toggle */
   position: relative;
+  overflow: hidden;
 }
 .summary-label {
   color: var(--text-muted);
@@ -846,7 +888,23 @@ li + li { margin-top: 0.35rem; }
   cursor: pointer;
   padding: 1.25rem 1.5rem;
   transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  position: relative;
+  overflow: hidden;
 }
+.trending-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: var(--radius) var(--radius) 0 0;
+  opacity: 0;
+  transition: opacity var(--transition);
+  pointer-events: none;
+}
+.trending-card:hover::before { opacity: 1; }
 .trending-card:hover {
   border-color: var(--primary);
   box-shadow: 0 0 20px var(--primary-glow);
@@ -1410,7 +1468,7 @@ li + li { margin-top: 0.35rem; }
 .theme-swatch[data-theme="pulsechain"] { background: linear-gradient(135deg, #7b2fff, #ff2f7b); }
 .theme-swatch[data-theme="hex"]        { background: linear-gradient(135deg, #e8002d, #ff7700); }
 .theme-swatch[data-theme="pulsex"]     { background: linear-gradient(135deg, #00c853, #ff1744); }
-.theme-swatch[data-theme="incentive"]  { background: linear-gradient(135deg, #00e676, #69f0ae); }
+.theme-swatch[data-theme="incentive"]  { background: linear-gradient(135deg, #00e676, #f59e0b); }
 
 /* ── Portfolio Groups ── */
 .portfolio-groups-bar {
@@ -1644,6 +1702,42 @@ li + li { margin-top: 0.35rem; }
 .home-hero {
   text-align: center;
   padding: 3.5rem 1rem 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ambient dual-color orbs behind the hero title */
+.home-hero::before,
+.home-hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(70px);
+  animation: heroOrb 9s ease-in-out infinite;
+}
+.home-hero::before {
+  width: 320px;
+  height: 320px;
+  background: var(--primary-glow);
+  top: -120px;
+  left: calc(50% - 260px);
+  opacity: 0.7;
+}
+.home-hero::after {
+  width: 280px;
+  height: 280px;
+  background: var(--accent-glow);
+  top: -80px;
+  right: calc(50% - 260px);
+  opacity: 0.7;
+  animation-duration: 11s;
+  animation-direction: reverse;
+}
+
+@keyframes heroOrb {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(24px) scale(1.08); }
 }
 
 .home-hero-title {
@@ -1652,11 +1746,15 @@ li + li { margin-top: 0.35rem; }
   letter-spacing: -1px;
   margin-bottom: 0.75rem;
   line-height: 1.1;
+  position: relative;
+  z-index: 1;
 }
 
 .home-hero-subtitle {
   color: var(--text-muted);
   font-size: 1.05rem;
+  position: relative;
+  z-index: 1;
 }
 
 /* Core coin cards grid */
@@ -1697,6 +1795,22 @@ li + li { margin-top: 0.35rem; }
   box-shadow: 0 8px 32px color-mix(in srgb, var(--coin-border-color, #7b2fff) var(--coin-card-hover-glow-pct, 25%), transparent);
 }
 .coin-card:hover::before { opacity: 1; }
+
+/* Dual-color gradient accent line at card top */
+.coin-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: var(--radius) var(--radius) 0 0;
+  opacity: 0.5;
+  transition: opacity var(--transition);
+  pointer-events: none;
+}
+.coin-card:hover::after { opacity: 1; }
 
 .coin-card-header {
   display: flex;
@@ -1842,6 +1956,8 @@ li + li { margin-top: 0.35rem; }
   margin: 0 0 1rem 0;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
 }
 
 /* ── Markets card grid ── */
@@ -2553,6 +2669,67 @@ li + li { margin-top: 0.35rem; }
   color: var(--danger);
   font-size: 0.88rem;
   padding: 1rem 0;
+}
+
+/* ── Dual-color enhancements: summary cards ── */
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* ── Dual-color enhancement: market cards gradient top ── */
+.market-card {
+  position: relative;
+  overflow: hidden;
+}
+.market-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: var(--radius) var(--radius) 0 0;
+  opacity: 0;
+  transition: opacity var(--transition);
+  pointer-events: none;
+}
+.market-card:hover::before { opacity: 1; }
+
+/* ── Dual-color: markets sections accent ── */
+.markets-section-label::before {
+  content: '';
+  display: block;
+  flex-shrink: 0;
+  width: 3px;
+  height: 1em;
+  background: linear-gradient(180deg, var(--primary), var(--accent));
+  border-radius: 2px;
+  margin-right: 0.6rem;
+  align-self: center;
+}
+
+/* ── Custom scrollbar (Webkit) ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--primary), var(--accent));
+  border-radius: 4px;
+  border: 1px solid var(--bg-surface);
+}
+::-webkit-scrollbar-thumb:hover { filter: brightness(1.2); }
+
+/* ── Text selection color ── */
+::selection {
+  background: var(--primary-bg);
+  color: var(--primary);
 }
 
 /* ── Responsive ── */
