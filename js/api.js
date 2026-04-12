@@ -193,6 +193,41 @@ const API = (() => {
   }
 
   /**
+   * Aggregate an array of daily OHLCV bars into weekly bars (ISO weeks, Monday start).
+   * open = first day's open, high/low = extremes across the week,
+   * close = last day's close, volume = sum, time = Monday's midnight UTC timestamp.
+   * @param {Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>} dailyBars
+   * @returns {Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>}
+   */
+  function aggregateDailyToWeekly(dailyBars) {
+    if (!dailyBars || dailyBars.length === 0) return [];
+    // Sort ascending by time so that the first/last bars within each week are correct.
+    const sorted = [...dailyBars].sort((a, b) => a.time - b.time);
+    const weeks = new Map();
+    for (const bar of sorted) {
+      const d = new Date(bar.time);
+      // Map any weekday back to the previous (or same) Monday.
+      // Sunday (0) → subtract 6, Monday (1) → subtract 0, …, Saturday (6) → subtract 5.
+      const dow = d.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+      const daysToMonday = (dow + 6) % 7;
+      const monday = new Date(d);
+      monday.setUTCDate(d.getUTCDate() - daysToMonday);
+      monday.setUTCHours(0, 0, 0, 0);
+      const weekKey = monday.getTime();
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, { time: weekKey, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume });
+      } else {
+        const w = weeks.get(weekKey);
+        w.high   = Math.max(w.high, bar.high);
+        w.low    = Math.min(w.low, bar.low);
+        w.close  = bar.close; // sorted ascending, so last iteration is the week's final day
+        w.volume += bar.volume;
+      }
+    }
+    return [...weeks.entries()].sort((a, b) => a[0] - b[0]).map(([, bar]) => bar);
+  }
+
+  /**
    * Fetch daily token price history from the PulseX V1 subgraph (The Graph).
    * Returns full daily bars from PulseChain launch (May 2023) to present.
    * Normalised to the OHLCV shape expected by buildDetailedChartSvg.
@@ -844,9 +879,9 @@ const API = (() => {
       const LAUNCH_WINDOW_END_MS = (PULSECHAIN_LAUNCH_TS + 90 * 86_400) * 1000;
       const oldestBarTime = subgraphBars.length > 0 ? subgraphBars[0].time : Infinity;
       if (subgraphBars.length >= 3 && oldestBarTime <= LAUNCH_WINDOW_END_MS) {
-        // Subgraph returns daily close prices — always use 'D' resolution so
-        // axis labels render as month+year over the full history span.
-        return { bars: subgraphBars, resolution: 'D' };
+        // Aggregate daily bars into weekly bars so charts display in weekly time frames.
+        const weeklyBars = aggregateDailyToWeekly(subgraphBars);
+        return { bars: weeklyBars, resolution: 'W' };
       }
     }
 
