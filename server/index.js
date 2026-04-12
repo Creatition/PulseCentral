@@ -109,11 +109,41 @@ app.get('/api/dex/*', (req, res) => {
 });
 
 // DexScreener chart / OHLCV API  (io.dexscreener.com)
-// Frontend: /api/dex-io/dex/chart/amm/v3/pulsechain/<pairAddr>?res=D&cb=0
+// Frontend: /api/dex-io/dex/chart/amm/v2/pulsechain/<pairAddr>?res=W&from=…&cb=0
 app.get('/api/dex-io/*', (req, res) => {
   const subPath = sanitisePath(req.params[0]);
   if (subPath === null) return res.status(400).json({ error: 'Invalid path' });
   proxyJson(res, `https://io.dexscreener.com/${subPath}${qs(req)}`);
+});
+
+// PulseX V1 subgraph (The Graph) — GraphQL POST endpoint for full price history
+// Frontend: POST /api/graph/pulsex  body: { query: "{ tokenDayDatas(…) { … } }" }
+app.post('/api/graph/pulsex', express.json({ limit: '16kb' }), async (req, res) => {
+  const query = req.body?.query;
+  if (typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'Missing or invalid GraphQL query' });
+  }
+  const PULSEX_GRAPH = 'https://graph.v2b.pulsechain.com/subgraphs/name/pulsechain/v2b-pulsex';
+  try {
+    const upstream = await fetch(PULSEX_GRAPH, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept':        'application/json',
+        'User-Agent':    'Mozilla/5.0 (compatible; PulseCentral/1.0)',
+      },
+      body:   JSON.stringify({ query }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: `Upstream returned HTTP ${upstream.status}` });
+    }
+    const data = await upstream.json();
+    res.json(data);
+  } catch (err) {
+    console.error('[PulseCentral proxy] PulseX graph:', err.message);
+    res.status(502).json({ error: 'Proxy request failed', detail: err.message });
+  }
 });
 
 // DexTools shared-data pair API

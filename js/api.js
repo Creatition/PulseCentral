@@ -12,8 +12,19 @@ const API = (() => {
   /** DexScreener API base URL — routed through local proxy */
   const DSX_BASE = '/api/dex/latest/dex';
 
-  /** DexScreener chart / OHLCV API base URL — routed through local proxy */
-  const DSX_CHART_BASE = '/api/dex-io/dex/chart/amm/v3/pulsechain';
+  /**
+   * DexScreener chart / OHLCV API base URLs — routed through local proxy.
+   * PulseX V1 is a Uniswap V2-style AMM (constant product).  Try v2 first
+   * and fall back to v3 in case the pair is on a concentrated-liquidity fork.
+   */
+  const DSX_CHART_BASE_V2 = '/api/dex-io/dex/chart/amm/v2/pulsechain';
+  const DSX_CHART_BASE_V3 = '/api/dex-io/dex/chart/amm/v3/pulsechain';
+
+  /** Unix timestamp (seconds) of PulseChain mainnet launch — 12 May 2023 */
+  const PULSECHAIN_LAUNCH_TS = 1683849600;
+
+  /** PulseX V1 subgraph proxy endpoint */
+  const PULSEX_GRAPH_URL = '/api/graph/pulsex';
 
   /** DexTools shared-data API base URL — routed through local proxy */
   const DEXTOOLS_BASE = '/api/dextools';
@@ -154,6 +165,72 @@ const API = (() => {
       return await res.json();
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /**
+   * POST a JSON body to a URL with a configurable timeout and return the response JSON.
+   * @param {string} url
+   * @param {object} body
+   * @param {number} [timeoutMs=15000]
+   * @returns {Promise<any>}
+   */
+  async function postJSON(url, body, timeoutMs = 15000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+        signal:  controller.signal,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Fetch daily token price history from the PulseX V1 subgraph (The Graph).
+   * Returns full daily bars from PulseChain launch (May 2023) to present.
+   * Normalised to the OHLCV shape expected by buildDetailedChartSvg.
+   * @param {string} tokenAddress  Token contract address (0x-prefixed)
+   * @returns {Promise<Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>>}
+   */
+  async function fetchPulseXTokenHistory(tokenAddress) {
+    const addr = tokenAddress.toLowerCase();
+    const query = `{
+      tokenDayDatas(
+        first: 1000
+        orderBy: date
+        orderDirection: asc
+        where: { token: "${addr}" }
+      ) {
+        date
+        priceUSD
+        dailyVolumeUSD
+      }
+    }`;
+    try {
+      const result = await postJSON(PULSEX_GRAPH_URL, { query }, 20000);
+      const rows = result?.data?.tokenDayDatas || [];
+      return rows
+        .map(d => {
+          const price = Number(d.priceUSD || 0);
+          return {
+            time:   Number(d.date) * 1000,
+            open:   price,
+            high:   price,
+            low:    price,
+            close:  price,
+            volume: Number(d.dailyVolumeUSD || 0),
+          };
+        })
+        .filter(b => b.time > 0 && b.close > 0);
+    } catch {
+      return [];
     }
   }
 
@@ -638,36 +715,60 @@ const API = (() => {
    * of DexScreener's proprietary trendingScoreH6 — it uses (h6 buys + h6 sells)
    * as a publicly available proxy that correlates with recent trading momentum.
    * Mirrors the spirit of: https://dexscreener.com/pulsechain?rankBy=trendingScoreH6&order=desc
+   *
+   * In addition to the profile/boost/KNOWN_TOKENS approach, this now also
+   * queries the DexScreener search endpoint for several popular PulseChain
+   * token symbols to widen the candidate pool and reliably surface 25+ tokens.
    * @returns {Promise<object[]>}
    */
   async function getTrendingPairs() {
     const profileAddresses = [];
-    try {
-      const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
-        fetchJSON('/api/dex/token-profiles/latest/v1'),
-        fetchJSON('/api/dex/token-boosts/latest/v1'),
-        fetchJSON('/api/dex/token-boosts/top/v1'),
-      ]);
-      if (profiles.status === 'fulfilled') {
-        (profiles.value || [])
-          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-          .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-      if (latestBoosts.status === 'fulfilled') {
-        (latestBoosts.value || [])
-          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-          .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-      if (topBoosts.status === 'fulfilled') {
-        (topBoosts.value || [])
-          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-          .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-    } catch (_) {
-      // Non-fatal – fall back to KNOWN_TOKENS only
+
+    // Search terms that reliably surface active PulseChain pairs on DexScreener.
+    const SEARCH_TERMS = ['PLS', 'PLSX', 'HEX', 'INC', '9MM', 'PLSB'];
+
+    const [profiles, latestBoosts, topBoosts, ...searchResults] = await Promise.allSettled([
+      fetchJSON('/api/dex/token-profiles/latest/v1'),
+      fetchJSON('/api/dex/token-boosts/latest/v1'),
+      fetchJSON('/api/dex/token-boosts/top/v1'),
+      ...SEARCH_TERMS.map(q => fetchJSON(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)),
+    ]);
+
+    if (profiles.status === 'fulfilled') {
+      (profiles.value || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
+    }
+    if (latestBoosts.status === 'fulfilled') {
+      (latestBoosts.value || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
+    }
+    if (topBoosts.status === 'fulfilled') {
+      (topBoosts.value || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
     }
 
-    const seen = new Set();
+    // Collect direct pair objects from search results (PulseChain only).
+    // Keyed by baseToken address; keep the most-liquid pair per token.
+    const searchPairs = new Map();
+    for (const result of searchResults) {
+      if (result.status !== 'fulfilled') continue;
+      for (const p of (result.value?.pairs || [])) {
+        if (p.chainId !== 'pulsechain' || !p.baseToken?.address) continue;
+        const addr = p.baseToken.address.toLowerCase();
+        const existing = searchPairs.get(addr);
+        const liq = Number(p.liquidity?.usd || 0);
+        if (!existing || liq > Number(existing.liquidity?.usd || 0)) {
+          searchPairs.set(addr, p);
+        }
+      }
+    }
+
+    // Build the address list for the standard token lookup, skipping tokens
+    // already retrieved from search results.
+    const seen = new Set(searchPairs.keys());
     const allAddresses = [];
     for (const addr of [...profileAddresses, ...KNOWN_TOKENS.map(t => t.address)]) {
       const lower = addr.toLowerCase();
@@ -678,6 +779,12 @@ const API = (() => {
     }
 
     const rawMap = await getPairsByAddresses(allAddresses);
+
+    // Merge: rawMap is authoritative for core/known tokens (CORE_PAIR_OVERRIDES
+    // applied inside); search results fill in any extra tokens not in rawMap.
+    for (const [addr, pair] of searchPairs) {
+      if (!rawMap.has(addr)) rawMap.set(addr, pair);
+    }
 
     // Sort by 6-hour transaction count (buys + sells) as trendingScoreH6 proxy
     return [...rawMap.values()].sort((a, b) => {
@@ -698,29 +805,63 @@ const API = (() => {
   }
 
   /**
-   * Fetch OHLCV chart bars for a single core coin from the DexScreener chart API.
-   * Returns an empty array on any error so callers can fall back gracefully.
-   * @param {string} pairAddress  DEX pair contract address
-   * @param {string} resolution   DexScreener chart resolution string ('D', '60', etc.)
-   * @returns {Promise<Array<{time:number, open:number, high:number, low:number, close:number, volume:number}>>}
+   * Fetch OHLCV chart bars for a single core coin.
+   * Strategy (in order of preference):
+   *  1. PulseX V1 subgraph — full daily history from PulseChain launch (May 2023).
+   *  2. DexScreener io API with amm/v2 path (PulseX V1 is a V2-style AMM).
+   *  3. DexScreener io API with amm/v3 path (fallback for concentrated-liquidity forks).
+   * Returns an empty array when all sources fail so callers degrade gracefully.
+   * @param {string} pairAddress   DEX pair contract address
+   * @param {string} resolution    DexScreener chart resolution string ('W', 'D', '60', etc.)
+   * @param {string} [tokenAddress] Token contract address — enables subgraph lookup
+   * @returns {Promise<Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>>}
    */
-  async function getCoreCoinChartBars(pairAddress, resolution) {
-    const url = `${DSX_CHART_BASE}/${pairAddress}?res=${resolution}&cb=0`;
-    try {
-      const data = await fetchJSON(url, 10000);
-      const rawBars = data?.bars || [];
-      // Normalise both {time,open,...} and {t,o,...} field name conventions
-      return rawBars.map(b => ({
-        time:   b.time   ?? b.t ?? 0,
-        open:   b.open   ?? b.o ?? 0,
-        high:   b.high   ?? b.h ?? 0,
-        low:    b.low    ?? b.l ?? 0,
-        close:  b.close  ?? b.c ?? 0,
-        volume: b.volume ?? b.v ?? 0,
-      })).filter(b => b.time > 0);
-    } catch {
-      return [];
+  async function getCoreCoinChartBars(pairAddress, resolution, tokenAddress) {
+    // ── 1. PulseX subgraph (preferred — full history since May 2023) ──────
+    if (tokenAddress) {
+      const subgraphBars = await fetchPulseXTokenHistory(tokenAddress);
+      if (subgraphBars.length >= 3) {
+        // Subgraph returns daily close prices — always use 'D' resolution so
+        // axis labels render as month+year over the full history span.
+        return { bars: subgraphBars, resolution: 'D' };
+      }
     }
+
+    // ── Helper: normalise a bars array from the DexScreener chart response ─
+    function normaliseDsxBars(rawBars) {
+      return rawBars
+        .map(b => ({
+          time:   b.time   ?? b.t ?? 0,
+          open:   b.open   ?? b.o ?? 0,
+          high:   b.high   ?? b.h ?? 0,
+          low:    b.low    ?? b.l ?? 0,
+          close:  b.close  ?? b.c ?? 0,
+          volume: b.volume ?? b.v ?? 0,
+        }))
+        .filter(b => b.time > 0);
+    }
+
+    // Build DexScreener chart URL — request all history from PulseChain launch.
+    // Use the caller-supplied resolution; fall back to 'W' (weekly) if not
+    // specified since weekly bars maximise the time span per API call.
+    const res = resolution || 'W';
+    const dsxParams = `?res=${res}&from=${PULSECHAIN_LAUNCH_TS}&cb=0`;
+
+    // ── 2. DexScreener amm/v2 (PulseX V1 = Uniswap V2 fork) ─────────────
+    try {
+      const data = await fetchJSON(`${DSX_CHART_BASE_V2}/${pairAddress}${dsxParams}`, 10000);
+      const bars = normaliseDsxBars(data?.bars || []);
+      if (bars.length >= 2) return { bars, resolution: res };
+    } catch { /* fall through */ }
+
+    // ── 3. DexScreener amm/v3 (concentrated-liquidity fallback) ──────────
+    try {
+      const data = await fetchJSON(`${DSX_CHART_BASE_V3}/${pairAddress}${dsxParams}`, 10000);
+      const bars = normaliseDsxBars(data?.bars || []);
+      if (bars.length > 0) return { bars, resolution: res };
+    } catch { /* fall through */ }
+
+    return { bars: [], resolution: res };
   }
 
   /**
@@ -735,10 +876,11 @@ const API = (() => {
     const pairAddresses = CORE_COINS.map(c => c.pairAddress).filter(Boolean);
     const url = `${DSX_BASE}/pairs/pulsechain/${pairAddresses.join(',')}`;
 
-    // Fetch price data and OHLCV bars in parallel
+    // Fetch price data and OHLCV bars in parallel.
+    // Pass tokenAddress so getCoreCoinChartBars can try the subgraph first.
     const [pairData, ...chartResults] = await Promise.all([
       fetchJSON(url).catch(err => { console.warn('[PulseCentral] getCoreCoinPairs failed:', err); return {}; }),
-      ...CORE_COINS.map(c => getCoreCoinChartBars(c.pairAddress, c.chartRes)),
+      ...CORE_COINS.map(c => getCoreCoinChartBars(c.pairAddress, c.chartRes, c.address)),
     ]);
 
     const pairsById = new Map();
@@ -748,14 +890,17 @@ const API = (() => {
       }
     }
 
-    return CORE_COINS.map((coin, i) => ({
-      symbol:   coin.symbol,
-      address:  coin.address,
-      pair:     pairsById.get(coin.pairAddress.toLowerCase()) || null,
-      chartBars: chartResults[i] || [],
-      chartRes:  coin.chartRes,
-      color:     coin.color,
-    }));
+    return CORE_COINS.map((coin, i) => {
+      const { bars, resolution } = chartResults[i] || { bars: [], resolution: coin.chartRes };
+      return {
+        symbol:    coin.symbol,
+        address:   coin.address,
+        pair:      pairsById.get(coin.pairAddress.toLowerCase()) || null,
+        chartBars: bars,
+        chartRes:  resolution,
+        color:     coin.color,
+      };
+    });
   }
 
   /* ── Enhanced Market Data API ───────────────────────────── */

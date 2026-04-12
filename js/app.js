@@ -717,6 +717,9 @@ function buildTickerItem(pair, rank) {
 function renderTicker(pairs) {
   const track = $('ticker-track');
   if (!track) return;
+
+  // Stop animation before clearing so there's no flash mid-scroll.
+  track.style.animation = 'none';
   track.innerHTML = '';
 
   // Limit to top 25 tokens
@@ -736,13 +739,17 @@ function renderTicker(pairs) {
   }
   track.appendChild(fragment);
 
-  // Adjust animation speed based on content width so scroll feels consistent.
-  // Targets ~800 px/s; minimum 5 s.
+  // Measure content width, compute speed, and (re)start the animation from
+  // the beginning so the seamless loop works regardless of prior state.
+  // Targets ~80 px/s; minimum 5 s.
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = Math.max(5, totalWidth / 800);
-    track.style.animationDuration = `${speed}s`;
+    const speed = Math.max(5, totalWidth / 80);
     _tickerDuration = speed;
+    // Force a reflow so the browser registers the animation = none above,
+    // then start fresh with the correct duration.
+    void track.offsetWidth;
+    track.style.animation = `ticker-scroll ${speed}s linear infinite`;
   });
 }
 
