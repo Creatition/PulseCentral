@@ -837,7 +837,13 @@ const API = (() => {
     // ── 1. PulseX subgraph (preferred — full history since May 2023) ──────
     if (tokenAddress) {
       const subgraphBars = await fetchPulseXTokenHistory(tokenAddress);
-      if (subgraphBars.length >= 3) {
+      // Only trust subgraph data when it reaches back close to PulseChain
+      // launch (within 90 days).  If the subgraph is a fresh deployment with
+      // only a few recent days indexed, its oldest bar will be far from launch
+      // and we fall through to DexScreener which has the real long-term history.
+      const LAUNCH_WINDOW_END_MS = (PULSECHAIN_LAUNCH_TS + 90 * 86_400) * 1000;
+      const oldestBarTime = subgraphBars.length > 0 ? subgraphBars[0].time : Infinity;
+      if (subgraphBars.length >= 3 && oldestBarTime <= LAUNCH_WINDOW_END_MS) {
         // Subgraph returns daily close prices — always use 'D' resolution so
         // axis labels render as month+year over the full history span.
         return { bars: subgraphBars, resolution: 'D' };
