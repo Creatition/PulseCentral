@@ -244,16 +244,67 @@ function switchTab(name) {
     renderPortfolioQuickSelect();
     autoLoadLastPortfolio();
   }
-  if (name === 'swap') initSwapIframe();
+  if (name === 'swap')  initSwapIframe();
+  if (name === 'stats') loadStats();
 }
 
+/* ── Swap DEX switcher ───────────────────────────────────── */
+
+const SWAP_DEXES = {
+  pulsex: {
+    label:    'PulseX',
+    subtitle: 'Trade tokens on PulseX — PulseChain\'s native DEX.',
+    url:      'https://pulsex.mypinata.cloud/ipfs/bafybeiaq4jgcpz4hdzwid6letizdnhijlp6lu5ivcjcp5vbgpgf54jknn4/',
+    openText: 'Open in PulseX ↗',
+  },
+  piteas: {
+    label:    'Piteas',
+    subtitle: 'Swap tokens on Piteas — PulseChain\'s DEX aggregator.',
+    url:      'https://piteas.io/',
+    openText: 'Open in Piteas ↗',
+  },
+};
+
+let activeDex      = 'pulsex';
 let swapIframeInit = false;
-function initSwapIframe() {
-  if (swapIframeInit) return;
+
+function initSwapIframe(dex) {
+  const key  = dex || activeDex;
+  const info = SWAP_DEXES[key] || SWAP_DEXES.pulsex;
+
+  // Update header text and open-link
+  const titleEl    = $('swap-dex-title');
+  const subtitleEl = $('swap-dex-subtitle');
+  const linkEl     = $('swap-open-link');
+  if (titleEl)    titleEl.textContent     = info.label;
+  if (subtitleEl) subtitleEl.textContent  = info.subtitle;
+  if (linkEl) {
+    linkEl.href        = info.url;
+    linkEl.textContent = info.openText;
+  }
+
+  // Only (re-)load the iframe when the DEX actually changes
+  const iframe = $('swap-iframe');
+  if (iframe && iframe.src !== info.url) {
+    iframe.src = info.url;
+  }
+
   swapIframeInit = true;
-  // Iframe loads immediately (no lazy attribute). The "Open in PulseX ↗" link
-  // in the tab header serves as the fallback if the browser blocks embedding.
+  activeDex      = key;
+
+  // Reflect active state in dropdown items
+  document.querySelectorAll('[data-swap-dex]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.swapDex === key);
+  });
 }
+
+// Wire swap dropdown item clicks
+document.querySelectorAll('[data-swap-dex]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    switchTab('swap');
+    initSwapIframe(btn.dataset.swapDex);
+  });
+});
 
 /**
  * Automatically load the last saved wallet or group when the portfolio tab is opened,
@@ -3794,3 +3845,187 @@ document.addEventListener('keydown', e => {
 document.querySelectorAll('.td-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTokenDetailsTab(btn.dataset.tdTab));
 });
+
+/* ── Stats Tab ───────────────────────────────────────────── */
+
+let statsLoaded = false;
+
+/**
+ * Map a 0-100 score to a gauge arc path and needle angle.
+ * The arc spans a half-circle from left (0%) to right (100%).
+ * Arc total length for r=80 semicircle ≈ 251.
+ */
+function applyGauge(arcId, needleId, score) {
+  const ARC_LEN = 251;
+  const arc     = document.getElementById(arcId);
+  const needle  = document.getElementById(needleId);
+  if (!arc || !needle) return;
+  const pct     = Math.max(0, Math.min(100, score)) / 100;
+  arc.setAttribute('stroke-dasharray', `${(pct * ARC_LEN).toFixed(1)} ${ARC_LEN}`);
+  // Needle: -90° (left) → +90° (right) over score 0–100
+  const deg = -90 + pct * 180;
+  needle.style.transform = `rotate(${deg}deg)`;
+}
+
+/** Return a colour for a 0-100 Fear & Greed score */
+function fgColor(score) {
+  if (score <= 24)  return '#ef4444'; // extreme fear
+  if (score <= 44)  return '#f97316'; // fear
+  if (score <= 55)  return '#eab308'; // neutral
+  if (score <= 74)  return '#84cc16'; // greed
+  return '#22c55e';                   // extreme greed
+}
+
+/** Return a label for a 0-100 Fear & Greed score */
+function fgText(score) {
+  if (score <= 24)  return 'Extreme Fear';
+  if (score <= 44)  return 'Fear';
+  if (score <= 55)  return 'Neutral';
+  if (score <= 74)  return 'Greed';
+  return 'Extreme Greed';
+}
+
+/** Return a colour for an altcoin season score */
+function asColor(score) {
+  if (score <= 25)  return '#f7931a'; // bitcoin season
+  if (score <= 49)  return '#eab308'; // leaning BTC
+  if (score <= 74)  return '#84cc16'; // leaning alts
+  return '#22c55e';                   // altcoin season
+}
+
+/** Return a label for an altcoin season score */
+function asText(score) {
+  if (score <= 25)  return 'Bitcoin Season';
+  if (score <= 49)  return 'Leaning Bitcoin';
+  if (score <= 74)  return 'Leaning Altcoins';
+  return 'Altcoin Season';
+}
+
+async function loadStats() {
+  if (statsLoaded) return;
+  statsLoaded = true;
+
+  setVisible($('stats-loading'), true);
+  setHidden($('stats-error'),   true);
+  setHidden($('stats-content'), true);
+
+  try {
+    const [fngRes, globalRes] = await Promise.all([
+      fetch('/api/fear-greed'),
+      fetch('/api/coingecko/global'),
+    ]);
+
+    if (!fngRes.ok)    throw new Error(`Fear & Greed API error (${fngRes.status})`);
+    if (!globalRes.ok) throw new Error(`CoinGecko API error (${globalRes.status})`);
+
+    const fngData    = await fngRes.json();
+    const globalData = await globalRes.json();
+
+    renderFearGreed(fngData);
+    renderGlobalStats(globalData);
+
+    setHidden($('stats-loading'), true);
+    setVisible($('stats-content'), true);
+  } catch (err) {
+    setHidden($('stats-loading'), true);
+    const errEl = $('stats-error');
+    errEl.textContent = `Failed to load stats: ${err.message}`;
+    setVisible(errEl, true);
+    statsLoaded = false; // allow retry on next tab visit
+  }
+}
+
+function renderFearGreed(data) {
+  const entry = data?.data?.[0];
+  if (!entry) return;
+
+  const score    = Number(entry.value);
+  const apiLabel = entry.value_classification || fgText(score);
+  const updated  = entry.timestamp
+    ? new Date(Number(entry.timestamp) * 1000).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+    : '';
+
+  const color = fgColor(score);
+
+  // Update value & label
+  const valEl = $('fg-value');
+  const lblEl = $('fg-label');
+  if (valEl) { valEl.textContent = score; valEl.style.color = color; }
+  if (lblEl) { lblEl.textContent = apiLabel; lblEl.style.color = color; }
+
+  // Gauge arc color
+  const arcEl = document.getElementById('fg-gauge-arc');
+  if (arcEl) arcEl.style.stroke = color;
+
+  applyGauge('fg-gauge-arc', 'fg-gauge-needle', score);
+
+  const metaEl = $('fg-meta');
+  if (metaEl && updated) metaEl.textContent = `Updated ${updated}`;
+}
+
+function renderGlobalStats(data) {
+  const g = data?.data;
+  if (!g) return;
+
+  // ── Altcoin Season ──────────────────────────────────────
+  const btcDom = Number(g.market_cap_percentage?.btc || 0);
+  // Score: 100 at 25% BTC dom, 50 at 50% BTC dom, 0 at 75% BTC dom
+  const asScore = Math.max(0, Math.min(100, Math.round(100 - (btcDom - 25) * 2)));
+  const asColorVal = asColor(asScore);
+
+  const asValEl = $('as-value');
+  const asLblEl = $('as-label');
+  if (asValEl) { asValEl.textContent = asScore; asValEl.style.color = asColorVal; }
+  if (asLblEl) { asLblEl.textContent = asText(asScore); asLblEl.style.color = asColorVal; }
+
+  const asArcEl = document.getElementById('as-gauge-arc');
+  if (asArcEl) asArcEl.style.stroke = asColorVal;
+
+  applyGauge('as-gauge-arc', 'as-gauge-needle', asScore);
+
+  const asMeta = $('as-meta');
+  if (asMeta) asMeta.textContent = `BTC dominance: ${btcDom.toFixed(1)}%`;
+
+  // ── BTC Dominance bars ──────────────────────────────────
+  const ethDom    = Number(g.market_cap_percentage?.eth    || 0);
+  const othersDom = Math.max(0, 100 - btcDom - ethDom);
+
+  const btcDomVal   = $('btc-dom-value');
+  const ethDomVal   = $('eth-dom-value');
+  const othersDomVal = $('others-dom-value');
+  const btcBar      = $('btc-dom-bar');
+  const ethBar      = $('eth-dom-bar');
+  const othersBar   = $('others-dom-bar');
+
+  if (btcDomVal)    btcDomVal.textContent    = `${btcDom.toFixed(1)}%`;
+  if (ethDomVal)    ethDomVal.textContent    = `${ethDom.toFixed(1)}%`;
+  if (othersDomVal) othersDomVal.textContent = `${othersDom.toFixed(1)}%`;
+  if (btcBar)       btcBar.style.width       = `${btcDom.toFixed(1)}%`;
+  if (ethBar)       ethBar.style.width       = `${ethDom.toFixed(1)}%`;
+  if (othersBar)    othersBar.style.width    = `${othersDom.toFixed(1)}%`;
+
+  // ── Total Market Cap ────────────────────────────────────
+  const totalMcap  = Number(g.total_market_cap?.usd || 0);
+  const mcapChange = Number(g.market_cap_change_percentage_24h_usd || 0);
+  const btcMcap    = Number(g.total_market_cap?.btc || 0) * Number(g.market_cap_percentage?.btc || 0) / 100;
+  const ethMcap    = totalMcap * (ethDom / 100);
+  const activeCryptos = Number(g.active_cryptocurrencies || 0);
+
+  const mcapValEl    = $('total-mcap-value');
+  const mcapChgEl    = $('total-mcap-change');
+  const btcMcapEl    = $('btc-mcap-value');
+  const ethMcapEl    = $('eth-mcap-value');
+  const activeCryEl  = $('active-cryptos-value');
+
+  if (mcapValEl)  mcapValEl.textContent  = fmt.large(totalMcap);
+  if (btcMcapEl)  btcMcapEl.textContent  = fmt.large(totalMcap * (btcDom / 100));
+  if (ethMcapEl)  ethMcapEl.textContent  = fmt.large(ethMcap);
+  if (activeCryEl) activeCryEl.textContent = activeCryptos.toLocaleString('en-US');
+
+  if (mcapChgEl) {
+    const { text, cls } = fmt.change(mcapChange);
+    mcapChgEl.innerHTML = `24h: <span class="${cls}">${text}</span>`;
+  }
+}

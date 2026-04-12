@@ -168,6 +168,18 @@ app.get('/api/goplus/*', (req, res) => {
   proxyJson(res, `https://api.gopluslabs.io/${subPath}${qs(req)}`);
 });
 
+// Crypto Fear & Greed Index (alternative.me)
+// Frontend: /api/fear-greed
+app.get('/api/fear-greed', (req, res) => {
+  proxyJson(res, 'https://api.alternative.me/fng/?limit=1');
+});
+
+// CoinGecko Global Market Data (BTC dominance, total market cap)
+// Frontend: /api/coingecko/global
+app.get('/api/coingecko/global', (req, res) => {
+  proxyJson(res, 'https://api.coingecko.com/api/v3/global');
+});
+
 /* ── Static file serving ─────────────────────────────────────── */
 
 // Serve the entire repo root (index.html, js/, css/, assets/)
