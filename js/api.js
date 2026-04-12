@@ -201,37 +201,54 @@ const API = (() => {
    */
   async function fetchPulseXTokenHistory(tokenAddress) {
     const addr = tokenAddress.toLowerCase();
-    const query = `{
-      tokenDayDatas(
-        first: 1000
-        orderBy: date
-        orderDirection: asc
-        where: { token: "${addr}" }
-      ) {
-        date
-        priceUSD
-        dailyVolumeUSD
+    let allRows = [];
+    let lastDate = 0;
+
+    // Paginate through all daily data — the subgraph caps at 1000 per query
+    let hasMoreData = true;
+    while (hasMoreData) {
+      const query = `{
+        tokenDayDatas(
+          first: 1000
+          orderBy: date
+          orderDirection: asc
+          where: { token: "${addr}", date_gt: ${lastDate} }
+        ) {
+          date
+          priceUSD
+          dailyVolumeUSD
+        }
+      }`;
+      try {
+        const result = await postJSON(PULSEX_GRAPH_URL, { query }, 20000);
+        const rows = result?.data?.tokenDayDatas || [];
+        if (rows.length === 0) { hasMoreData = false; break; }
+
+        allRows = allRows.concat(rows);
+        lastDate = Number(rows[rows.length - 1].date);
+
+        // If we got fewer than 1000, we've reached the end
+        if (rows.length < 1000) hasMoreData = false;
+      } catch (err) {
+        // If a page fails, return whatever we've collected so far
+        console.error('[fetchPulseXTokenHistory] pagination error:', err);
+        hasMoreData = false;
       }
-    }`;
-    try {
-      const result = await postJSON(PULSEX_GRAPH_URL, { query }, 20000);
-      const rows = result?.data?.tokenDayDatas || [];
-      return rows
-        .map(d => {
-          const price = Number(d.priceUSD || 0);
-          return {
-            time:   Number(d.date) * 1000,
-            open:   price,
-            high:   price,
-            low:    price,
-            close:  price,
-            volume: Number(d.dailyVolumeUSD || 0),
-          };
-        })
-        .filter(b => b.time > 0 && b.close > 0);
-    } catch {
-      return [];
     }
+
+    return allRows
+      .map(d => {
+        const price = Number(d.priceUSD || 0);
+        return {
+          time:   Number(d.date) * 1000,
+          open:   price,
+          high:   price,
+          low:    price,
+          close:  price,
+          volume: Number(d.dailyVolumeUSD || 0),
+        };
+      })
+      .filter(b => b.time > 0 && b.close > 0);
   }
 
   /**
