@@ -138,18 +138,48 @@ const API = (() => {
   /* ── Helpers ────────────────────────────────────────────── */
 
   /**
+   * When a request targets a local proxy route, return the equivalent direct
+   * upstream URL so the browser can fall back to calling the API itself when
+   * the proxy is unavailable or blocked.  Returns null for non-proxy URLs.
+   * @param {string} url
+   * @returns {string|null}
+   */
+  function resolveProxyFallback(url) {
+    if (url.startsWith('/api/dex/'))
+      return 'https://api.dexscreener.com/' + url.slice('/api/dex/'.length);
+    if (url.startsWith('/api/dex-io/'))
+      return 'https://io.dexscreener.com/' + url.slice('/api/dex-io/'.length);
+    if (url.startsWith('/api/scan-v2/'))
+      return 'https://scan.pulsechain.com/api/v2/' + url.slice('/api/scan-v2/'.length);
+    if (url === '/api/scan' || url.startsWith('/api/scan?'))
+      return 'https://api.scan.pulsechain.com/api' + url.slice('/api/scan'.length);
+    return null;
+  }
+
+  /**
    * Fetch JSON from a URL with a configurable timeout.
+   * If the URL is a local proxy route and the request fails for any reason,
+   * automatically retries against the upstream API directly (proxy fallback).
+   * The fallback is attempted at most once: direct URLs have no proxy mapping so
+   * resolveProxyFallback returns null and no further recursion occurs.
    * @param {string} url
    * @param {number} [timeoutMs=12000]
+   * @param {boolean} [_isRetry=false]  internal flag – prevents a second fallback
    * @returns {Promise<any>}
    */
-  async function fetchJSON(url, timeoutMs = 12000) {
+  async function fetchJSON(url, timeoutMs = 12000, _isRetry = false) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
       return await res.json();
+    } catch (err) {
+      if (!_isRetry) {
+        const directUrl = resolveProxyFallback(url);
+        if (directUrl) return fetchJSON(directUrl, timeoutMs, true);
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
     }

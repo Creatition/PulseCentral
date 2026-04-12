@@ -79,7 +79,9 @@ async function proxyJson(res, upstreamUrl) {
     res.json(data);
   } catch (err) {
     console.error('[PulseCentral proxy]', upstreamUrl, err.message);
-    res.status(502).json({ error: 'Proxy request failed', detail: err.message });
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Proxy request failed', detail: err.message });
+    }
   }
 }
 
@@ -144,6 +146,12 @@ app.get('/api/goplus/*', (req, res) => {
 app.use(express.static(path.join(__dirname, '..')));
 
 /* ── Start server ────────────────────────────────────────────── */
+
+// Prevent unhandled promise rejections from crashing the process.
+// Each route already handles its own errors; this is a last-resort safety net.
+process.on('unhandledRejection', (reason) => {
+  console.error('[PulseCentral] Unhandled rejection:', reason);
+});
 
 app.listen(PORT, () => {
   console.log(`PulseCentral running at http://localhost:${PORT}`);
