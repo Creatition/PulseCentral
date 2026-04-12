@@ -6,17 +6,17 @@
 const API = (() => {
   /* ── Constants ─────────────────────────────────────────── */
 
-  /** PulseChain Scan (BlockScout) base URL */
-  const SCAN_BASE = 'https://api.scan.pulsechain.com/api';
+  /** PulseChain Scan (BlockScout) base URL — routed through local proxy */
+  const SCAN_BASE = '/api/scan';
 
-  /** DexScreener API base URL */
-  const DSX_BASE = 'https://api.dexscreener.com/latest/dex';
+  /** DexScreener API base URL — routed through local proxy */
+  const DSX_BASE = '/api/dex/latest/dex';
 
-  /** DexScreener chart / OHLCV API base URL */
-  const DSX_CHART_BASE = 'https://io.dexscreener.com/dex/chart/amm/v3/pulsechain';
+  /** DexScreener chart / OHLCV API base URL — routed through local proxy */
+  const DSX_CHART_BASE = '/api/dex-io/dex/chart/amm/v3/pulsechain';
 
-  /** DexTools shared-data API base URL (chain slug: "pulse" for PulseChain) */
-  const DEXTOOLS_BASE = 'https://www.dextools.io/shared/data/pair';
+  /** DexTools shared-data API base URL — routed through local proxy */
+  const DEXTOOLS_BASE = '/api/dextools';
 
   /** PulseChain native coin decimals */
   const PLS_DECIMALS = 18;
@@ -553,9 +553,9 @@ const API = (() => {
     const profileAddresses = [];
     try {
       const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
-        fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/top/v1'),
+        fetchJSON('/api/dex/token-profiles/latest/v1'),
+        fetchJSON('/api/dex/token-boosts/latest/v1'),
+        fetchJSON('/api/dex/token-boosts/top/v1'),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
@@ -608,7 +608,7 @@ const API = (() => {
         noCapPairs.map(async ([, pair]) => {
           try {
             const meta = await fetchJSON(
-              `https://scan.pulsechain.com/api/v2/tokens/${pair.baseToken.address}`,
+              `/api/scan-v2/tokens/${pair.baseToken.address}`,
               8000
             );
             const decimals  = Number(meta?.decimals  || 18);
@@ -642,9 +642,9 @@ const API = (() => {
     const profileAddresses = [];
     try {
       const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
-        fetchJSON('https://api.dexscreener.com/token-profiles/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/latest/v1'),
-        fetchJSON('https://api.dexscreener.com/token-boosts/top/v1'),
+        fetchJSON('/api/dex/token-profiles/latest/v1'),
+        fetchJSON('/api/dex/token-boosts/latest/v1'),
+        fetchJSON('/api/dex/token-boosts/top/v1'),
       ]);
       if (profiles.status === 'fulfilled') {
         (profiles.value || [])
@@ -767,7 +767,7 @@ const API = (() => {
    */
   async function getTokenSecurity(address) {
     const addr = address.toLowerCase();
-    const url = `https://api.gopluslabs.io/api/v1/token_security/369?contract_addresses=${addr}`;
+    const url = `/api/goplus/api/v1/token_security/369?contract_addresses=${addr}`;
     try {
       const data = await fetchJSON(url, 12000);
       if (data.code !== 1) return null;
@@ -785,9 +785,7 @@ const API = (() => {
    * @returns {Promise<object|null>}
    */
   async function getTokenMetadata(address) {
-    const url = `https://scan.pulsechain.com/api/v2/tokens/${address}`;
-    try {
-      return await fetchJSON(url, 10000);
+    const url = `/api/scan-v2/tokens/${address}`;
     } catch {
       return null;
     }
@@ -801,7 +799,7 @@ const API = (() => {
    * @returns {Promise<object[]>}  Array of BlockScout transfer objects
    */
   async function getTokenTransferHistory(address) {
-    const url = `https://scan.pulsechain.com/api/v2/tokens/${address}/transfers?limit=50`;
+    const url = `/api/scan-v2/tokens/${address}/transfers?limit=50`;
     try {
       const data = await fetchJSON(url, 12000);
       return data?.items || [];
