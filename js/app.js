@@ -240,6 +240,20 @@ function switchTab(name) {
     renderPortfolioQuickSelect();
     autoLoadLastPortfolio();
   }
+  if (name === 'swap') initSwapIframe();
+}
+
+let swapIframeInit = false;
+function initSwapIframe() {
+  if (swapIframeInit) return;
+  swapIframeInit = true;
+  const iframe = document.getElementById('swap-iframe');
+  const fallback = document.getElementById('swap-iframe-fallback');
+  if (!iframe) return;
+  iframe.addEventListener('error', () => {
+    iframe.style.display = 'none';
+    if (fallback) fallback.classList.remove('hidden');
+  });
 }
 
 /**
