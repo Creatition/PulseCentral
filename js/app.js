@@ -219,6 +219,10 @@ tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
+// Watchlist star button → watchlist tab
+const watchlistStarBtn = document.getElementById('watchlist-star-btn');
+if (watchlistStarBtn) watchlistStarBtn.addEventListener('click', () => switchTab('watchlist'));
+
 // Logo click → home
 const logoEl = document.querySelector('.logo');
 if (logoEl) logoEl.addEventListener('click', () => switchTab('home'));
