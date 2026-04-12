@@ -820,7 +820,11 @@ const API = (() => {
     // ── 1. PulseX subgraph (preferred — full history since May 2023) ──────
     if (tokenAddress) {
       const subgraphBars = await fetchPulseXTokenHistory(tokenAddress);
-      if (subgraphBars.length >= 3) return subgraphBars;
+      if (subgraphBars.length >= 3) {
+        // Subgraph returns daily close prices — always use 'D' resolution so
+        // axis labels render as month+year over the full history span.
+        return { bars: subgraphBars, resolution: 'D' };
+      }
     }
 
     // ── Helper: normalise a bars array from the DexScreener chart response ─
@@ -838,24 +842,26 @@ const API = (() => {
     }
 
     // Build DexScreener chart URL — request all history from PulseChain launch.
-    // res=W (weekly) maximises the time span returned by the API.
-    const dsxParams = `?res=W&from=${PULSECHAIN_LAUNCH_TS}&cb=0`;
+    // Use the caller-supplied resolution; fall back to 'W' (weekly) if not
+    // specified since weekly bars maximise the time span per API call.
+    const res = resolution || 'W';
+    const dsxParams = `?res=${res}&from=${PULSECHAIN_LAUNCH_TS}&cb=0`;
 
     // ── 2. DexScreener amm/v2 (PulseX V1 = Uniswap V2 fork) ─────────────
     try {
       const data = await fetchJSON(`${DSX_CHART_BASE_V2}/${pairAddress}${dsxParams}`, 10000);
       const bars = normaliseDsxBars(data?.bars || []);
-      if (bars.length >= 2) return bars;
+      if (bars.length >= 2) return { bars, resolution: res };
     } catch { /* fall through */ }
 
     // ── 3. DexScreener amm/v3 (concentrated-liquidity fallback) ──────────
     try {
       const data = await fetchJSON(`${DSX_CHART_BASE_V3}/${pairAddress}${dsxParams}`, 10000);
       const bars = normaliseDsxBars(data?.bars || []);
-      if (bars.length > 0) return bars;
+      if (bars.length > 0) return { bars, resolution: res };
     } catch { /* fall through */ }
 
-    return [];
+    return { bars: [], resolution: res };
   }
 
   /**
@@ -884,16 +890,17 @@ const API = (() => {
       }
     }
 
-    return CORE_COINS.map((coin, i) => ({
-      symbol:    coin.symbol,
-      address:   coin.address,
-      pair:      pairsById.get(coin.pairAddress.toLowerCase()) || null,
-      chartBars: chartResults[i] || [],
-      // Subgraph returns daily bars; DexScreener weekly — both use the same
-      // rendering path (month+year labels, 300-bar window).
-      chartRes:  (chartResults[i] || []).length >= 3 ? 'D' : coin.chartRes,
-      color:     coin.color,
-    }));
+    return CORE_COINS.map((coin, i) => {
+      const { bars, resolution } = chartResults[i] || { bars: [], resolution: coin.chartRes };
+      return {
+        symbol:    coin.symbol,
+        address:   coin.address,
+        pair:      pairsById.get(coin.pairAddress.toLowerCase()) || null,
+        chartBars: bars,
+        chartRes:  resolution,
+        color:     coin.color,
+      };
+    });
   }
 
   /* ── Enhanced Market Data API ───────────────────────────── */
