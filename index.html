@@ -408,13 +408,19 @@
           <div class="top50-header top50-row">
             <span class="top50-col top50-rank">#</span>
             <span class="top50-col top50-name">Name</span>
-            <span class="top50-col top50-price">Price</span>
-            <span class="top50-col top50-change">24h %</span>
-            <span class="top50-col top50-mcap">Market Cap</span>
-            <span class="top50-col top50-vol">Volume (24h)</span>
-            <span class="top50-col top50-liq">Liquidity</span>
+            <button class="top50-col top50-price top50-sort-btn" data-sort-col="price" aria-label="Sort by Price">Price</button>
+            <button class="top50-col top50-change top50-sort-btn" data-sort-col="change" aria-label="Sort by 24h %">24h %</button>
+            <button class="top50-col top50-mcap top50-sort-btn sort-active sort-desc" data-sort-col="mcap" aria-label="Sort by Market Cap">Market Cap</button>
+            <button class="top50-col top50-vol top50-sort-btn" data-sort-col="vol" aria-label="Sort by Volume">Volume (24h)</button>
+            <button class="top50-col top50-liq top50-sort-btn" data-sort-col="liq" aria-label="Sort by Liquidity">Liquidity</button>
           </div>
           <div id="top50-rows"></div>
+          <!-- bottom pagination -->
+          <div class="top50-pagination top50-pagination-bottom" id="top50-pagination-bottom">
+            <button id="top50-prev-btn-bottom" class="btn btn-secondary btn-sm" disabled aria-label="Previous page">← Prev</button>
+            <span id="top50-page-info-bottom" class="top50-page-info">Page 1</span>
+            <button id="top50-next-btn-bottom" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
+          </div>
         </div>
       </div>
 
@@ -492,16 +498,28 @@
             <div class="stats-card-body">
               <div class="pulse-network-grid">
                 <div class="pulse-stat-item">
+                  <div class="pulse-stat-label">PLS Price (USD)</div>
+                  <div class="pulse-stat-value" id="pulse-pls-price-value">—</div>
+                </div>
+                <div class="pulse-stat-item">
                   <div class="pulse-stat-label">Gas Price (Gwei)</div>
                   <div class="pulse-stat-value" id="pulse-gas-value">—</div>
                 </div>
                 <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">PLS Circulating Supply</div>
-                  <div class="pulse-stat-value" id="pulse-supply-value">—</div>
+                  <div class="pulse-stat-label">Avg Block Time</div>
+                  <div class="pulse-stat-value" id="pulse-block-time-value">—</div>
                 </div>
                 <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">PLS Price (USD)</div>
-                  <div class="pulse-stat-value" id="pulse-pls-price-value">—</div>
+                  <div class="pulse-stat-label">Total Transactions</div>
+                  <div class="pulse-stat-value" id="pulse-total-txns-value">—</div>
+                </div>
+                <div class="pulse-stat-item">
+                  <div class="pulse-stat-label">Txns Today</div>
+                  <div class="pulse-stat-value" id="pulse-txns-today-value">—</div>
+                </div>
+                <div class="pulse-stat-item">
+                  <div class="pulse-stat-label">Total Addresses</div>
+                  <div class="pulse-stat-value" id="pulse-total-addr-value">—</div>
                 </div>
               </div>
             </div>

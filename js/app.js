@@ -217,6 +217,8 @@ let marketsLoaded   = false;
 let activeMarketsPage = 'main'; // 'main' | 'top50'
 let top50Loaded = false;
 let top50CurrentPage = 1;
+let top50SortCol = 'mcap';   // 'price' | 'change' | 'mcap' | 'vol' | 'liq'
+let top50SortDir = 'desc';   // 'asc' | 'desc'
 let activeStatsPage = 'pulse'; // 'pulse' | 'crypto'
 
 tabBtns.forEach(btn => {
@@ -1584,6 +1586,35 @@ $('top50-next-btn').addEventListener('click', () => {
   $('top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
+$('top50-prev-btn-bottom').addEventListener('click', () => {
+  if (top50CurrentPage > 1) {
+    top50CurrentPage--;
+    renderTop50();
+    $('top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+
+$('top50-next-btn-bottom').addEventListener('click', () => {
+  top50CurrentPage++;
+  renderTop50();
+  $('top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// Wire sort button clicks on the top50 header
+document.querySelectorAll('.top50-sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const col = btn.dataset.sortCol;
+    if (top50SortCol === col) {
+      top50SortDir = top50SortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      top50SortCol = col;
+      top50SortDir = 'desc';
+    }
+    top50CurrentPage = 1;
+    renderTop50();
+  });
+});
+
 $('market-search').addEventListener('input', () => renderMarketsGrid());
 
 function renderMarketsGrid() {
@@ -1842,11 +1873,23 @@ async function loadTop50() {
 const TOP50_PAGE_SIZE = 50;
 
 function renderTop50() {
-  // Sort all pairs by market cap (marketCap || fdv) descending
+  // Sort pairs by the selected column
+  const getValue = (p) => {
+    switch (top50SortCol) {
+      case 'price':  return Number(p.priceUsd || 0);
+      case 'change': return Number(p.priceChange?.h24 || 0);
+      case 'vol':    return Number(p.volume?.h24 || 0);
+      case 'liq':    return Number(p.liquidity?.usd || 0);
+      default:       return Number(p.marketCap || p.fdv || 0); // 'mcap'
+    }
+  };
+
   const sorted = allMarketPairs
     .filter(p => (p.marketCap || p.fdv) > 0 || Number(p.priceUsd || 0) > 0)
     .slice()
-    .sort((a, b) => (b.marketCap || b.fdv || 0) - (a.marketCap || a.fdv || 0));
+    .sort((a, b) => top50SortDir === 'desc'
+      ? getValue(b) - getValue(a)
+      : getValue(a) - getValue(b));
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / TOP50_PAGE_SIZE));
   // Clamp current page to valid range
@@ -1863,13 +1906,32 @@ function renderTop50() {
     container.appendChild(buildTop50Row(startIdx + i + 1, pair));
   });
 
-  // Update pagination controls
-  const pageInfoEl  = $('top50-page-info');
-  const prevBtn     = $('top50-prev-btn');
-  const nextBtn     = $('top50-next-btn');
-  if (pageInfoEl) pageInfoEl.textContent = `Page ${top50CurrentPage} / ${totalPages}`;
-  if (prevBtn)    prevBtn.disabled = top50CurrentPage <= 1;
-  if (nextBtn)    nextBtn.disabled = top50CurrentPage >= totalPages;
+  // Update sort indicators on header buttons
+  document.querySelectorAll('.top50-sort-btn').forEach(btn => {
+    btn.classList.remove('sort-active', 'sort-asc', 'sort-desc');
+    if (btn.dataset.sortCol === top50SortCol) {
+      btn.classList.add('sort-active', top50SortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+
+  // Update both top and bottom pagination controls
+  const pageText = `Page ${top50CurrentPage} / ${totalPages}`;
+  const isPrevDisabled = top50CurrentPage <= 1;
+  const isNextDisabled = top50CurrentPage >= totalPages;
+
+  const pageInfoEl     = $('top50-page-info');
+  const prevBtn        = $('top50-prev-btn');
+  const nextBtn        = $('top50-next-btn');
+  const pageInfoBotEl  = $('top50-page-info-bottom');
+  const prevBtnBot     = $('top50-prev-btn-bottom');
+  const nextBtnBot     = $('top50-next-btn-bottom');
+
+  if (pageInfoEl)    pageInfoEl.textContent    = pageText;
+  if (prevBtn)       prevBtn.disabled          = isPrevDisabled;
+  if (nextBtn)       nextBtn.disabled          = isNextDisabled;
+  if (pageInfoBotEl) pageInfoBotEl.textContent = pageText;
+  if (prevBtnBot)    prevBtnBot.disabled       = isPrevDisabled;
+  if (nextBtnBot)    nextBtnBot.disabled       = isNextDisabled;
 
   setVisible($('top50-list'), true);
 }
@@ -4156,28 +4218,43 @@ async function loadPulseChainStats() {
 
   try {
     // Fetch all data in parallel; individual failures are tolerated
-    const [gasResult, supplyResult, factoryResult] = await Promise.allSettled([
-      fetch('/api/scan?module=gastracker&action=gasoracle'),
-      fetch('/api/scan?module=stats&action=ethsupply'),
+    const [statsResult, factoryResult] = await Promise.allSettled([
+      fetch('/api/scan-v2/stats'),
       fetch('/api/pulsex/factory'),
     ]);
 
-    // Gas price
-    if (gasResult.status === 'fulfilled' && gasResult.value.ok) {
-      const gasData = await gasResult.value.json();
-      const safeGwei = gasData?.result?.SafeGasPrice ?? gasData?.result?.suggestBaseFee;
-      const gasEl = $('pulse-gas-value');
-      if (gasEl) gasEl.textContent = safeGwei ? Number(safeGwei).toFixed(4) + ' Gwei' : '—';
-    }
+    // Network stats from BlockScout v2 (gas price, block time, tx count, etc.)
+    if (statsResult.status === 'fulfilled' && statsResult.value.ok) {
+      const statsData = await statsResult.value.json();
 
-    // Circulating supply
-    if (supplyResult.status === 'fulfilled' && supplyResult.value.ok) {
-      const supplyData = await supplyResult.value.json();
-      const rawSupply = supplyData?.result;
-      const supplyEl = $('pulse-supply-value');
-      if (supplyEl && rawSupply) {
-        const supply = Number(rawSupply) / 1e18;
-        supplyEl.textContent = fmt.large(supply);
+      const gasEl = $('pulse-gas-value');
+      if (gasEl) {
+        const avgGas = statsData?.gas_prices?.average ?? statsData?.static_gas_price;
+        gasEl.textContent = avgGas != null ? Number(avgGas).toFixed(4) + ' Gwei' : '—';
+      }
+
+      const blockTimeEl = $('pulse-block-time-value');
+      if (blockTimeEl) {
+        const ms = statsData?.average_block_time;
+        blockTimeEl.textContent = ms != null ? (ms / 1000).toFixed(2) + 's' : '—';
+      }
+
+      const totalTxnsEl = $('pulse-total-txns-value');
+      if (totalTxnsEl) {
+        const t = statsData?.total_transactions;
+        totalTxnsEl.textContent = t != null ? Number(t).toLocaleString('en-US') : '—';
+      }
+
+      const txnsTodayEl = $('pulse-txns-today-value');
+      if (txnsTodayEl) {
+        const t = statsData?.transactions_today;
+        txnsTodayEl.textContent = t != null ? Number(t).toLocaleString('en-US') : '—';
+      }
+
+      const totalAddrEl = $('pulse-total-addr-value');
+      if (totalAddrEl) {
+        const a = statsData?.total_addresses;
+        totalAddrEl.textContent = a != null ? Number(a).toLocaleString('en-US') : '—';
       }
     }
 
