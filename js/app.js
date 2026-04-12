@@ -240,6 +240,15 @@ function switchTab(name) {
     renderPortfolioQuickSelect();
     autoLoadLastPortfolio();
   }
+  if (name === 'swap') initSwapIframe();
+}
+
+let swapIframeInit = false;
+function initSwapIframe() {
+  if (swapIframeInit) return;
+  swapIframeInit = true;
+  // Iframe loads immediately (no lazy attribute). The "Open in PulseX ↗" link
+  // in the tab header serves as the fallback if the browser blocks embedding.
 }
 
 /**
