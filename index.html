@@ -186,6 +186,17 @@
             </div>
           </div>
         </div>
+        <!-- Tools tab with hover dropdown -->
+        <div class="tab-nav-item has-dropdown" id="tools-nav-item">
+          <button class="tab-btn" data-tab="tools" role="tab" aria-selected="false" aria-controls="tab-tools" aria-haspopup="true">
+            <span class="tab-icon">🛠️</span> Tools <span class="tab-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="tab-dropdown" role="menu" aria-label="Tools options">
+            <button class="tab-dropdown-item active" role="menuitem" data-tools-page="meme-generator">
+              <span class="tab-dropdown-icon">🎨</span> Meme Generator
+            </button>
+          </div>
+        </div>
       </nav>
       <div class="header-right">
         <!-- User Profile Button -->
@@ -739,6 +750,72 @@
       </div>
 
     </section>
+
+    <!-- ── TOOLS TAB ── -->
+    <section id="tab-tools" class="tab-panel" role="tabpanel" aria-labelledby="btn-tools">
+
+      <!-- Meme Generator Page -->
+      <div id="tools-page-meme-generator" class="tools-sub-page">
+        <div class="section-header">
+          <h1>🎨 Meme Generator</h1>
+          <p class="section-subtitle">Describe your meme idea and let AI generate it for you. Refine with suggestions and save when ready.</p>
+        </div>
+
+        <div class="meme-gen-layout">
+          <!-- Input Panel -->
+          <div class="meme-gen-input-panel">
+            <div class="meme-gen-field-group">
+              <label class="meme-gen-label" for="meme-prompt">Describe your meme</label>
+              <textarea
+                id="meme-prompt"
+                class="meme-gen-textarea"
+                placeholder="e.g. a frog sitting on a pile of gold coins with sunglasses, crypto meme style"
+                rows="4"
+                maxlength="500"
+                aria-label="Meme description"
+              ></textarea>
+              <div class="meme-gen-char-count"><span id="meme-char-count">0</span>/500</div>
+            </div>
+            <div class="meme-gen-actions">
+              <button id="meme-generate-btn" class="btn btn-primary meme-gen-btn">
+                <span id="meme-generate-text">✨ Generate Meme</span>
+                <span id="meme-generate-spinner" class="spinner hidden" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div id="meme-error" class="error-banner hidden" role="alert"></div>
+          </div>
+
+          <!-- Output Panel -->
+          <div class="meme-gen-output-panel">
+            <div id="meme-placeholder" class="meme-gen-placeholder">
+              <span class="meme-gen-placeholder-icon">🎨</span>
+              <p>Your generated meme will appear here</p>
+            </div>
+            <div id="meme-result" class="meme-gen-result hidden">
+              <div class="meme-gen-image-wrap">
+                <img id="meme-result-img" class="meme-gen-image" src="" alt="Generated meme" />
+              </div>
+              <div class="meme-gen-result-actions">
+                <a id="meme-download-btn" class="btn btn-primary" download="meme.png" href="#">
+                  💾 Save Meme
+                </a>
+                <button id="meme-regenerate-btn" class="btn btn-secondary">
+                  🔄 Regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Suggestions Panel -->
+        <div id="meme-suggestions-wrap" class="meme-suggestions-wrap hidden">
+          <h2 class="meme-suggestions-title">💡 Suggestions for improvements</h2>
+          <div id="meme-suggestions-list" class="meme-suggestions-list"></div>
+        </div>
+      </div>
+
+    </section>
+
     <section id="tab-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="btn-watchlist">
       <div class="section-header">
         <h1>Watchlist</h1>

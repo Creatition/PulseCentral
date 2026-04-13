@@ -253,6 +253,7 @@ function switchTab(name) {
     autoLoadLastPortfolio();
   }
   if (name === 'swap')  initSwapIframe();
+  if (name === 'tools') switchToolsPage(activeToolsPage, false);
 }
 
 /* ── Markets sub-page switcher ───────────────────────────── */
@@ -331,6 +332,152 @@ document.querySelectorAll('[data-swap-dex]').forEach(btn => {
     initSwapIframe(btn.dataset.swapDex);
   });
 });
+
+/* ── Tools sub-page switcher ─────────────────────────────── */
+
+let activeToolsPage = 'meme-generator';
+
+function switchToolsPage(page) {
+  activeToolsPage = page;
+
+  document.querySelectorAll('[data-tools-page]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.toolsPage === page);
+  });
+
+  const memeEl = document.getElementById('tools-page-meme-generator');
+  if (memeEl) memeEl.classList.toggle('hidden', page !== 'meme-generator');
+}
+
+// Wire tools dropdown item clicks
+document.querySelectorAll('[data-tools-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    switchTab('tools');
+    switchToolsPage(btn.dataset.toolsPage);
+  });
+});
+
+/* ── Meme Generator ─────────────────────────────────────── */
+
+(function initMemeGenerator() {
+  const promptEl      = document.getElementById('meme-prompt');
+  const charCountEl   = document.getElementById('meme-char-count');
+  const generateBtn   = document.getElementById('meme-generate-btn');
+  const generateText  = document.getElementById('meme-generate-text');
+  const generateSpinner = document.getElementById('meme-generate-spinner');
+  const errorEl       = document.getElementById('meme-error');
+  const placeholderEl = document.getElementById('meme-placeholder');
+  const resultEl      = document.getElementById('meme-result');
+  const resultImg     = document.getElementById('meme-result-img');
+  const downloadBtn   = document.getElementById('meme-download-btn');
+  const regenBtn      = document.getElementById('meme-regenerate-btn');
+  const suggestionsWrap = document.getElementById('meme-suggestions-wrap');
+  const suggestionsList = document.getElementById('meme-suggestions-list');
+
+  if (!promptEl) return;
+
+  let currentPrompt = '';
+
+  const MEME_SUGGESTIONS = [
+    'Add bold text caption at the top',
+    'Make it more dramatic',
+    'Include a PulseChain or crypto theme',
+    'Add a surprised expression',
+    'Use more vibrant colors',
+    'Make it look vintage',
+    'Add a sunset background',
+    'Include dollar signs or gold coins',
+    'Make the character look happy',
+    'Add a futuristic cyberpunk style',
+    'Include a moon or rocket',
+    'Make it black and white',
+  ];
+
+  promptEl.addEventListener('input', () => {
+    if (charCountEl) charCountEl.textContent = promptEl.value.length;
+  });
+
+  function setLoading(loading) {
+    generateBtn.disabled = loading;
+    if (generateText)   generateText.classList.toggle('hidden', loading);
+    if (generateSpinner) generateSpinner.classList.toggle('hidden', !loading);
+  }
+
+  function showError(msg) {
+    if (errorEl) {
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
+    }
+  }
+
+  function hideError() {
+    if (errorEl) errorEl.classList.add('hidden');
+  }
+
+  function buildImageUrl(prompt) {
+    const seed = Math.floor(Math.random() * 1000000);
+    const encoded = encodeURIComponent(prompt + ', meme style, funny, high quality');
+    return `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&seed=${seed}&nologo=true`;
+  }
+
+  function renderSuggestions(prompt) {
+    if (!suggestionsWrap || !suggestionsList) return;
+    suggestionsList.innerHTML = '';
+
+    const shuffled = [...MEME_SUGGESTIONS].sort(() => Math.random() - 0.5).slice(0, 6);
+    shuffled.forEach(suggestion => {
+      const chip = document.createElement('button');
+      chip.className = 'meme-suggestion-chip';
+      chip.textContent = suggestion;
+      chip.addEventListener('click', () => {
+        promptEl.value = prompt + '. ' + suggestion;
+        if (charCountEl) charCountEl.textContent = promptEl.value.length;
+        generateMeme();
+      });
+      suggestionsList.appendChild(chip);
+    });
+
+    suggestionsWrap.classList.remove('hidden');
+  }
+
+  function generateMeme() {
+    const prompt = promptEl.value.trim();
+    if (!prompt) {
+      showError('Please describe the meme you want to generate.');
+      return;
+    }
+    hideError();
+    currentPrompt = prompt;
+    setLoading(true);
+
+    const url = buildImageUrl(prompt);
+
+    // Show placeholder while loading
+    if (placeholderEl) placeholderEl.classList.remove('hidden');
+    if (resultEl) resultEl.classList.add('hidden');
+    if (suggestionsWrap) suggestionsWrap.classList.add('hidden');
+
+    const img = new Image();
+    img.onload = () => {
+      if (resultImg) resultImg.src = url;
+      if (downloadBtn) {
+        downloadBtn.href = url;
+        downloadBtn.download = 'meme.png';
+      }
+      if (placeholderEl) placeholderEl.classList.add('hidden');
+      if (resultEl) resultEl.classList.remove('hidden');
+      renderSuggestions(prompt);
+      setLoading(false);
+    };
+    img.onerror = () => {
+      showError('Failed to generate image. Please try again or rephrase your description.');
+      setLoading(false);
+    };
+    img.src = url;
+  }
+
+  if (generateBtn) generateBtn.addEventListener('click', generateMeme);
+  if (regenBtn)    regenBtn.addEventListener('click', generateMeme);
+})();
 
 /* ── Dropdown hover: keep open while mouse is on nav item OR dropdown ── */
 (function initDropdownHover() {
