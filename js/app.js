@@ -1025,7 +1025,7 @@ let tickerInterval = setInterval(loadTicker, 5 * 60_000);
 
 /* ── Ticker mode dropdown (Trending / Watchlist) ────────────── */
 
-let _tickerMode = 'trending'; // 'trending' | 'watchlist'
+let tickerMode = 'trending'; // 'trending' | 'watchlist'
 
 /** Load watchlist tokens into the ticker. */
 async function loadWatchlistTicker() {
@@ -1085,8 +1085,8 @@ async function loadWatchlistTicker() {
   dropdown.querySelectorAll('.ticker-mode-option').forEach(opt => {
     opt.addEventListener('click', () => {
       const mode = opt.dataset.tickerMode;
-      if (mode === _tickerMode) { closeDropdown(); return; }
-      _tickerMode = mode;
+      if (mode === tickerMode) { closeDropdown(); return; }
+      tickerMode = mode;
 
       // Update active styling
       dropdown.querySelectorAll('.ticker-mode-option').forEach(o => o.classList.remove('active'));
