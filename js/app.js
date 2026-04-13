@@ -1116,9 +1116,14 @@ function setTickerMode(mode) {
   dropdown.querySelectorAll('.ticker-mode-option').forEach(btn => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.tickerMode;
-      dropdown.classList.add('hidden');
-      modeBtn.setAttribute('aria-expanded', 'false');
-      if (mode !== _tickerMode) setTickerMode(mode);
+      if (mode !== _tickerMode) {
+        dropdown.classList.add('hidden');
+        modeBtn.setAttribute('aria-expanded', 'false');
+        setTickerMode(mode);
+      } else {
+        dropdown.classList.add('hidden');
+        modeBtn.setAttribute('aria-expanded', 'false');
+      }
     });
   });
 
@@ -1854,6 +1859,11 @@ function buildTop50Row(rank, pair) {
 
 /* ── PLS Top 50 Search ─────────────────────────────────────── */
 
+/** Max results shown in the search dropdown. */
+const SEARCH_RESULTS_LIMIT = 25;
+/** Delay (ms) after blur before hiding the search dropdown, allowing click events on items to register. */
+const SEARCH_DROPDOWN_BLUR_DELAY = 150;
+
 let top50SearchDebounce = null;
 let top50SearchLoading  = false;
 
@@ -1968,7 +1978,7 @@ async function runTop50Search(query) {
     const pairs = (data?.pairs || []);
     // Sort by liquidity descending so most liquid results come first
     pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
-    renderSearchDropdown(pairs.slice(0, 25));
+    renderSearchDropdown(pairs.slice(0, SEARCH_RESULTS_LIMIT));
   } catch (err) {
     if (searchDropdown) {
       searchDropdown.innerHTML = `<div class="search-dropdown-empty">Search error: ${escHtml(err.message)}</div>`;
@@ -1994,7 +2004,7 @@ if (top50SearchInput) {
   // Close dropdown when focus leaves the search area
   top50SearchInput.addEventListener('blur', () => {
     // Small delay so clicks on dropdown items register before the dropdown closes
-    setTimeout(() => showSearchDropdown(false), 150);
+    setTimeout(() => showSearchDropdown(false), SEARCH_DROPDOWN_BLUR_DELAY);
   });
 
   top50SearchInput.addEventListener('focus', () => {
