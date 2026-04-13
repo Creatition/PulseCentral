@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -91,6 +92,234 @@ function qs(req) {
   const str = new URLSearchParams(req.query).toString();
   return str ? '?' + str : '';
 }
+
+/* ── Weekly chart snapshot (PLSX, HEX, INC, PRVX) ──────────── */
+
+/** Path to the persisted snapshot JSON file. */
+const SNAPSHOT_FILE = path.join(__dirname, 'data', 'chart-snapshots.json');
+
+/** PulseX V1 subgraph endpoint. */
+const PULSEX_GRAPH = 'https://graph.v2b.pulsechain.com/subgraphs/name/pulsechain/v2b-pulsex';
+
+/**
+ * May 13 2023 00:00:00 UTC (seconds) — earliest bar included in snapshot charts.
+ * This is the date chosen as the chart start to align with the week of PulseChain's
+ * mainnet launch (May 12 2023).
+ */
+const CHART_START_SEC = 1683936000;
+
+/** Timeout (ms) for individual PulseX subgraph requests during snapshot build. */
+const SUBGRAPH_TIMEOUT_MS = 25_000;
+
+/** How often (ms) to check whether a new Monday snapshot is needed. */
+const REFRESH_INTERVAL_MS = 3_600_000; // 1 hour
+
+/**
+ * The four core coins whose charts are served as weekly snapshots.
+ * PLS is excluded — its chart stays live.
+ */
+const SNAPSHOT_COINS = [
+  { symbol: 'PLSX', address: '0x95b303987a60c71504d99aa1b13b4da07b0790ab' },
+  { symbol: 'HEX',  address: '0x2b591e99afe9f32eaa6214f7b7629768c40eeb39' },
+  { symbol: 'INC',  address: '0x2fa878ab3f87cc1c9737fc071108f904c0b0c95d' },
+  { symbol: 'PRVX', address: '0xf6f8db0aba00007681f8faf16a0fda1c9b030b11' },
+];
+
+/**
+ * Return the Unix timestamp in milliseconds for 00:00:00 UTC on the most-recent
+ * Monday (today itself if today is Monday).
+ */
+function getMondayMs() {
+  const now = new Date();
+  const dow = now.getUTCDay();           // 0=Sun, 1=Mon … 6=Sat
+  const daysBack = (dow + 6) % 7;        // days since last Monday
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysBack);
+}
+
+/**
+ * Fetch all daily tokenDayData records from the PulseX subgraph for a single
+ * token, from CHART_START_SEC onwards.  Paginates automatically.
+ * @param {string} tokenAddress  Lowercase token contract address
+ * @returns {Promise<Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>>}
+ *   Each bar's `time` is in milliseconds (UTC midnight for that day).
+ */
+async function fetchSubgraphHistory(tokenAddress) {
+  const addr = tokenAddress.toLowerCase();
+  let allRows = [];
+  // Start query just before our desired window so the first included day is fetched
+  let lastDate = CHART_START_SEC - 86400;
+  let hasMore  = true;
+
+  while (hasMore) {
+    const query = `{
+      tokenDayDatas(
+        first: 1000
+        orderBy: date
+        orderDirection: asc
+        where: { token: "${addr}", date_gt: ${lastDate} }
+      ) {
+        date
+        priceUSD
+        dailyVolumeUSD
+      }
+    }`;
+
+    const r = await fetch(PULSEX_GRAPH, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept':       'application/json',
+        'User-Agent':   'Mozilla/5.0 (compatible; PulseCentral/1.0)',
+      },
+      body:   JSON.stringify({ query }),
+      signal: AbortSignal.timeout(SUBGRAPH_TIMEOUT_MS),
+    });
+
+    if (!r.ok) throw new Error(`Subgraph HTTP ${r.status}`);
+    const data = await r.json();
+    const rows = data?.data?.tokenDayDatas || [];
+    if (rows.length === 0) { hasMore = false; break; }
+
+    allRows   = allRows.concat(rows);
+    lastDate  = Number(rows[rows.length - 1].date);
+    if (rows.length < 1000) hasMore = false;
+  }
+
+  return allRows
+    .map(d => {
+      const price = Number(d.priceUSD || 0);
+      return {
+        time:   Number(d.date) * 1000,   // convert seconds → milliseconds
+        open:   price,
+        high:   price,
+        low:    price,
+        close:  price,
+        volume: Number(d.dailyVolumeUSD || 0),
+      };
+    })
+    .filter(b => b.time >= CHART_START_SEC * 1000 && b.close > 0);
+}
+
+/**
+ * Aggregate an array of daily bars (time in ms) into weekly bars.
+ * Each weekly bar's `time` is the Monday of that ISO week at 00:00:00 UTC (ms).
+ * Only bars whose week-start Monday is <= `cutoffMs` are included.
+ * @param {Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>} dailyBars
+ * @param {number} cutoffMs  Millisecond timestamp of the Monday cutoff (inclusive)
+ * @returns {Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>}
+ */
+function aggregateDailyToWeekly(dailyBars, cutoffMs) {
+  const sorted = [...dailyBars].sort((a, b) => a.time - b.time);
+  const weeks  = new Map();
+
+  for (const bar of sorted) {
+    const d   = new Date(bar.time);
+    const dow = d.getUTCDay();              // 0=Sun … 6=Sat
+    const daysBack = (dow + 6) % 7;
+    const monday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - daysBack);
+    if (monday > cutoffMs) continue;        // exclude bars past the cutoff Monday
+
+    if (!weeks.has(monday)) {
+      weeks.set(monday, { time: monday, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume });
+    } else {
+      const w = weeks.get(monday);
+      w.high   = Math.max(w.high, bar.high);
+      w.low    = Math.min(w.low, bar.low);
+      w.close  = bar.close;   // sorted asc → last bar of week becomes close
+      w.volume += bar.volume;
+    }
+  }
+
+  return [...weeks.values()].sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Fetch and build a fresh snapshot for all SNAPSHOT_COINS.
+ * @returns {Promise<object>}  Snapshot object ready to persist.
+ */
+async function buildSnapshot() {
+  const mondayMs = getMondayMs();
+  const coins    = {};
+
+  await Promise.all(SNAPSHOT_COINS.map(async ({ symbol, address }) => {
+    try {
+      const daily   = await fetchSubgraphHistory(address);
+      coins[symbol] = aggregateDailyToWeekly(daily, mondayMs);
+    } catch (err) {
+      console.error(`[PulseCentral snapshot] Failed to fetch ${symbol}:`, err.message);
+      coins[symbol] = [];
+    }
+  }));
+
+  return { takenAt: Date.now(), weekCutoff: mondayMs, coins };
+}
+
+/** In-memory snapshot cache (avoids re-reading the file on every request). */
+let snapshotCache = null;
+
+/**
+ * Load the snapshot from disk into the in-memory cache.
+ * Returns null if the file does not exist or is unreadable.
+ */
+function loadSnapshot() {
+  try {
+    const raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
+    snapshotCache = JSON.parse(raw);
+    return snapshotCache;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist `data` to disk and update the in-memory cache. */
+function saveSnapshot(data) {
+  try {
+    fs.mkdirSync(path.dirname(SNAPSHOT_FILE), { recursive: true });
+    fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(data));
+    snapshotCache = data;
+  } catch (err) {
+    console.error('[PulseCentral snapshot] Failed to save snapshot:', err.message);
+  }
+}
+
+/**
+ * Refresh the snapshot if it is stale (i.e. its `weekCutoff` predates the
+ * current Monday).  Runs at startup and whenever the hourly timer fires.
+ */
+async function refreshSnapshotIfNeeded() {
+  const mondayMs = getMondayMs();
+  const current  = snapshotCache || loadSnapshot();
+
+  // Already up-to-date for this Monday
+  if (current && current.weekCutoff >= mondayMs) return;
+
+  console.log('[PulseCentral snapshot] Building weekly chart snapshot…');
+  try {
+    const snapshot = await buildSnapshot();
+    saveSnapshot(snapshot);
+    console.log('[PulseCentral snapshot] Snapshot saved — weekCutoff:', new Date(snapshot.weekCutoff).toISOString());
+  } catch (err) {
+    console.error('[PulseCentral snapshot] Build failed:', err.message);
+  }
+}
+
+// Kick off the first check immediately (non-blocking)
+refreshSnapshotIfNeeded().catch(() => {});
+
+// Re-check every hour so a Monday transition triggers a refresh even when the
+// server stays running across the week boundary.
+setInterval(() => refreshSnapshotIfNeeded().catch(() => {}), REFRESH_INTERVAL_MS).unref();
+
+// GET /api/chart-snapshots — serve the stored weekly snapshot for PLSX/HEX/INC/PRVX
+app.get('/api/chart-snapshots', (_req, res) => {
+  const data = snapshotCache || loadSnapshot();
+  if (!data) {
+    return res.status(503).json({ error: 'Snapshot not yet available — please retry shortly' });
+  }
+  // Cache headers: allow client to cache for up to 1 hour
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json(data);
+});
 
 /* ── Proxy routes ────────────────────────────────────────────── */
 
