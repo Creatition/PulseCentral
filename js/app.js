@@ -219,7 +219,6 @@ let top50Loaded = false;
 let top50CurrentPage = 1;
 let top50SortCol = 'mcap';   // 'price' | 'change' | 'mcap' | 'vol' | 'liq'
 let top50SortDir = 'desc';   // 'asc' | 'desc'
-let activeStatsPage = 'pulse'; // 'pulse' | 'crypto'
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -254,7 +253,7 @@ function switchTab(name) {
     autoLoadLastPortfolio();
   }
   if (name === 'swap')  initSwapIframe();
-  if (name === 'stats') showStatsPage(activeStatsPage);
+  if (name === 'stats') loadPulseStats();
 }
 
 /** Show a markets sub-page ('main' or 'top50') and trigger loading if needed. */
@@ -279,32 +278,6 @@ document.querySelectorAll('[data-markets-page]').forEach(btn => {
   btn.addEventListener('click', () => {
     switchTab('markets');
     showMarketsPage(btn.dataset.marketsPage);
-  });
-});
-
-/** Show a stats sub-page ('pulse' or 'crypto') and trigger loading if needed. */
-function showStatsPage(page) {
-  activeStatsPage = page;
-
-  const pulsePage  = $('stats-page-pulse');
-  const cryptoPage = $('stats-page-crypto');
-  if (pulsePage)  pulsePage.classList.toggle('hidden',  page !== 'pulse');
-  if (cryptoPage) cryptoPage.classList.toggle('hidden', page !== 'crypto');
-
-  // Update active state on dropdown items
-  document.querySelectorAll('[data-stats-page]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.statsPage === page);
-  });
-
-  if (page === 'pulse')  loadPulseChainStats();
-  if (page === 'crypto') loadStats();
-}
-
-// Wire stats dropdown item clicks
-document.querySelectorAll('[data-stats-page]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    switchTab('stats');
-    showStatsPage(btn.dataset.statsPage);
   });
 });
 
@@ -1568,7 +1541,7 @@ $('top50-refresh-btn').addEventListener('click', () => {
   allMarketPairs = [];
   marketsLoaded = false; // also mark main page stale so it re-renders with fresh data
   top50CurrentPage = 1;
-  pulseStatsLoaded = false; // refresh pulse stats market data too
+  pulseStatsLoaded = false; // refresh pulse stats data too
   loadTop50();
 });
 
@@ -4208,332 +4181,65 @@ document.querySelectorAll('.td-tab-btn').forEach(btn => {
 
 let pulseStatsLoaded = false;
 
-async function loadPulseChainStats() {
+async function loadPulseStats() {
   if (pulseStatsLoaded) return;
   pulseStatsLoaded = true;
 
-  setVisible($('pulse-stats-loading'), true);
-  setHidden($('pulse-stats-error'),   true);
-  setHidden($('pulse-stats-content'), true);
+  const loadingEl = $('pulse-stats-loading');
+  const errorEl   = $('pulse-stats-error');
+  const contentEl = $('pulse-stats-content');
+
+  setVisible(loadingEl, true);
+  setHidden(errorEl,    true);
+  setHidden(contentEl,  true);
 
   try {
-    // Fetch all data in parallel; individual failures are tolerated
-    const [statsResult, factoryResult] = await Promise.allSettled([
+    // Fetch BlockScout v2 stats and DefiLlama bridge TVL in parallel
+    const [scanResult, llamaResult] = await Promise.allSettled([
       fetch('/api/scan-v2/stats'),
-      fetch('/api/pulsex/factory'),
+      fetch('/api/llama/tvl/pulsechain-bridge'),
     ]);
 
-    // Network stats from BlockScout v2 (gas price, block time, tx count, etc.)
-    if (statsResult.status === 'fulfilled' && statsResult.value.ok) {
-      const statsData = await statsResult.value.json();
+    // Wallet holders + daily transactions — from BlockScout v2
+    if (scanResult.status === 'fulfilled' && scanResult.value.ok) {
+      const sd = await scanResult.value.json();
 
-      const gasEl = $('pulse-gas-value');
-      if (gasEl) {
-        const avgGas = statsData?.gas_prices?.average ?? statsData?.static_gas_price;
-        gasEl.textContent = avgGas != null ? Number(avgGas).toFixed(4) + ' Gwei' : '—';
+      const holdersEl = $('pcs-holders-value');
+      if (holdersEl) {
+        const a = sd?.total_addresses;
+        holdersEl.textContent = a != null ? Number(a).toLocaleString('en-US') : '—';
       }
 
-      const blockTimeEl = $('pulse-block-time-value');
-      if (blockTimeEl) {
-        const ms = statsData?.average_block_time;
-        blockTimeEl.textContent = ms != null ? (ms / 1000).toFixed(2) + 's' : '—';
-      }
-
-      const totalTxnsEl = $('pulse-total-txns-value');
-      if (totalTxnsEl) {
-        const t = statsData?.total_transactions;
-        totalTxnsEl.textContent = t != null ? Number(t).toLocaleString('en-US') : '—';
-      }
-
-      const txnsTodayEl = $('pulse-txns-today-value');
-      if (txnsTodayEl) {
-        const t = statsData?.transactions_today;
-        txnsTodayEl.textContent = t != null ? Number(t).toLocaleString('en-US') : '—';
-      }
-
-      const totalAddrEl = $('pulse-total-addr-value');
-      if (totalAddrEl) {
-        const a = statsData?.total_addresses;
-        totalAddrEl.textContent = a != null ? Number(a).toLocaleString('en-US') : '—';
+      const txnsEl = $('pcs-txns-value');
+      if (txnsEl) {
+        const t = sd?.transactions_today;
+        txnsEl.textContent = t != null ? Number(t).toLocaleString('en-US') : '—';
       }
     }
 
-    // PulseX DEX factory stats
-    if (factoryResult.status === 'fulfilled' && factoryResult.value.ok) {
-      const factoryData = await factoryResult.value.json();
-      const f = factoryData?.data?.uniswapFactories?.[0];
-      if (f) {
-        const tvlEl     = $('pulse-tvl-value');
-        const volEl     = $('pulse-dex-vol-value');
-        const pairsEl   = $('pulse-pairs-value');
-        if (tvlEl)   tvlEl.textContent   = fmt.large(Number(f.totalLiquidityUSD || 0));
-        if (volEl)   volEl.textContent   = fmt.large(Number(f.totalVolumeUSD    || 0));
-        if (pairsEl) pairsEl.textContent = Number(f.pairCount || 0).toLocaleString('en-US');
+    // Bridged total value — from DefiLlama (simple TVL number in USD)
+    const bridgeEl    = $('pcs-bridge-value');
+    const bridgeSubEl = $('pcs-bridge-sub');
+    if (llamaResult.status === 'fulfilled' && llamaResult.value.ok) {
+      const tvl = await llamaResult.value.json();
+      if (bridgeEl) {
+        const num = Number(tvl);
+        bridgeEl.textContent = isNaN(num) || num === 0 ? '—' : fmt.large(num);
       }
+    } else {
+      if (bridgeEl) bridgeEl.textContent = '—';
+      if (bridgeSubEl) bridgeSubEl.textContent = 'Bridge TVL unavailable — check DefiLlama for details';
     }
 
-    // Core token price cards — use already-loaded market pairs if available, else fetch
-    await renderPulseTokenPrices();
-
-    setHidden($('pulse-stats-loading'), true);
-    setVisible($('pulse-stats-content'), true);
+    setHidden(loadingEl, true);
+    setVisible(contentEl, true);
   } catch (err) {
-    setHidden($('pulse-stats-loading'), true);
-    const errEl = $('pulse-stats-error');
-    if (errEl) { errEl.textContent = `Failed to load PulseChain stats: ${err.message}`; setVisible(errEl, true); }
+    setHidden(loadingEl, true);
+    if (errorEl) {
+      errorEl.textContent = `Failed to load PulseChain stats: ${err.message}`;
+      setVisible(errorEl, true);
+    }
     pulseStatsLoaded = false;
   }
 }
 
-/** Build and inject the core token price cards into #pulse-price-grid */
-async function renderPulseTokenPrices() {
-  // Ensure market data is loaded
-  if (allMarketPairs.length === 0) {
-    await fetchMarketPairs().catch(() => {});
-  }
-
-  const PULSE_CORE_SYMBOLS = ['PLS', 'PLSX', 'HEX', 'INC', 'PRVX', 'eHex', 'HDRN', 'PLSD', 'MAXI', 'LOAN'];
-  const grid = $('pulse-price-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  let plsPrice = null;
-
-  PULSE_CORE_SYMBOLS.forEach(sym => {
-    const pair = allMarketPairs.find(p =>
-      (p.baseToken?.symbol || '').toUpperCase() === sym.toUpperCase()
-    );
-
-    const price    = pair ? Number(pair.priceUsd || 0) : null;
-    const change   = pair ? pair.priceChange?.h24 : null;
-    const mcap     = pair ? (pair.marketCap || pair.fdv || null) : null;
-    const logoUrl  = pair?.info?.imageUrl || null;
-
-    if (sym === 'PLS' && price) plsPrice = price;
-
-    const { text: chgText, cls: chgCls } = fmt.change(change);
-
-    const card = document.createElement('div');
-    card.className = 'pulse-price-card';
-
-    const logoEl = buildTokenLogo(logoUrl, sym);
-    logoEl.classList.add('pulse-price-logo');
-
-    card.innerHTML = `
-      <div class="pulse-price-card-header"></div>
-      <div class="pulse-price-card-info">
-        <div class="pulse-price-card-sym">${sym}</div>
-        <div class="pulse-price-card-price">${price ? fmt.price(price) : '—'}</div>
-        <div class="pulse-price-card-change ${chgCls}">${chgText}</div>
-        ${mcap ? `<div class="pulse-price-card-mcap">${fmt.large(mcap)}</div>` : ''}
-      </div>`;
-
-    card.querySelector('.pulse-price-card-header').appendChild(logoEl);
-
-    if (pair?.pairAddress) {
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', () =>
-        window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener'));
-    }
-
-    grid.appendChild(card);
-  });
-
-  // Show PLS price in the network stats section
-  const plsPriceEl = $('pulse-pls-price-value');
-  if (plsPriceEl && plsPrice) plsPriceEl.textContent = fmt.price(plsPrice);
-}
-
-/* ── Crypto/General Stats Tab ─────────────────────────────── */
-
-let statsLoaded = false;
-
-/**
- * Map a 0-100 score to a gauge arc path and needle angle.
- * The arc spans a half-circle from left (0%) to right (100%).
- * Arc total length for r=80 semicircle ≈ 251.
- */
-function applyGauge(arcId, needleId, score) {
-  const ARC_LEN = 251;
-  const arc     = document.getElementById(arcId);
-  const needle  = document.getElementById(needleId);
-  if (!arc || !needle) return;
-  const pct     = Math.max(0, Math.min(100, score)) / 100;
-  arc.setAttribute('stroke-dasharray', `${(pct * ARC_LEN).toFixed(1)} ${ARC_LEN}`);
-  // Needle: -90° (left) → +90° (right) over score 0–100
-  const deg = -90 + pct * 180;
-  needle.style.transform = `rotate(${deg}deg)`;
-}
-
-/** Return a colour for a 0-100 Fear & Greed score */
-function fgColor(score) {
-  if (score <= 24)  return '#ef4444'; // extreme fear
-  if (score <= 44)  return '#f97316'; // fear
-  if (score <= 55)  return '#eab308'; // neutral
-  if (score <= 74)  return '#84cc16'; // greed
-  return '#22c55e';                   // extreme greed
-}
-
-/** Return a label for a 0-100 Fear & Greed score */
-function fgText(score) {
-  if (score <= 24)  return 'Extreme Fear';
-  if (score <= 44)  return 'Fear';
-  if (score <= 55)  return 'Neutral';
-  if (score <= 74)  return 'Greed';
-  return 'Extreme Greed';
-}
-
-/** Return a colour for an altcoin season score */
-function asColor(score) {
-  if (score <= 25)  return '#f7931a'; // bitcoin season
-  if (score <= 49)  return '#eab308'; // leaning BTC
-  if (score <= 74)  return '#84cc16'; // leaning alts
-  return '#22c55e';                   // altcoin season
-}
-
-/** Return a label for an altcoin season score */
-function asText(score) {
-  if (score <= 25)  return 'Bitcoin Season';
-  if (score <= 49)  return 'Leaning Bitcoin';
-  if (score <= 74)  return 'Leaning Altcoins';
-  return 'Altcoin Season';
-}
-
-async function loadStats() {
-  if (statsLoaded) return;
-  statsLoaded = true;
-
-  setVisible($('stats-loading'), true);
-  setHidden($('stats-error'),   true);
-  setHidden($('stats-content'), true);
-
-  try {
-    const [fngResult, globalResult] = await Promise.allSettled([
-      fetch('/api/fear-greed'),
-      fetch('/api/coingecko/global'),
-    ]);
-
-    // Fear & Greed is optional — show the widget as unavailable if the API fails
-    if (fngResult.status === 'fulfilled' && fngResult.value.ok) {
-      const fngData = await fngResult.value.json();
-      renderFearGreed(fngData);
-    } else {
-      // Mark the gauge as unavailable
-      const valEl = $('fg-value');
-      const lblEl = $('fg-label');
-      if (valEl) valEl.textContent = '—';
-      if (lblEl) lblEl.textContent = 'Unavailable';
-    }
-
-    if (globalResult.status === 'rejected' || !globalResult.value.ok) {
-      throw new Error(`CoinGecko API error (${globalResult.value?.status ?? 'network error'})`);
-    }
-
-    const globalData = await globalResult.value.json();
-    renderGlobalStats(globalData);
-
-    setHidden($('stats-loading'), true);
-    setVisible($('stats-content'), true);
-  } catch (err) {
-    setHidden($('stats-loading'), true);
-    const errEl = $('stats-error');
-    errEl.textContent = `Failed to load stats: ${err.message}`;
-    setVisible(errEl, true);
-    statsLoaded = false; // allow retry on next tab visit
-  }
-}
-
-function renderFearGreed(data) {
-  const entry = data?.data?.[0];
-  if (!entry) return;
-
-  const score    = Number(entry.value);
-  const apiLabel = entry.value_classification || fgText(score);
-  const updated  = entry.timestamp
-    ? new Date(Number(entry.timestamp) * 1000).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-      })
-    : '';
-
-  const color = fgColor(score);
-
-  // Update value & label
-  const valEl = $('fg-value');
-  const lblEl = $('fg-label');
-  if (valEl) { valEl.textContent = score; valEl.style.color = color; }
-  if (lblEl) { lblEl.textContent = apiLabel; lblEl.style.color = color; }
-
-  // Gauge arc color
-  const arcEl = document.getElementById('fg-gauge-arc');
-  if (arcEl) arcEl.style.stroke = color;
-
-  applyGauge('fg-gauge-arc', 'fg-gauge-needle', score);
-
-  const metaEl = $('fg-meta');
-  if (metaEl && updated) metaEl.textContent = `Updated ${updated}`;
-}
-
-function renderGlobalStats(data) {
-  const g = data?.data;
-  if (!g) return;
-
-  // ── Altcoin Season ──────────────────────────────────────
-  const btcDom = Number(g.market_cap_percentage?.btc || 0);
-  // Score: 100 at 25% BTC dom, 50 at 50% BTC dom, 0 at 75% BTC dom
-  const asScore = Math.max(0, Math.min(100, Math.round(100 - (btcDom - 25) * 2)));
-  const asColorVal = asColor(asScore);
-
-  const asValEl = $('as-value');
-  const asLblEl = $('as-label');
-  if (asValEl) { asValEl.textContent = asScore; asValEl.style.color = asColorVal; }
-  if (asLblEl) { asLblEl.textContent = asText(asScore); asLblEl.style.color = asColorVal; }
-
-  const asArcEl = document.getElementById('as-gauge-arc');
-  if (asArcEl) asArcEl.style.stroke = asColorVal;
-
-  applyGauge('as-gauge-arc', 'as-gauge-needle', asScore);
-
-  const asMeta = $('as-meta');
-  if (asMeta) asMeta.textContent = `BTC dominance: ${btcDom.toFixed(1)}%`;
-
-  // ── BTC Dominance bars ──────────────────────────────────
-  const ethDom    = Number(g.market_cap_percentage?.eth    || 0);
-  const othersDom = Math.max(0, 100 - btcDom - ethDom);
-
-  const btcDomVal   = $('btc-dom-value');
-  const ethDomVal   = $('eth-dom-value');
-  const othersDomVal = $('others-dom-value');
-  const btcBar      = $('btc-dom-bar');
-  const ethBar      = $('eth-dom-bar');
-  const othersBar   = $('others-dom-bar');
-
-  if (btcDomVal)    btcDomVal.textContent    = `${btcDom.toFixed(1)}%`;
-  if (ethDomVal)    ethDomVal.textContent    = `${ethDom.toFixed(1)}%`;
-  if (othersDomVal) othersDomVal.textContent = `${othersDom.toFixed(1)}%`;
-  if (btcBar)       btcBar.style.width       = `${btcDom.toFixed(1)}%`;
-  if (ethBar)       ethBar.style.width       = `${ethDom.toFixed(1)}%`;
-  if (othersBar)    othersBar.style.width    = `${othersDom.toFixed(1)}%`;
-
-  // ── Total Market Cap ────────────────────────────────────
-  const totalMcap  = Number(g.total_market_cap?.usd || 0);
-  const mcapChange = Number(g.market_cap_change_percentage_24h_usd || 0);
-  const btcMcap    = Number(g.total_market_cap?.btc || 0) * Number(g.market_cap_percentage?.btc || 0) / 100;
-  const ethMcap    = totalMcap * (ethDom / 100);
-  const activeCryptos = Number(g.active_cryptocurrencies || 0);
-
-  const mcapValEl    = $('total-mcap-value');
-  const mcapChgEl    = $('total-mcap-change');
-  const btcMcapEl    = $('btc-mcap-value');
-  const ethMcapEl    = $('eth-mcap-value');
-  const activeCryEl  = $('active-cryptos-value');
-
-  if (mcapValEl)  mcapValEl.textContent  = fmt.large(totalMcap);
-  if (btcMcapEl)  btcMcapEl.textContent  = fmt.large(totalMcap * (btcDom / 100));
-  if (ethMcapEl)  ethMcapEl.textContent  = fmt.large(ethMcap);
-  if (activeCryEl) activeCryEl.textContent = activeCryptos.toLocaleString('en-US');
-
-  if (mcapChgEl) {
-    const { text, cls } = fmt.change(mcapChange);
-    mcapChgEl.innerHTML = `24h: <span class="${cls}">${text}</span>`;
-  }
-}

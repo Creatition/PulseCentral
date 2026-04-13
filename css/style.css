@@ -3624,3 +3624,77 @@ li + li { margin-top: 0.35rem; }
   .pulse-price-grid { grid-template-columns: repeat(2, 1fr); }
   .top50-toolbar { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── PulseChain Stats hero grid ── */
+.pcs-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.pcs-hero-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.pcs-hero-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+}
+
+.pcs-hero-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.pcs-hero-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.pcs-hero-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+  word-break: break-all;
+}
+
+.pcs-hero-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.pcs-sources {
+  margin-top: 1.25rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.pcs-sources a {
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pcs-sources a:hover {
+  color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .pcs-hero-grid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .pcs-hero-grid { grid-template-columns: repeat(2, 1fr); }
+}
