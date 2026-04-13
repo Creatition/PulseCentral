@@ -124,9 +124,9 @@ li + li { margin-top: 0.35rem; }
   display: flex;
   align-items: center;
   height: 36px;
-  overflow: visible;
+  overflow: hidden;
   position: sticky;
-  top: 65px;
+  top: 64px;
   z-index: 99;
 }
 
