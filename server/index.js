@@ -479,19 +479,27 @@ app.get('/api/coingecko/global', (req, res) => {
 });
 
 // Top Coins by Market Cap via CoinCap (free, no API key required)
-// Normalises the CoinCap response to the CoinGecko coins/markets shape so the
-// frontend does not need any changes.
+// Proxy for CoinGecko coins/markets — returns data already in the shape the
+// frontend expects so no normalisation is required.
 // Frontend: /api/coingecko/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1
 app.get('/api/coingecko/markets', async (req, res) => {
-  const cacheKey = 'coincap-markets';
+  const cacheKey = 'coingecko-markets';
   const cached = getCached(cacheKey);
   if (cached) return res.json(cached);
 
-  const limit = Math.min(parseInt(req.query.per_page, 10) || 100, 250);
+  const perPage = Math.min(parseInt(req.query.per_page, 10) || 100, 250);
+  const params = new URLSearchParams({
+    vs_currency: req.query.vs_currency || 'usd',
+    order: req.query.order || 'market_cap_desc',
+    per_page: String(perPage),
+    page: req.query.page || '1',
+    sparkline: 'false',
+    price_change_percentage: '24h',
+  });
 
   try {
     const upstream = await fetch(
-      `https://api.coincap.io/v2/assets?limit=${limit}`,
+      `https://api.coingecko.com/api/v3/coins/markets?${params}`,
       {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; PulseCentral/1.0)',
@@ -505,28 +513,15 @@ app.get('/api/coingecko/markets', async (req, res) => {
       return res.status(upstream.status).json({ error: `Upstream returned HTTP ${upstream.status}` });
     }
 
-    const { data } = await upstream.json();
+    const data = await upstream.json();
     if (!Array.isArray(data)) {
-      return res.status(502).json({ error: 'Unexpected response from CoinCap' });
+      return res.status(502).json({ error: 'Unexpected response from CoinGecko' });
     }
 
-    // Normalise to the CoinGecko coins/markets field shape expected by the frontend
-    const normalised = data.map(asset => ({
-      id:                           asset.id,
-      symbol:                       (asset.symbol || '').toLowerCase(),
-      name:                         asset.name,
-      image:                        `https://assets.coincap.io/assets/icons/${(asset.symbol || '').toLowerCase()}@2x.png`,
-      current_price:                parseFloat(asset.priceUsd) || 0,
-      market_cap:                   parseFloat(asset.marketCapUsd) || 0,
-      market_cap_rank:              parseInt(asset.rank, 10) || null,
-      total_volume:                 parseFloat(asset.volumeUsd24Hr) || 0,
-      price_change_percentage_24h:  parseFloat(asset.changePercent24Hr) || 0,
-    }));
-
-    setCached(cacheKey, normalised);
-    res.json(normalised);
+    setCached(cacheKey, data);
+    res.json(data);
   } catch (err) {
-    console.error('[PulseCentral proxy] CoinCap markets:', err);
+    console.error('[PulseCentral proxy] CoinGecko markets:', err);
     res.status(502).json({ error: 'Proxy request failed', detail: err.message });
   }
 });
