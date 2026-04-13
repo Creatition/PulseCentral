@@ -3885,3 +3885,43 @@ li + li { margin-top: 0.35rem; }
   color: var(--danger, #f87171);
 }
 
+
+/* ── User Profile Saved Summary ─────────────────────────── */
+
+.user-profile-saved-summary {
+  margin: 0.25rem 0;
+}
+
+.user-profile-summary-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.user-profile-summary-chip {
+  align-items: center;
+  background: var(--bg, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-light, rgba(255,255,255,0.08));
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0.65rem;
+}
+
+.upc-chip-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.upc-chip-value {
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.user-profile-saved-at {
+  color: var(--text-dim, var(--text-muted));
+  font-size: 0.75rem;
+  margin: 0.4rem 0 0;
+  text-align: right;
+}

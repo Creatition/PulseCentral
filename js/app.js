@@ -4015,6 +4015,30 @@ const UserProfile = (() => {
       _restoreData(user.data);
       return { ok: true };
     },
+
+    /** Return a summary of the active user's saved profile data (counts of wallets, groups, tokens). */
+    getSavedSummary() {
+      const active = this.getActiveUser();
+      if (!active) return null;
+      const users = _load();
+      const user = users.find(u => u.username.toLowerCase() === active.toLowerCase());
+      if (!user || !user.data) return { wallets: 0, groups: 0, tokens: 0, theme: null, savedAt: null };
+      const d = user.data;
+      let wallets = 0, tokens = 0;
+      try {
+        const wl = JSON.parse(d['pc-watchlist'] || 'null');
+        if (wl) {
+          wallets = Array.isArray(wl.wallets) ? wl.wallets.length : 0;
+          tokens  = Array.isArray(wl.tokens)  ? wl.tokens.length  : 0;
+        }
+      } catch { /* ignore */ }
+      let groups = 0;
+      try {
+        const g = JSON.parse(d['pc-groups'] || 'null');
+        if (Array.isArray(g)) groups = g.length;
+      } catch { /* ignore */ }
+      return { wallets, groups, tokens, theme: d['pc-theme'] || null, savedAt: user.savedAt || null };
+    },
   };
 })();
 
@@ -4027,6 +4051,44 @@ const userAuthSection    = $('user-profile-auth');
 const userProfileView    = $('user-profile-view');
 const userDisplayName    = $('user-profile-display-name');
 const userFeedback       = $('user-profile-feedback');
+const userSavedSummary   = $('user-profile-saved-summary');
+
+/** Render the saved-data summary chips inside the signed-in profile view. */
+function renderProfileSummary() {
+  if (!userSavedSummary) return;
+  const summary = UserProfile.getSavedSummary();
+  if (!summary) { userSavedSummary.innerHTML = ''; return; }
+  const { wallets, groups, tokens, theme, savedAt } = summary;
+  const hasSaved = wallets > 0 || groups > 0 || tokens > 0 || theme;
+  if (!hasSaved && !savedAt) {
+    userSavedSummary.innerHTML = '<p class="user-profile-hint" style="margin:0">No profile data saved yet. Click <strong>Save Profile</strong> to save your current data.</p>';
+    return;
+  }
+  const dateStr = savedAt
+    ? new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+  userSavedSummary.innerHTML = `
+    <div class="user-profile-summary-grid">
+      <div class="user-profile-summary-chip">
+        <span class="upc-chip-label">💼 Saved Wallets</span>
+        <span class="upc-chip-value">${wallets}</span>
+      </div>
+      <div class="user-profile-summary-chip">
+        <span class="upc-chip-label">🗂 Groups</span>
+        <span class="upc-chip-value">${groups}</span>
+      </div>
+      <div class="user-profile-summary-chip">
+        <span class="upc-chip-label">⭐ Watchlist Tokens</span>
+        <span class="upc-chip-value">${tokens}</span>
+      </div>
+      <div class="user-profile-summary-chip">
+        <span class="upc-chip-label">🎨 Theme</span>
+        <span class="upc-chip-value">${theme || '—'}</span>
+      </div>
+    </div>
+    <p class="user-profile-saved-at">Last saved: ${dateStr}</p>
+  `;
+}
 
 /** Update the header button appearance and modal view based on sign-in state. */
 function updateUserProfileUI() {
@@ -4038,12 +4100,14 @@ function updateUserProfileUI() {
     userDisplayName.textContent = active;
     setHidden(userAuthSection, true);
     setHidden(userProfileView, false);
+    renderProfileSummary();
   } else {
     userProfileBtn.classList.remove('signed-in');
     userProfileBtn.title = 'User Profile';
     userProfileBtn.setAttribute('aria-label', 'Open user profile');
     setHidden(userAuthSection, false);
     setHidden(userProfileView, true);
+    if (userSavedSummary) userSavedSummary.innerHTML = '';
   }
 }
 
@@ -4159,6 +4223,7 @@ $('user-register-btn').addEventListener('click', async () => {
 $('user-save-btn').addEventListener('click', () => {
   const result = UserProfile.saveProfile();
   if (result.ok) {
+    renderProfileSummary();
     showUserFeedback('✓ Profile saved!', 'success');
   } else {
     showUserFeedback('Could not save profile. Please sign in first.', 'error');
