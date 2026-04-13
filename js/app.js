@@ -1813,7 +1813,7 @@ async function runTop50Search(query) {
     const pairs = (data?.pairs || []).filter(p => p.chainId === 'pulsechain');
     // Sort by liquidity descending so most liquid results come first
     pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
-    renderTop50SearchResults(pairs.slice(0, 50));
+    renderTop50SearchResults(pairs.slice(0, TOP50_PAGE_SIZE));
   } catch (err) {
     const errEl = $('top50-error');
     if (errEl) {
