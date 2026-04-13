@@ -415,8 +415,8 @@ document.querySelectorAll('[data-tools-page]').forEach(btn => {
 
   function buildImageUrl(prompt) {
     const seed = Math.floor(Math.random() * 1000000);
-    const encoded = encodeURIComponent(prompt + ', meme style, funny, high quality');
-    return `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&seed=${seed}&nologo=true`;
+    const fullPrompt = encodeURIComponent(prompt + ', meme style, funny, high quality');
+    return `/api/meme-generate?prompt=${fullPrompt}&width=1024&height=1024&seed=${seed}&nologo=true`;
   }
 
   function renderSuggestions(prompt) {
