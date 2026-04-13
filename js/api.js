@@ -962,7 +962,6 @@ const API = (() => {
     const pairAddresses = CORE_COINS.map(c => c.pairAddress).filter(Boolean);
     const url = `${DSX_BASE}/pairs/pulsechain/${pairAddresses.join(',')}`;
 
-    // PLS is the only coin that uses live chart bars; all others use the snapshot.
     const plsCoin = CORE_COINS.find(c => c.symbol === 'PLS' || c.symbol === 'WPLS');
 
     // Fetch live price data, the weekly snapshot, and PLS live chart bars in parallel.
@@ -974,6 +973,24 @@ const API = (() => {
         : Promise.resolve({ bars: [], resolution: 'W' }),
     ]);
 
+    // For non-PLS coins whose snapshot has fewer than 3 bars (e.g. the snapshot
+    // failed to build because the subgraph was unavailable), fall back to fetching
+    // live chart data directly so charts always show full history.
+    const coinsNeedingLive = CORE_COINS.filter(c => {
+      const isPls = c.symbol === 'PLS' || c.symbol === 'WPLS';
+      if (isPls) return false;
+      return (snapshots.get(c.symbol) || []).length < 3;
+    });
+
+    const liveChartEntries = await Promise.all(
+      coinsNeedingLive.map(c =>
+        getCoreCoinChartBars(c.pairAddress, c.chartRes, c.address)
+          .catch(() => ({ bars: [], resolution: 'W' }))
+          .then(result => [c.symbol, result])
+      )
+    );
+    const liveChartMap = new Map(liveChartEntries);
+
     const pairsById = new Map();
     for (const pair of (pairData.pairs || [])) {
       if (pair.pairAddress) {
@@ -982,14 +999,22 @@ const API = (() => {
     }
 
     return CORE_COINS.map(coin => {
-      const isLive = coin.symbol === 'PLS' || coin.symbol === 'WPLS';
+      const isPls = coin.symbol === 'PLS' || coin.symbol === 'WPLS';
       let bars, resolution;
-      if (isLive) {
+      if (isPls) {
         bars       = plsChart.bars;
         resolution = plsChart.resolution;
       } else {
-        bars       = snapshots.get(coin.symbol) || [];
-        resolution = 'W';
+        const snapshotBars = snapshots.get(coin.symbol) || [];
+        if (snapshotBars.length >= 3) {
+          bars       = snapshotBars;
+          resolution = 'W';
+        } else {
+          // Snapshot insufficient — use live chart data fetched above
+          const live = liveChartMap.get(coin.symbol) || { bars: [], resolution: 'W' };
+          bars       = live.bars;
+          resolution = live.resolution;
+        }
       }
       return {
         symbol:       coin.symbol,
