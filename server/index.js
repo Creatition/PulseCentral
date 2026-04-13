@@ -101,8 +101,18 @@ const SNAPSHOT_FILE = path.join(__dirname, 'data', 'chart-snapshots.json');
 /** PulseX V1 subgraph endpoint. */
 const PULSEX_GRAPH = 'https://graph.v2b.pulsechain.com/subgraphs/name/pulsechain/v2b-pulsex';
 
-/** May 13 2023 00:00:00 UTC (seconds) — earliest bar included in snapshot charts. */
+/**
+ * May 13 2023 00:00:00 UTC (seconds) — earliest bar included in snapshot charts.
+ * This is the date chosen as the chart start to align with the week of PulseChain's
+ * mainnet launch (May 12 2023).
+ */
 const CHART_START_SEC = 1683936000;
+
+/** Timeout (ms) for individual PulseX subgraph requests during snapshot build. */
+const SUBGRAPH_TIMEOUT_MS = 25_000;
+
+/** How often (ms) to check whether a new Monday snapshot is needed. */
+const REFRESH_INTERVAL_MS = 3_600_000; // 1 hour
 
 /**
  * The four core coins whose charts are served as weekly snapshots.
@@ -162,7 +172,7 @@ async function fetchSubgraphHistory(tokenAddress) {
         'User-Agent':   'Mozilla/5.0 (compatible; PulseCentral/1.0)',
       },
       body:   JSON.stringify({ query }),
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(SUBGRAPH_TIMEOUT_MS),
     });
 
     if (!r.ok) throw new Error(`Subgraph HTTP ${r.status}`);
@@ -298,7 +308,7 @@ refreshSnapshotIfNeeded().catch(() => {});
 
 // Re-check every hour so a Monday transition triggers a refresh even when the
 // server stays running across the week boundary.
-setInterval(() => refreshSnapshotIfNeeded().catch(() => {}), 3_600_000).unref();
+setInterval(() => refreshSnapshotIfNeeded().catch(() => {}), REFRESH_INTERVAL_MS).unref();
 
 // GET /api/chart-snapshots — serve the stored weekly snapshot for PLSX/HEX/INC/PRVX
 app.get('/api/chart-snapshots', (_req, res) => {
