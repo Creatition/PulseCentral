@@ -906,7 +906,8 @@ li + li { margin-top: 0.35rem; }
   outline: none;
   padding: 0.6rem 1rem;
   transition: border-color var(--transition), box-shadow var(--transition);
-  width: 280px;
+  width: 480px;
+  max-width: 100%;
 }
 .search-input:focus {
   border-color: var(--primary);
@@ -3667,6 +3668,8 @@ li + li { margin-top: 0.35rem; }
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 1;
+  justify-content: flex-end;
 }
 
 .top50-pagination {
