@@ -2940,6 +2940,67 @@ li + li { margin-top: 0.35rem; }
   flex-shrink: 0;
 }
 
+/* ── Links tab: flyout nested submenus ── */
+.tab-dropdown-submenu {
+  position: relative;
+}
+
+.tab-dropdown-submenu-trigger {
+  cursor: default;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.tab-submenu-caret {
+  font-size: 0.5rem;
+  opacity: 0.55;
+  margin-left: auto;
+  padding-left: 0.75rem;
+  flex-shrink: 0;
+}
+
+.tab-dropdown-submenu-content {
+  position: absolute;
+  left: 100%;
+  top: -0.35rem;
+  min-width: 190px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 0 0 1px var(--primary-glow);
+  z-index: 210;
+  padding: 0.35rem 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+}
+
+.tab-dropdown-submenu:hover .tab-dropdown-submenu-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.tab-dropdown-submenu:hover > .tab-dropdown-submenu-trigger {
+  color: var(--text);
+  background: var(--bg-card-hover);
+}
+
+/* Wider dropdown for the links tab so submenu has room */
+.links-tab-dropdown {
+  min-width: 195px;
+}
+
+/* Remove extra top spacing for first section in Links tab */
+.links-first-section {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 /* ── PLS Top 50 ── */
 .top50-row {
   display: grid;

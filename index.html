@@ -65,17 +65,114 @@
             <a class="tab-dropdown-item" role="menuitem" href="https://libertyswap.finance/" target="_blank" rel="noopener noreferrer">
               <span class="tab-dropdown-icon">🗽</span> Liberty Swap ↗
             </a>
+            <a class="tab-dropdown-item" role="menuitem" href="https://app.provex.com/" target="_blank" rel="noopener noreferrer">
+              <span class="tab-dropdown-icon">✅</span> ProveX ↗
+            </a>
           </div>
         </div>
         <button class="tab-btn" data-tab="portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio">
           <span class="tab-icon">💼</span> Portfolio
         </button>
-        <button class="tab-btn" id="btn-stats" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats">
-          <span class="tab-icon">📈</span> Stats
-        </button>
         <button class="tab-btn" data-tab="tools" role="tab" aria-selected="false" aria-controls="tab-tools">
           <span class="tab-icon">🛠️</span> Tools
         </button>
+        <!-- Links tab with flyout category submenus -->
+        <div class="tab-nav-item has-dropdown" id="links-nav-item">
+          <button class="tab-btn" data-tab="links" role="tab" aria-selected="false" aria-controls="tab-links" aria-haspopup="true">
+            <span class="tab-icon">🔗</span> Links <span class="tab-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="tab-dropdown links-tab-dropdown" role="menu" aria-label="Links categories">
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">📊</span> Analytics <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Analytics links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">📈</span> DexScreener ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://www.dextools.io/app/en/pulse/pairs" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🛠️</span> DexTools ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://www.geckoterminal.com/pulsechain/pools" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🦎</span> GeckoTerminal ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">🔀</span> Aggregators <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Aggregators links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://x.libertyswap.finance/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🗽</span> Liberty Swap ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://9x.9mm.pro/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🔢</span> 9x by 9mm ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://swap.internetmoney.io/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">💰</span> Internet Money Swap ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://app.piteas.io/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">⚡</span> Piteas ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://swap.win/0x9b059cdacd851359cf0e41a366e68ea661146abc" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🏆</span> Swap.win ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">🔍</span> Block Explorers <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Block Explorers links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://scan.pulsechain.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🔍</span> PulseChain Scan ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://scan.gigatheminter.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🔎</span> Giga The Minter ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://midgard.wtf/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🌐</span> Midgard ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://otherscan.pulsechain.box/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">📦</span> OtherScan ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://otter.pulsechain.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🦦</span> OtterScan ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">🌉</span> Bridges <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Bridges links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://bridge.pulsechain.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🌉</span> PulseChain Bridge ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://libertyswap.finance/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🗽</span> Liberty Swap ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://houdiniswap.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🎩</span> Houdini Swap ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">🔄</span> Dexs <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Dexs links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://app.pulsex.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🔄</span> PulseX ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://beta.0xtide.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🌊</span> 0xTide ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://app.9inch.io/swap?chain=pulse" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">📏</span> 9inch ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://dex.9mm.pro/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🔫</span> 9mm ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://dex.dextop.pro/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🏔️</span> DexTop ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://phux.io/#/pulse/trade" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">💧</span> PHUX ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">🌾</span> Farms <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Farms links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://app.9inch.io/farms?chain=pulsechain" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">📏</span> 9inch Farms ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://www.daytona.finance/farms" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🏎️</span> Daytona Finance ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://helgo.io/dapp" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🌿</span> Helgo ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://app.hocuspocus.finance/farms" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🎩</span> Hocus Pocus ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://pulselorian.com/yieldFarm" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🚀</span> Pulselorian ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">💎</span> Hex <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Hex links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://hexgraphs.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">📊</span> HEX Graphs ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://hex.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">💎</span> HEX.com ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">💳</span> Onramps <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Onramps links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://0xcoast.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🌊</span> 0xCoast ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://changenow.app.link/referral?link_id=87fb8fbefc1ed4" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🔄</span> ChangeNow ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://tinyurl.com/plsfoliobuy" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">💸</span> PLSFolio Buy ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://app.provex.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">✅</span> ProveX ↗</a>
+              </div>
+            </div>
+          </div>
+        </div>
       </nav>
       <div class="header-right">
         <!-- Watchlist Star -->
@@ -415,63 +512,6 @@
 
     </section>
 
-    <!-- ── STATS TAB ── -->
-    <section id="tab-stats" class="tab-panel" role="tabpanel" aria-labelledby="btn-stats">
-
-      <div class="section-header">
-        <h1>PulseChain Stats</h1>
-        <p class="section-subtitle">Key on-chain metrics for the PulseChain ecosystem.</p>
-      </div>
-
-      <div id="pulse-stats-error" class="error-banner hidden" role="alert"></div>
-
-      <div id="pulse-stats-loading" class="loading-wrap">
-        <div class="pulse-loader" aria-label="Loading PulseChain stats"></div>
-        <p>Loading PulseChain data…</p>
-      </div>
-
-      <div id="pulse-stats-content" class="hidden">
-
-        <!-- Hero stats grid -->
-        <div class="pcs-hero-grid">
-
-          <!-- Bridged Total Value -->
-          <div class="pcs-hero-card" id="pcs-card-bridge">
-            <div class="pcs-hero-icon">🌉</div>
-            <div class="pcs-hero-label">Total Bridged Value</div>
-            <div class="pcs-hero-value" id="pcs-bridge-value">—</div>
-            <div class="pcs-hero-sub" id="pcs-bridge-sub">Value locked in the official PulseChain bridge</div>
-          </div>
-
-          <!-- Wallet Holders -->
-          <div class="pcs-hero-card" id="pcs-card-holders">
-            <div class="pcs-hero-icon">👛</div>
-            <div class="pcs-hero-label">Wallet Holders</div>
-            <div class="pcs-hero-value" id="pcs-holders-value">—</div>
-            <div class="pcs-hero-sub">Total unique addresses on PulseChain</div>
-          </div>
-
-          <!-- Daily Transactions -->
-          <div class="pcs-hero-card" id="pcs-card-txns">
-            <div class="pcs-hero-icon">⚡</div>
-            <div class="pcs-hero-label">Daily Transactions</div>
-            <div class="pcs-hero-value" id="pcs-txns-value">—</div>
-            <div class="pcs-hero-sub">Transactions processed today</div>
-          </div>
-
-        </div><!-- /.pcs-hero-grid -->
-
-        <p class="pcs-sources">
-          Sources:
-          <a href="https://defillama.com/protocol/pulsechain-bridge" target="_blank" rel="noopener">DefiLlama</a>
-          &amp;
-          <a href="https://scan.pulsechain.com/" target="_blank" rel="noopener">PulseChain Scan</a>
-        </p>
-
-      </div><!-- /#pulse-stats-content -->
-
-    </section>
-
     <!-- ── TOOLS TAB ── -->
     <section id="tab-tools" class="tab-panel" role="tabpanel" aria-labelledby="btn-tools">
       <div class="section-header">
@@ -572,6 +612,203 @@
           </div>
         </a>
       </div>
+    </section>
+
+    <!-- ── LINKS TAB ── -->
+    <section id="tab-links" class="tab-panel" role="tabpanel" aria-labelledby="btn-links">
+      <div class="section-header">
+        <h1>Links</h1>
+        <p class="section-subtitle">Explore the PulseChain ecosystem — analytics, DEXs, bridges, and more.</p>
+      </div>
+
+      <!-- Analytics -->
+      <div class="tools-subsection-header links-first-section" id="links-analytics">
+        <h2>📊 Analytics</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">📈</span>
+          <div class="tools-card-body"><h3>DexScreener</h3><p>Real-time charts and trading pair data across PulseChain DEXs.</p></div>
+        </a>
+        <a class="tools-card" href="https://www.dextools.io/app/en/pulse/pairs" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🛠️</span>
+          <div class="tools-card-body"><h3>DexTools</h3><p>Advanced trading tools, charts, and pair explorer for PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://www.geckoterminal.com/pulsechain/pools" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🦎</span>
+          <div class="tools-card-body"><h3>GeckoTerminal</h3><p>On-chain trading data and pool analytics for PulseChain.</p></div>
+        </a>
+      </div>
+
+      <!-- Aggregators -->
+      <div class="tools-subsection-header" id="links-aggregators">
+        <h2>🔀 Aggregators</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://x.libertyswap.finance/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🗽</span>
+          <div class="tools-card-body"><h3>Liberty Swap</h3><p>DEX aggregator — find the best swap rates across PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://9x.9mm.pro/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🔢</span>
+          <div class="tools-card-body"><h3>9x by 9mm</h3><p>Aggregator routing trades through PulseChain's top liquidity sources.</p></div>
+        </a>
+        <a class="tools-card" href="https://swap.internetmoney.io/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">💰</span>
+          <div class="tools-card-body"><h3>Internet Money Swap</h3><p>Swap aggregator powered by the Internet Money ecosystem.</p></div>
+        </a>
+        <a class="tools-card" href="https://app.piteas.io/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">⚡</span>
+          <div class="tools-card-body"><h3>Piteas</h3><p>Smart order routing for best-price swaps on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://swap.win/0x9b059cdacd851359cf0e41a366e68ea661146abc" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🏆</span>
+          <div class="tools-card-body"><h3>Swap.win</h3><p>Aggregated swap interface for PulseChain tokens.</p></div>
+        </a>
+      </div>
+
+      <!-- Block Explorers -->
+      <div class="tools-subsection-header" id="links-block-explorers">
+        <h2>🔍 Block Explorers</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://scan.pulsechain.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🔍</span>
+          <div class="tools-card-body"><h3>PulseChain Scan</h3><p>Official block explorer — track transactions, tokens, and contracts.</p></div>
+        </a>
+        <a class="tools-card" href="https://scan.gigatheminter.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🔎</span>
+          <div class="tools-card-body"><h3>Giga The Minter</h3><p>Alternative PulseChain block explorer.</p></div>
+        </a>
+        <a class="tools-card" href="https://midgard.wtf/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🌐</span>
+          <div class="tools-card-body"><h3>Midgard</h3><p>PulseChain blockchain explorer and analytics tool.</p></div>
+        </a>
+        <a class="tools-card" href="https://otherscan.pulsechain.box/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">📦</span>
+          <div class="tools-card-body"><h3>OtherScan</h3><p>Community-driven block explorer for PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://otter.pulsechain.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🦦</span>
+          <div class="tools-card-body"><h3>OtterScan</h3><p>Fast, lightweight block explorer for PulseChain.</p></div>
+        </a>
+      </div>
+
+      <!-- Bridges -->
+      <div class="tools-subsection-header" id="links-bridges">
+        <h2>🌉 Bridges</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://bridge.pulsechain.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🌉</span>
+          <div class="tools-card-body"><h3>PulseChain Bridge</h3><p>Official bridge to move assets between Ethereum and PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://libertyswap.finance/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🗽</span>
+          <div class="tools-card-body"><h3>Liberty Swap</h3><p>Cross-chain bridge and swap aggregator for PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://houdiniswap.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🎩</span>
+          <div class="tools-card-body"><h3>Houdini Swap</h3><p>Privacy-focused cross-chain bridge and swap service.</p></div>
+        </a>
+      </div>
+
+      <!-- Dexs -->
+      <div class="tools-subsection-header" id="links-dexs">
+        <h2>🔄 Dexs</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://app.pulsex.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🔄</span>
+          <div class="tools-card-body"><h3>PulseX</h3><p>PulseChain's native decentralised exchange — swap tokens instantly.</p></div>
+        </a>
+        <a class="tools-card" href="https://beta.0xtide.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🌊</span>
+          <div class="tools-card-body"><h3>0xTide</h3><p>Automated market maker DEX built for PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://app.9inch.io/swap?chain=pulse" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">📏</span>
+          <div class="tools-card-body"><h3>9inch</h3><p>DEX with farming and advanced features on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://dex.9mm.pro/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🔫</span>
+          <div class="tools-card-body"><h3>9mm</h3><p>Decentralised exchange on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://dex.dextop.pro/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🏔️</span>
+          <div class="tools-card-body"><h3>DexTop</h3><p>Trading DEX for PulseChain tokens.</p></div>
+        </a>
+        <a class="tools-card" href="https://phux.io/#/pulse/trade" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">💧</span>
+          <div class="tools-card-body"><h3>PHUX</h3><p>Balancer-forked weighted pool DEX on PulseChain.</p></div>
+        </a>
+      </div>
+
+      <!-- Farms -->
+      <div class="tools-subsection-header" id="links-farms">
+        <h2>🌾 Farms</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://app.9inch.io/farms?chain=pulsechain" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">📏</span>
+          <div class="tools-card-body"><h3>9inch Farms</h3><p>Yield farming on the 9inch DEX on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://www.daytona.finance/farms" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🏎️</span>
+          <div class="tools-card-body"><h3>Daytona Finance</h3><p>High-yield farming platform on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://helgo.io/dapp" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🌿</span>
+          <div class="tools-card-body"><h3>Helgo</h3><p>Yield farming and DeFi protocol on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://app.hocuspocus.finance/farms" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🎩</span>
+          <div class="tools-card-body"><h3>Hocus Pocus Finance</h3><p>Farming protocol with magic yields on PulseChain.</p></div>
+        </a>
+        <a class="tools-card" href="https://pulselorian.com/yieldFarm" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🚀</span>
+          <div class="tools-card-body"><h3>Pulselorian</h3><p>Yield farming on PulseChain.</p></div>
+        </a>
+      </div>
+
+      <!-- Hex -->
+      <div class="tools-subsection-header" id="links-hex">
+        <h2>💎 Hex</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://hexgraphs.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">📊</span>
+          <div class="tools-card-body"><h3>HEX Graphs</h3><p>Advanced HEX statistics, staking data, and charts.</p></div>
+        </a>
+        <a class="tools-card" href="https://hex.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">💎</span>
+          <div class="tools-card-body"><h3>HEX.com</h3><p>The official HEX website — stake HEX and earn interest.</p></div>
+        </a>
+      </div>
+
+      <!-- Onramps -->
+      <div class="tools-subsection-header" id="links-onramps">
+        <h2>💳 Onramps</h2>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://0xcoast.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🌊</span>
+          <div class="tools-card-body"><h3>0xCoast</h3><p>Buy PLS and PulseChain tokens directly with fiat.</p></div>
+        </a>
+        <a class="tools-card" href="https://changenow.app.link/referral?link_id=87fb8fbefc1ed4" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">🔄</span>
+          <div class="tools-card-body"><h3>ChangeNow</h3><p>Fast, non-custodial crypto exchange and fiat onramp.</p></div>
+        </a>
+        <a class="tools-card" href="https://tinyurl.com/plsfoliobuy" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">💸</span>
+          <div class="tools-card-body"><h3>PLSFolio Buy</h3><p>Buy PulseChain tokens via PLSFolio's onramp partner.</p></div>
+        </a>
+        <a class="tools-card" href="https://app.provex.com/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon">✅</span>
+          <div class="tools-card-body"><h3>ProveX</h3><p>Compliant fiat-to-crypto onramp for PulseChain assets.</p></div>
+        </a>
+      </div>
+
     </section>
 
     <!-- ── WATCHLIST TAB ── -->
