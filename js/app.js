@@ -1664,8 +1664,9 @@ function buildTop50Row(rank, pair) {
   const row = document.createElement('div');
   row.className = 'top50-row top50-data-row';
   if (pair.pairAddress) {
+    const chainId = pair.chainId || 'pulsechain';
     row.addEventListener('click', () => {
-      window.open(`https://dexscreener.com/pulsechain/${pair.pairAddress}`, '_blank', 'noopener');
+      window.open(`https://dexscreener.com/${chainId}/${pair.pairAddress}`, '_blank', 'noopener');
     });
     row.style.cursor = 'pointer';
   }
@@ -1766,7 +1767,7 @@ function renderTop50SearchResults(pairs) {
     empty.style.padding = '1.5rem';
     empty.style.justifyContent = 'center';
     empty.style.color = 'var(--text-muted)';
-    empty.textContent = 'No PulseChain tokens found for that search.';
+    empty.textContent = 'No tokens found for that search.';
     container.appendChild(empty);
     setVisible($('top50-list'), true);
     return;
@@ -1810,7 +1811,7 @@ async function runTop50Search(query) {
   try {
     const data = await fetch(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
-    const pairs = (data?.pairs || []).filter(p => p.chainId === 'pulsechain');
+    const pairs = (data?.pairs || []);
     // Sort by liquidity descending so most liquid results come first
     pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
     renderTop50SearchResults(pairs.slice(0, TOP50_PAGE_SIZE));
