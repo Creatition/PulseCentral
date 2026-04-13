@@ -36,20 +36,10 @@
         <span class="logo-pulse">Pulse</span><span class="logo-central">Central</span>
       </div>
       <nav class="tab-nav" role="tablist" aria-label="Main navigation">
-        <!-- Markets tab with hover dropdown -->
-        <div class="tab-nav-item has-dropdown" id="markets-nav-item">
-          <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets" aria-haspopup="true">
-            <span class="tab-icon">📊</span> Markets <span class="tab-caret" aria-hidden="true">▾</span>
-          </button>
-          <div class="tab-dropdown" role="menu" aria-label="Markets options">
-            <button class="tab-dropdown-item active" role="menuitem" data-markets-page="main">
-              <span class="tab-dropdown-icon">📊</span> Main
-            </button>
-            <button class="tab-dropdown-item" role="menuitem" data-markets-page="top50">
-              <span class="tab-dropdown-icon">🏅</span> PLS Top 50
-            </button>
-          </div>
-        </div>
+        <!-- Markets tab -->
+        <button class="tab-btn" data-tab="markets" role="tab" aria-selected="false" aria-controls="tab-markets">
+          <span class="tab-icon">📊</span> Markets
+        </button>
         <!-- Swap tab with hover dropdown -->
         <div class="tab-nav-item has-dropdown" id="swap-nav-item">
           <button class="tab-btn" data-tab="swap" role="tab" aria-selected="false" aria-controls="tab-swap" aria-haspopup="true">
@@ -166,6 +156,16 @@
                 <a class="tab-dropdown-item" role="menuitem" href="https://0xcoast.com/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">🌊</span> 0xCoast ↗</a>
                 <a class="tab-dropdown-item" role="menuitem" href="https://changenow.app.link/referral?link_id=87fb8fbefc1ed4" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://changenow.io/favicon.ico" alt="ChangeNow logo" loading="lazy"></span> ChangeNow ↗</a>
                 <a class="tab-dropdown-item" role="menuitem" href="https://tinyurl.com/plsfoliobuy" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">💸</span> PLSFolio Buy ↗</a>
+              </div>
+            </div>
+            <div class="tab-dropdown-submenu">
+              <span class="tab-dropdown-item tab-dropdown-submenu-trigger" role="menuitem" tabindex="0">
+                <span class="tab-dropdown-icon">🪙</span> Wallets <span class="tab-submenu-caret">▶</span>
+              </span>
+              <div class="tab-dropdown-submenu-content" role="menu" aria-label="Wallets links">
+                <a class="tab-dropdown-item" role="menuitem" href="https://metamask.io/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://raw.githubusercontent.com/MetaMask/brand-resources/main/SVG/SVG_MetaMask_Icon_Color.svg" alt="MetaMask logo" loading="lazy"></span> MetaMask ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://internetmoney.io/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://internetmoney.io/favicon.ico" alt="Internet Money Wallet logo" loading="lazy"></span> Internet Money Wallet ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://rabby.io/" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://rabby.io/favicon.ico" alt="Rabby Wallet logo" loading="lazy"></span> Rabby Wallet ↗</a>
               </div>
             </div>
           </div>
@@ -438,31 +438,8 @@
     <!-- ── MARKETS TAB ── -->
     <section id="tab-markets" class="tab-panel" role="tabpanel" aria-labelledby="btn-markets">
 
-      <!-- ── Markets: Main sub-page ── -->
-      <div id="markets-page-main">
-        <div class="section-header">
-          <h1>Markets</h1>
-        </div>
-
-        <div class="markets-toolbar">
-          <input id="market-search" type="search" class="search-input" placeholder="🔍 Search token…" aria-label="Search token" />
-          <button id="markets-refresh-btn" class="btn btn-secondary" aria-label="Refresh market data">
-            ↻ Refresh
-          </button>
-        </div>
-
-        <div id="markets-error" class="error-banner hidden" role="alert"></div>
-
-        <div id="markets-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading market data"></div>
-          <p>Loading market data…</p>
-        </div>
-
-        <div id="markets-sections" class="hidden"></div>
-      </div>
-
       <!-- ── Markets: PLS Top 50 sub-page ── -->
-      <div id="markets-page-top50" class="hidden">
+      <div id="markets-page-top50">
         <div class="section-header">
           <h1>PLS Top 50</h1>
           <p class="section-subtitle">PulseChain tokens ranked by market capitalization</p>
@@ -563,42 +540,6 @@
           <div class="tools-card-body">
             <h3>HEX Graphs</h3>
             <p>Advanced HEX statistics, staking data, and charts.</p>
-          </div>
-        </a>
-      </div>
-
-      <!-- ── Wallets sub-section ── -->
-      <div class="tools-subsection-header">
-        <h2>🪙 Wallets</h2>
-        <p>Recommended wallets for accessing PulseChain and managing your crypto assets.</p>
-      </div>
-      <div class="tools-grid">
-        <a class="tools-card" href="https://metamask.io/" target="_blank" rel="noopener noreferrer">
-          <span class="tools-card-icon"><img src="https://raw.githubusercontent.com/MetaMask/brand-resources/main/SVG/SVG_MetaMask_Icon_Color.svg" alt="MetaMask logo" loading="lazy"></span>
-          <div class="tools-card-body">
-            <h3>MetaMask</h3>
-            <p>The most popular EVM-compatible browser wallet. Add PulseChain as a custom network to manage your assets seamlessly.</p>
-          </div>
-        </a>
-        <div class="tools-card tools-card-disabled" aria-label="ZKX Wallet — Coming Soon">
-          <span class="tools-card-icon">⚡</span>
-          <div class="tools-card-body">
-            <h3>ZKX Wallet <span class="coming-soon-badge">Coming Soon</span></h3>
-            <p>An upcoming privacy-focused wallet purpose-built for PulseChain, bringing zero-knowledge security and a streamlined DeFi experience.</p>
-          </div>
-        </div>
-        <a class="tools-card" href="https://internetmoney.io/" target="_blank" rel="noopener noreferrer">
-          <span class="tools-card-icon"><img src="https://internetmoney.io/favicon.ico" alt="Internet Money Wallet logo" loading="lazy"></span>
-          <div class="tools-card-body">
-            <h3>Internet Money Wallet</h3>
-            <p>PulseChain-native multi-chain wallet with built-in DEX swaps, NFT support, and passive income via IM and TIME tokens.</p>
-          </div>
-        </a>
-        <a class="tools-card" href="https://rabby.io/" target="_blank" rel="noopener noreferrer">
-          <span class="tools-card-icon"><img src="https://rabby.io/favicon.ico" alt="Rabby Wallet logo" loading="lazy"></span>
-          <div class="tools-card-body">
-            <h3>Rabby Wallet</h3>
-            <p>Smart EVM wallet with automatic network detection, transaction previews, and risk analysis. Supports PulseChain natively.</p>
           </div>
         </a>
       </div>
@@ -799,9 +740,31 @@
         </a>
       </div>
 
-    </section>
+      <!-- Wallets -->
+      <div class="tools-subsection-header" id="links-wallets">
+        <h2>🪙 Wallets</h2>
+        <p>Recommended wallets for accessing PulseChain and managing your crypto assets.</p>
+      </div>
+      <div class="tools-grid">
+        <a class="tools-card" href="https://metamask.io/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon"><img src="https://raw.githubusercontent.com/MetaMask/brand-resources/main/SVG/SVG_MetaMask_Icon_Color.svg" alt="MetaMask logo" loading="lazy"></span>
+          <div class="tools-card-body"><h3>MetaMask</h3><p>The most popular EVM-compatible browser wallet. Add PulseChain as a custom network to manage your assets seamlessly.</p></div>
+        </a>
+        <div class="tools-card tools-card-disabled" aria-label="ZKX Wallet — Coming Soon">
+          <span class="tools-card-icon">⚡</span>
+          <div class="tools-card-body"><h3>ZKX Wallet <span class="coming-soon-badge">Coming Soon</span></h3><p>An upcoming privacy-focused wallet purpose-built for PulseChain, bringing zero-knowledge security and a streamlined DeFi experience.</p></div>
+        </div>
+        <a class="tools-card" href="https://internetmoney.io/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon"><img src="https://internetmoney.io/favicon.ico" alt="Internet Money Wallet logo" loading="lazy"></span>
+          <div class="tools-card-body"><h3>Internet Money Wallet</h3><p>PulseChain-native multi-chain wallet with built-in DEX swaps, NFT support, and passive income via IM and TIME tokens.</p></div>
+        </a>
+        <a class="tools-card" href="https://rabby.io/" target="_blank" rel="noopener noreferrer">
+          <span class="tools-card-icon"><img src="https://rabby.io/favicon.ico" alt="Rabby Wallet logo" loading="lazy"></span>
+          <div class="tools-card-body"><h3>Rabby Wallet</h3><p>Smart EVM wallet with automatic network detection, transaction previews, and risk analysis. Supports PulseChain natively.</p></div>
+        </a>
+      </div>
 
-    <!-- ── WATCHLIST TAB ── -->
+    </section>
     <section id="tab-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="btn-watchlist">
       <div class="section-header">
         <h1>Watchlist</h1>
