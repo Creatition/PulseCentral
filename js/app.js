@@ -230,7 +230,10 @@ if (watchlistStarBtn) watchlistStarBtn.addEventListener('click', () => switchTab
 
 // Logo click → home
 const logoEl = document.querySelector('.logo');
-if (logoEl) logoEl.addEventListener('click', () => switchTab('home'));
+if (logoEl) {
+  logoEl.addEventListener('click', () => switchTab('home'));
+  logoEl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab('home'); } });
+}
 
 function switchTab(name) {
   activeTab = name;
