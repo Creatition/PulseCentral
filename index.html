@@ -70,20 +70,9 @@
         <button class="tab-btn" data-tab="portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio">
           <span class="tab-icon">💼</span> Portfolio
         </button>
-        <!-- Stats tab with hover dropdown -->
-        <div class="tab-nav-item has-dropdown" id="stats-nav-item">
-          <button class="tab-btn" id="btn-stats" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats" aria-haspopup="true">
-            <span class="tab-icon">📈</span> Stats <span class="tab-caret" aria-hidden="true">▾</span>
-          </button>
-          <div class="tab-dropdown" role="menu" aria-label="Stats options">
-            <button class="tab-dropdown-item active" role="menuitem" data-stats-page="pulse">
-              <span class="tab-dropdown-icon">💜</span> PulseChain
-            </button>
-            <button class="tab-dropdown-item" role="menuitem" data-stats-page="crypto">
-              <span class="tab-dropdown-icon">🌐</span> Crypto
-            </button>
-          </div>
-        </div>
+        <button class="tab-btn" id="btn-stats" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats">
+          <span class="tab-icon">📈</span> Stats
+        </button>
         <button class="tab-btn" data-tab="tools" role="tab" aria-selected="false" aria-controls="tab-tools">
           <span class="tab-icon">🛠️</span> Tools
         </button>
@@ -429,248 +418,57 @@
     <!-- ── STATS TAB ── -->
     <section id="tab-stats" class="tab-panel" role="tabpanel" aria-labelledby="btn-stats">
 
-      <!-- ── Stats: PulseChain sub-page ── -->
-      <div id="stats-page-pulse">
-        <div class="section-header">
-          <h1>PulseChain Stats</h1>
-          <p class="section-subtitle">Live metrics for the PulseChain ecosystem.</p>
-        </div>
+      <div class="section-header">
+        <h1>PulseChain Stats</h1>
+        <p class="section-subtitle">Key on-chain metrics for the PulseChain ecosystem.</p>
+      </div>
 
-        <div id="pulse-stats-error" class="error-banner hidden" role="alert"></div>
+      <div id="pulse-stats-error" class="error-banner hidden" role="alert"></div>
 
-        <div id="pulse-stats-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading PulseChain stats"></div>
-          <p>Loading PulseChain data…</p>
-        </div>
+      <div id="pulse-stats-loading" class="loading-wrap">
+        <div class="pulse-loader" aria-label="Loading PulseChain stats"></div>
+        <p>Loading PulseChain data…</p>
+      </div>
 
-        <div id="pulse-stats-content" class="stats-content hidden">
+      <div id="pulse-stats-content" class="hidden">
 
-          <!-- Core Token Prices -->
-          <div class="stats-card" id="pulse-section-prices">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">��</span>
-              <div>
-                <h2 class="stats-card-title">Core Token Prices</h2>
-                <p class="stats-card-subtitle">Live PulseChain ecosystem token prices from DexScreener</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="pulse-price-grid" id="pulse-price-grid"></div>
-            </div>
+        <!-- Hero stats grid -->
+        <div class="pcs-hero-grid">
+
+          <!-- Bridged Total Value -->
+          <div class="pcs-hero-card" id="pcs-card-bridge">
+            <div class="pcs-hero-icon">🌉</div>
+            <div class="pcs-hero-label">Total Bridged Value</div>
+            <div class="pcs-hero-value" id="pcs-bridge-value">—</div>
+            <div class="pcs-hero-sub" id="pcs-bridge-sub">Value locked in the official PulseChain bridge</div>
           </div>
 
-          <!-- PulseX DEX Stats -->
-          <div class="stats-card" id="pulse-section-dex">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">🔄</span>
-              <div>
-                <h2 class="stats-card-title">PulseX DEX</h2>
-                <p class="stats-card-subtitle">Decentralised exchange stats on PulseChain</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="pulse-network-grid">
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Total Value Locked</div>
-                  <div class="pulse-stat-value" id="pulse-tvl-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">24h Volume</div>
-                  <div class="pulse-stat-value" id="pulse-dex-vol-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Tracked Pairs</div>
-                  <div class="pulse-stat-value" id="pulse-pairs-value">—</div>
-                </div>
-              </div>
-            </div>
+          <!-- Wallet Holders -->
+          <div class="pcs-hero-card" id="pcs-card-holders">
+            <div class="pcs-hero-icon">👛</div>
+            <div class="pcs-hero-label">Wallet Holders</div>
+            <div class="pcs-hero-value" id="pcs-holders-value">—</div>
+            <div class="pcs-hero-sub">Total unique addresses on PulseChain</div>
           </div>
 
-          <!-- PulseChain Network Stats -->
-          <div class="stats-card" id="pulse-section-network">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">🔗</span>
-              <div>
-                <h2 class="stats-card-title">Network Stats</h2>
-                <p class="stats-card-subtitle">PulseChain on-chain metrics from PulseChain Scan</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="pulse-network-grid">
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">PLS Price (USD)</div>
-                  <div class="pulse-stat-value" id="pulse-pls-price-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Gas Price (Gwei)</div>
-                  <div class="pulse-stat-value" id="pulse-gas-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Avg Block Time</div>
-                  <div class="pulse-stat-value" id="pulse-block-time-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Total Transactions</div>
-                  <div class="pulse-stat-value" id="pulse-total-txns-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Txns Today</div>
-                  <div class="pulse-stat-value" id="pulse-txns-today-value">—</div>
-                </div>
-                <div class="pulse-stat-item">
-                  <div class="pulse-stat-label">Total Addresses</div>
-                  <div class="pulse-stat-value" id="pulse-total-addr-value">—</div>
-                </div>
-              </div>
-            </div>
+          <!-- Daily Transactions -->
+          <div class="pcs-hero-card" id="pcs-card-txns">
+            <div class="pcs-hero-icon">⚡</div>
+            <div class="pcs-hero-label">Daily Transactions</div>
+            <div class="pcs-hero-value" id="pcs-txns-value">—</div>
+            <div class="pcs-hero-sub">Transactions processed today</div>
           </div>
 
-        </div><!-- /#pulse-stats-content -->
-      </div><!-- /#stats-page-pulse -->
+        </div><!-- /.pcs-hero-grid -->
 
-      <!-- ── Stats: Crypto sub-page ── -->
-      <div id="stats-page-crypto" class="hidden">
-        <div class="section-header">
-          <h1>Crypto Stats</h1>
-          <p class="section-subtitle">Global crypto market indicators and sentiment data.</p>
-        </div>
+        <p class="pcs-sources">
+          Sources:
+          <a href="https://defillama.com/protocol/pulsechain-bridge" target="_blank" rel="noopener">DefiLlama</a>
+          &amp;
+          <a href="https://scan.pulsechain.com/" target="_blank" rel="noopener">PulseChain Scan</a>
+        </p>
 
-        <div id="stats-error" class="error-banner hidden" role="alert"></div>
-
-        <div id="stats-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading stats"></div>
-          <p>Loading market stats…</p>
-        </div>
-
-        <div id="stats-content" class="stats-content hidden">
-
-          <!-- Fear & Greed Index -->
-          <div class="stats-card" id="stats-section-fear-greed">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">��</span>
-              <div>
-                <h2 class="stats-card-title">Crypto Fear &amp; Greed Index</h2>
-                <p class="stats-card-subtitle">Market sentiment indicator (0 = Extreme Fear, 100 = Extreme Greed)</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="fg-gauge-wrap">
-                <svg class="fg-gauge" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path class="fg-gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none"/>
-                  <path class="fg-gauge-arc" id="fg-gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none" stroke-dasharray="0 251"/>
-                  <line class="fg-gauge-needle" id="fg-gauge-needle" x1="100" y1="100" x2="100" y2="28" stroke-width="2.5"/>
-                  <circle cx="100" cy="100" r="5" class="fg-gauge-center"/>
-                </svg>
-                <div class="fg-gauge-labels">
-                  <span class="fg-label-fear">Extreme Fear</span>
-                  <span class="fg-label-greed">Extreme Greed</span>
-                </div>
-                <div class="fg-value-wrap">
-                  <span class="fg-value" id="fg-value">—</span>
-                  <span class="fg-label" id="fg-label">—</span>
-                </div>
-              </div>
-              <div class="stats-meta" id="fg-meta"></div>
-            </div>
-          </div>
-
-          <!-- Altcoin Season Index -->
-          <div class="stats-card" id="stats-section-altcoin-season">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">🌙</span>
-              <div>
-                <h2 class="stats-card-title">Altcoin Season Index</h2>
-                <p class="stats-card-subtitle">Based on BTC dominance — below 40% signals altcoin season</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="fg-gauge-wrap">
-                <svg class="fg-gauge" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path class="fg-gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none"/>
-                  <path class="fg-gauge-arc" id="as-gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" stroke-width="18" fill="none" stroke-dasharray="0 251"/>
-                  <line class="fg-gauge-needle" id="as-gauge-needle" x1="100" y1="100" x2="100" y2="28" stroke-width="2.5"/>
-                  <circle cx="100" cy="100" r="5" class="fg-gauge-center"/>
-                </svg>
-                <div class="fg-gauge-labels">
-                  <span class="fg-label-fear">Bitcoin Season</span>
-                  <span class="fg-label-greed">Altcoin Season</span>
-                </div>
-                <div class="fg-value-wrap">
-                  <span class="fg-value" id="as-value">—</span>
-                  <span class="fg-label" id="as-label">—</span>
-                </div>
-              </div>
-              <div class="stats-meta" id="as-meta"></div>
-            </div>
-          </div>
-
-          <!-- Bitcoin Dominance -->
-          <div class="stats-card" id="stats-section-btc-dominance">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">₿</span>
-              <div>
-                <h2 class="stats-card-title">Bitcoin Dominance</h2>
-                <p class="stats-card-subtitle">BTC share of total crypto market capitalization</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="dominance-wrap">
-                <div class="dominance-value-row">
-                  <span class="dominance-value" id="btc-dom-value">—</span>
-                  <span class="dominance-coin-label">BTC</span>
-                </div>
-                <div class="dominance-bar-wrap" aria-label="BTC dominance bar">
-                  <div class="dominance-bar-fill btc-bar" id="btc-dom-bar" style="width:0%"></div>
-                </div>
-                <div class="dominance-value-row">
-                  <span class="dominance-value dominance-eth" id="eth-dom-value">—</span>
-                  <span class="dominance-coin-label">ETH</span>
-                </div>
-                <div class="dominance-bar-wrap" aria-label="ETH dominance bar">
-                  <div class="dominance-bar-fill eth-bar" id="eth-dom-bar" style="width:0%"></div>
-                </div>
-                <div class="dominance-value-row">
-                  <span class="dominance-value dominance-others" id="others-dom-value">—</span>
-                  <span class="dominance-coin-label">Others</span>
-                </div>
-                <div class="dominance-bar-wrap" aria-label="Others dominance bar">
-                  <div class="dominance-bar-fill others-bar" id="others-dom-bar" style="width:0%"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Total Crypto Market Cap -->
-          <div class="stats-card" id="stats-section-market-cap">
-            <div class="stats-card-header">
-              <span class="stats-card-icon">🌐</span>
-              <div>
-                <h2 class="stats-card-title">Total Crypto Market Cap</h2>
-                <p class="stats-card-subtitle">Combined market capitalization of all cryptocurrencies</p>
-              </div>
-            </div>
-            <div class="stats-card-body">
-              <div class="market-cap-wrap">
-                <div class="market-cap-value" id="total-mcap-value">—</div>
-                <div class="market-cap-change" id="total-mcap-change"></div>
-                <div class="market-cap-row">
-                  <span class="market-cap-label">BTC Market Cap</span>
-                  <span class="market-cap-sub" id="btc-mcap-value">—</span>
-                </div>
-                <div class="market-cap-row">
-                  <span class="market-cap-label">ETH Market Cap</span>
-                  <span class="market-cap-sub" id="eth-mcap-value">—</span>
-                </div>
-                <div class="market-cap-row">
-                  <span class="market-cap-label">Active Cryptos</span>
-                  <span class="market-cap-sub" id="active-cryptos-value">—</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div><!-- /#stats-content -->
-      </div><!-- /#stats-page-crypto -->
+      </div><!-- /#pulse-stats-content -->
 
     </section>
 

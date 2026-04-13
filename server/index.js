@@ -279,7 +279,23 @@ app.get('/api/pulsex/factory', async (req, res) => {
   }
 });
 
-/* ── Static file serving ─────────────────────────────────────── */
+// DefiLlama TVL API — simple numeric TVL for a named protocol
+// Frontend: /api/llama/tvl/pulsechain-bridge
+app.get('/api/llama/tvl/:protocol', (req, res) => {
+  const protocol = sanitisePath(req.params.protocol);
+  if (!protocol) return res.status(400).json({ error: 'Invalid protocol' });
+  proxyJson(res, `https://api.llama.fi/tvl/${protocol}`);
+});
+
+// DefiLlama protocol detail (includes historical TVL array)
+// Frontend: /api/llama/protocol/pulsechain-bridge
+app.get('/api/llama/protocol/:protocol', (req, res) => {
+  const protocol = sanitisePath(req.params.protocol);
+  if (!protocol) return res.status(400).json({ error: 'Invalid protocol' });
+  proxyJson(res, `https://api.llama.fi/protocol/${protocol}`);
+});
+
+
 
 // Serve the entire repo root (index.html, js/, css/, assets/)
 app.use(express.static(path.join(__dirname, '..')));
