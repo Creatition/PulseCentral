@@ -679,8 +679,8 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
 }
 
 /**
- * Build a simplified coin card (sparkline style) for PLSX, HEX, INC, PRVX.
- * This is the pre-PR78 style: logo, name, price, chart SVG, and stats all in one box.
+ * Build a simplified coin card for PLSX, HEX, INC, PRVX.
+ * Shows logo, name, price, change badge, and key stats.
  * Clicking opens the DexScreener pair page.
  */
 function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor = '#7b2fff', tokenAddress = '') {
@@ -761,17 +761,6 @@ function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', token
   priceEl.className = 'coin-price';
   priceEl.textContent = price ? fmt.price(price) : '—';
 
-  // Sparkline / detailed chart SVG
-  const { svg: chartSvg, dateLabel } = buildDetailedChartSvg(chartBars, chartRes, tokenColor, pair);
-
-  const chart = document.createElement('div');
-  chart.className = 'coin-chart';
-  chart.innerHTML = chartSvg;
-
-  const dateLabelEl = document.createElement('div');
-  dateLabelEl.className = 'coin-chart-dates';
-  dateLabelEl.textContent = dateLabel || '';
-
   // Stats: Supply, Market Cap, Liquidity
   const stats = document.createElement('div');
   stats.className = 'coin-stats';
@@ -797,7 +786,7 @@ function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', token
     });
   }
 
-  card.append(header, priceEl, chart, dateLabelEl, stats);
+  card.append(header, priceEl, stats);
   return card;
 }
 
@@ -805,7 +794,7 @@ function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', token
  * Render all core coin cards into the home grid.
  * - eHex is skipped (not shown on home page).
  * - PLS gets the full-width DexScreener interactive card.
- * - PLSX, HEX, INC, PRVX get the simplified sparkline card.
+ * - PLSX, HEX, INC, PRVX get the simplified stats card (no chart).
  * @param {Array<{symbol: string, pair: object|null, chartBars: object[], chartRes: string, color: string}>} coinData
  */
 function renderHomeCoinCards(coinData) {
@@ -846,7 +835,7 @@ async function loadHomeTab() {
     setVisible($('home-coins-grid'), true);
     setVisible($('home-footer'), true);
 
-    // Auto-refresh prices every 60 seconds
+    // Auto-refresh prices every 5 minutes
     homeRefreshTimer = setInterval(async () => {
       try {
         const fresh = await API.getCoreCoinPairs();
@@ -856,7 +845,7 @@ async function loadHomeTab() {
       } catch (err) {
         console.error('[PulseCentral] Home auto-refresh failed:', err);
       }
-    }, 60_000);
+    }, 5 * 60_000);
   } catch (err) {
     setHidden($('home-loading'), true);
     $('home-error').textContent = `Error loading market data: ${err.message}`;
