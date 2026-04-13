@@ -1023,6 +1023,93 @@ async function loadTicker() {
 loadTicker();
 let tickerInterval = setInterval(loadTicker, 5 * 60_000);
 
+/* ── Ticker mode dropdown (Trending / Watchlist) ────────────── */
+
+let tickerMode = 'trending'; // 'trending' | 'watchlist'
+
+/** Load watchlist tokens into the ticker. */
+async function loadWatchlistTicker() {
+  const tokens = Watchlist.getTokens();
+  const track = $('ticker-track');
+  if (!track) return;
+
+  if (tokens.length === 0) {
+    track.style.animation = 'none';
+    track.innerHTML = '<div class="ticker-loading">No tokens in your watchlist yet.</div>';
+    return;
+  }
+
+  track.style.animation = 'none';
+  track.innerHTML = '<div class="ticker-loading">Loading watchlist…</div>';
+
+  try {
+    const addresses = tokens.map(t => t.address);
+    const pairMap   = await API.getPairsByAddresses(addresses);
+    const pairs = tokens
+      .map(t => pairMap.get(t.address.toLowerCase()))
+      .filter(Boolean);
+    renderTicker(pairs);
+  } catch (err) {
+    console.warn('[PulseCentral] Watchlist ticker load failed:', err);
+    if (track) track.innerHTML = '<div class="ticker-loading">Could not load watchlist data.</div>';
+  }
+}
+
+(function _initTickerModeDropdown() {
+  const labelBtn    = $('ticker-label-btn');
+  const dropdown    = $('ticker-mode-dropdown');
+  const labelText   = $('ticker-label-text');
+  if (!labelBtn || !dropdown) return;
+
+  function openDropdown() {
+    dropdown.classList.remove('hidden');
+    labelBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeDropdown() {
+    dropdown.classList.add('hidden');
+    labelBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  labelBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.contains('hidden') ? openDropdown() : closeDropdown();
+  });
+
+  // Close when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!labelBtn.closest('.ticker-label-wrap').contains(e.target)) closeDropdown();
+  });
+
+  // Handle option selection
+  dropdown.querySelectorAll('.ticker-mode-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      const mode = opt.dataset.tickerMode;
+      if (mode === tickerMode) { closeDropdown(); return; }
+      tickerMode = mode;
+
+      // Update active styling
+      dropdown.querySelectorAll('.ticker-mode-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+
+      // Update label text
+      if (labelText) labelText.textContent = opt.textContent.trim();
+
+      closeDropdown();
+
+      // Stop the auto-refresh interval and reload with new mode
+      clearInterval(tickerInterval);
+      if (mode === 'watchlist') {
+        loadWatchlistTicker();
+        // Watchlist doesn't auto-refresh (tokens change only on user action)
+      } else {
+        loadTicker();
+        tickerInterval = setInterval(loadTicker, 5 * 60_000);
+      }
+    });
+  });
+}());
+
 /* ── Ticker manual scroll controls ─────────────────────────── */
 
 /**
@@ -1590,6 +1677,7 @@ document.querySelectorAll('.top50-sort-btn').forEach(btn => {
     const price   = pair.priceUsd;
     const change  = pair.priceChange?.h24;
     const vol     = pair.volume?.h24;
+    const liq     = pair.liquidity?.usd;
     const chain   = pair.chainId || '';
 
     const { text: changeText, cls: changeCls } = fmt.change(change);
@@ -1637,9 +1725,13 @@ document.querySelectorAll('.top50-sort-btn').forEach(btn => {
 
     const volEl = document.createElement('span');
     volEl.className = 'dex-search-vol';
-    volEl.textContent = vol ? fmt.large(vol) : '';
+    volEl.textContent = vol ? `Vol: ${fmt.large(vol)}` : '';
 
-    statsWrap.append(priceEl, changeEl, volEl);
+    const liqEl = document.createElement('span');
+    liqEl.className = 'dex-search-liq';
+    liqEl.textContent = liq ? `Liq: ${fmt.large(liq)}` : '';
+
+    statsWrap.append(priceEl, changeEl, volEl, liqEl);
 
     row.append(logoEl, infoWrap, statsWrap);
 
@@ -1723,6 +1815,12 @@ document.querySelectorAll('.top50-sort-btn').forEach(btn => {
   document.addEventListener('click', e => {
     if (!$('dex-search-wrap')?.contains(e.target)) hideResults();
   });
+
+  // Close results when mouse leaves the entire search widget (input + dropdown)
+  const searchWrap = $('dex-search-wrap');
+  if (searchWrap) {
+    searchWrap.addEventListener('mouseleave', () => hideResults());
+  }
 
   // Keyboard navigation inside results
   searchInput.addEventListener('keydown', e => {
