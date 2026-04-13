@@ -1816,10 +1816,13 @@ document.querySelectorAll('.top50-sort-btn').forEach(btn => {
     if (!$('dex-search-wrap')?.contains(e.target)) hideResults();
   });
 
-  // Close results when mouse leaves the entire search widget (input + dropdown)
+  // Close/reopen results when mouse leaves/enters the entire search widget
   const searchWrap = $('dex-search-wrap');
   if (searchWrap) {
     searchWrap.addEventListener('mouseleave', () => hideResults());
+    searchWrap.addEventListener('mouseenter', () => {
+      if (searchInput.value.trim() && resultsBox.children.length > 0) showResults();
+    });
   }
 
   // Keyboard navigation inside results
