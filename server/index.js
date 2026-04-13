@@ -478,10 +478,57 @@ app.get('/api/coingecko/global', (req, res) => {
   proxyJson(res, 'https://api.coingecko.com/api/v3/global');
 });
 
-// CoinGecko Top Coins by Market Cap
-// Frontend: /api/coingecko/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1
-app.get('/api/coingecko/markets', (req, res) => {
-  proxyJson(res, `https://api.coingecko.com/api/v3/coins/markets${qs(req)}`);
+// Top Coins by Market Cap via CoinCap (free, no API key required)
+// Normalises the CoinCap response to the CoinGecko coins/markets shape so the
+// frontend does not need any changes.
+// Frontend: /api/coingecko/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1
+app.get('/api/coingecko/markets', async (req, res) => {
+  const cacheKey = 'coincap-markets';
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(cached);
+
+  const limit = Math.min(parseInt(req.query.per_page, 10) || 100, 250);
+
+  try {
+    const upstream = await fetch(
+      `https://api.coincap.io/v2/assets?limit=${limit}`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; PulseCentral/1.0)',
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: `Upstream returned HTTP ${upstream.status}` });
+    }
+
+    const { data } = await upstream.json();
+    if (!Array.isArray(data)) {
+      return res.status(502).json({ error: 'Unexpected response from CoinCap' });
+    }
+
+    // Normalise to the CoinGecko coins/markets field shape expected by the frontend
+    const normalised = data.map(asset => ({
+      id:                           asset.id,
+      symbol:                       (asset.symbol || '').toLowerCase(),
+      name:                         asset.name,
+      image:                        `https://assets.coincap.io/assets/icons/${(asset.symbol || '').toLowerCase()}@2x.png`,
+      current_price:                parseFloat(asset.priceUsd) || 0,
+      market_cap:                   parseFloat(asset.marketCapUsd) || 0,
+      market_cap_rank:              parseInt(asset.rank, 10) || null,
+      total_volume:                 parseFloat(asset.volumeUsd24Hr) || 0,
+      price_change_percentage_24h:  parseFloat(asset.changePercent24Hr) || 0,
+    }));
+
+    setCached(cacheKey, normalised);
+    res.json(normalised);
+  } catch (err) {
+    console.error('[PulseCentral proxy] CoinCap markets:', err);
+    res.status(502).json({ error: 'Proxy request failed', detail: err.message });
+  }
 });
 
 // PulseX V1 subgraph TVL / factory stats
