@@ -1080,11 +1080,6 @@ function setTickerMode(mode) {
   if (iconEl) iconEl.textContent = mode === 'watchlist' ? '⭐' : '🔥';
   if (textEl) textEl.textContent = mode === 'watchlist' ? 'Watchlist' : 'Trending';
 
-  // Update active state on menu options
-  document.querySelectorAll('.ticker-mode-option').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tickerMode === mode);
-  });
-
   // Update aria-label on ticker bar
   const bar = $('ticker-bar');
   if (bar) bar.setAttribute('aria-label', mode === 'watchlist' ? 'Watchlist ticker' : 'Trending coins ticker');
@@ -1100,40 +1095,13 @@ function setTickerMode(mode) {
   }
 }
 
-// Wire up the ticker mode dropdown button
-(function _initTickerModeDropdown() {
-  const modeBtn      = $('ticker-mode-btn');
-  const dropdown     = $('ticker-mode-dropdown');
-  if (!modeBtn || !dropdown) return;
+// Wire up the ticker mode toggle button – clicking cycles between trending and watchlist
+(function _initTickerModeToggle() {
+  const modeBtn = $('ticker-mode-btn');
+  if (!modeBtn) return;
 
-  modeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isOpen = !dropdown.classList.contains('hidden');
-    dropdown.classList.toggle('hidden', isOpen);
-    modeBtn.setAttribute('aria-expanded', String(!isOpen));
-  });
-
-  dropdown.querySelectorAll('.ticker-mode-option').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const mode = btn.dataset.tickerMode;
-      if (mode !== _tickerMode) {
-        dropdown.classList.add('hidden');
-        modeBtn.setAttribute('aria-expanded', 'false');
-        setTickerMode(mode);
-      } else {
-        dropdown.classList.add('hidden');
-        modeBtn.setAttribute('aria-expanded', 'false');
-      }
-    });
-  });
-
-  // Close on outside click
-  document.addEventListener('click', (e) => {
-    const wrap = $('ticker-label-wrap');
-    if (wrap && !wrap.contains(e.target)) {
-      dropdown.classList.add('hidden');
-      modeBtn.setAttribute('aria-expanded', 'false');
-    }
+  modeBtn.addEventListener('click', () => {
+    setTickerMode(_tickerMode === 'trending' ? 'watchlist' : 'trending');
   });
 })();
 
@@ -1870,6 +1838,34 @@ let top50SearchLoading  = false;
 const top50SearchInput    = $('top50-search-input');
 const searchDropdown      = $('search-dropdown');
 
+/**
+ * Map a DexScreener chainId string to a short human-readable label.
+ * Falls back to capitalising the first letter of the raw id.
+ */
+function formatChainLabel(chainId) {
+  const map = {
+    pulsechain:   'PulseChain',
+    ethereum:     'Ethereum',
+    bsc:          'BSC',
+    polygon:      'Polygon',
+    arbitrum:     'Arbitrum',
+    optimism:     'Optimism',
+    avalanche:    'Avalanche',
+    base:         'Base',
+    fantom:       'Fantom',
+    solana:       'Solana',
+    cronos:       'Cronos',
+    'zksync':     'zkSync',
+    linea:        'Linea',
+    blast:        'Blast',
+    scroll:       'Scroll',
+    mantle:       'Mantle',
+    celo:         'Celo',
+    gnosis:       'Gnosis',
+  };
+  return map[chainId] || (chainId ? chainId.charAt(0).toUpperCase() + chainId.slice(1) : 'Unknown');
+}
+
 /** Build a single search-dropdown result item for a DexScreener pair. */
 function buildSearchDropdownItem(pair) {
   const token    = pair.baseToken || {};
@@ -1880,6 +1876,7 @@ function buildSearchDropdownItem(pair) {
   const logoUrl  = pair.info?.imageUrl || null;
   const pairAddr = pair.pairAddress || '';
   const chainId  = pair.chainId || 'pulsechain';
+  const liq      = pair.liquidity?.usd;
   const { text: changeText, cls: changeCls } = fmt.change(change);
 
   const item = document.createElement('a');
@@ -1917,17 +1914,26 @@ function buildSearchDropdownItem(pair) {
   const nameEl = document.createElement('div');
   nameEl.className = 'search-dropdown-name';
   nameEl.textContent = name;
-  info.append(symEl, nameEl);
+  const chainEl = document.createElement('span');
+  chainEl.className = 'search-dropdown-chain';
+  chainEl.textContent = formatChainLabel(chainId);
+  info.append(symEl, nameEl, chainEl);
 
+  const statsEl = document.createElement('div');
+  statsEl.className = 'search-dropdown-stats';
   const priceEl = document.createElement('div');
   priceEl.className = 'search-dropdown-price';
   priceEl.textContent = price ? fmt.price(price) : '—';
+  const liqEl = document.createElement('div');
+  liqEl.className = 'search-dropdown-liq';
+  liqEl.textContent = liq ? 'Liq: ' + fmt.large(liq) : '';
+  statsEl.append(priceEl, liqEl);
 
   const changeEl = document.createElement('div');
   changeEl.className = `search-dropdown-change ${changeCls}`;
   changeEl.textContent = changeText;
 
-  item.append(info, priceEl, changeEl);
+  item.append(info, statsEl, changeEl);
   return item;
 }
 

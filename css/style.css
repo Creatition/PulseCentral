@@ -158,49 +158,6 @@ li + li { margin-top: 0.35rem; }
   gap: 0.3rem;
 }
 
-.ticker-caret {
-  font-size: 0.6rem;
-  opacity: 0.8;
-}
-
-.ticker-mode-dropdown {
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow), 0 0 0 1px var(--primary-glow);
-  left: 0;
-  min-width: 140px;
-  padding: 0.3rem 0;
-  position: absolute;
-  top: calc(100% + 2px);
-  z-index: 200;
-}
-
-.ticker-mode-option {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  text-align: left;
-  transition: color var(--transition), background var(--transition);
-  width: 100%;
-  white-space: nowrap;
-}
-
-.ticker-mode-option:hover {
-  background: var(--bg-card-hover);
-  color: var(--text);
-}
-
-.ticker-mode-option.active {
-  color: var(--primary);
-  font-weight: 700;
-}
-
 .ticker-track-wrap {
   flex: 1;
   overflow: hidden;
@@ -1046,11 +1003,41 @@ li + li { margin-top: 0.35rem; }
   white-space: nowrap;
 }
 
+.search-dropdown-chain {
+  display: inline-block;
+  margin-top: 0.15rem;
+  background: var(--primary-bg);
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  color: var(--primary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0 0.3rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.search-dropdown-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 0.1rem;
+}
+
 .search-dropdown-price {
   color: var(--text-muted);
   font-size: 0.82rem;
   text-align: right;
   flex-shrink: 0;
+}
+
+.search-dropdown-liq {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-align: right;
+  opacity: 0.8;
 }
 
 .search-dropdown-change {

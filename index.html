@@ -221,13 +221,9 @@
   <!-- ===== TRENDING TICKER BAR ===== -->
   <div class="ticker-bar" id="ticker-bar" aria-label="Trending coins ticker" role="marquee">
     <div class="ticker-label-wrap" id="ticker-label-wrap">
-      <button class="ticker-label" id="ticker-mode-btn" aria-haspopup="true" aria-expanded="false" title="Switch ticker mode">
-        <span id="ticker-mode-icon">🔥</span> <span id="ticker-mode-text">Trending</span> <span class="ticker-caret" aria-hidden="true">▾</span>
+      <button class="ticker-label" id="ticker-mode-btn" title="Click to switch between Trending and Watchlist">
+        <span id="ticker-mode-icon">🔥</span> <span id="ticker-mode-text">Trending</span>
       </button>
-      <div class="ticker-mode-dropdown hidden" id="ticker-mode-dropdown" role="menu" aria-label="Ticker mode">
-        <button class="ticker-mode-option active" data-ticker-mode="trending" role="menuitem">🔥 Trending</button>
-        <button class="ticker-mode-option" data-ticker-mode="watchlist" role="menuitem">⭐ Watchlist</button>
-      </div>
     </div>
     <div class="ticker-track-wrap">
       <div class="ticker-track" id="ticker-track">
