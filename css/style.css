@@ -3776,3 +3776,112 @@ li + li { margin-top: 0.35rem; }
 @media (min-width: 481px) and (max-width: 768px) {
   .pcs-hero-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── User Profile Button ─────────────────────────────────── */
+
+.user-profile-btn {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0.35rem 0.45rem;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+.user-profile-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  transform: scale(1.1);
+}
+.user-profile-btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  outline: none;
+}
+.user-profile-btn.signed-in {
+  color: var(--primary);
+}
+.user-profile-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+/* ── User Profile Modal ──────────────────────────────────── */
+
+.user-auth-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+.user-auth-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding: 0.5rem 1rem;
+  transition: color var(--transition), border-color var(--transition);
+}
+.user-auth-tab:hover { color: var(--text); }
+.user-auth-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.user-auth-panel { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.user-profile-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.user-profile-info {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0 1rem;
+}
+.user-profile-avatar {
+  background: var(--primary-glow, rgba(255,255,255,0.08));
+  border-radius: 50%;
+  color: var(--primary);
+  flex-shrink: 0;
+  height: 48px;
+  padding: 0.5rem;
+  width: 48px;
+}
+.user-profile-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.user-profile-sub {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.user-profile-feedback {
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  padding: 0.5rem 0.75rem;
+}
+.user-profile-feedback.success {
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--success, #4ade80);
+}
+.user-profile-feedback.error {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger, #f87171);
+}
+

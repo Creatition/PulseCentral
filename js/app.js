@@ -3882,5 +3882,310 @@ document.querySelectorAll('.td-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTokenDetailsTab(btn.dataset.tdTab));
 });
 
+/* ── User Profile module ─────────────────────────────────── */
+
+/**
+ * UserProfile – manages user accounts stored entirely in localStorage.
+ *
+ * Storage keys:
+ *   pc-users        JSON array of { username, passwordHash, savedAt, data }
+ *   pc-active-user  Username string of the currently signed-in user (or absent)
+ *
+ * Profile data keys snapshotted on save / restored on login:
+ *   pc-theme, pc-watchlist, pc-groups, pc-portfolio-history, pc-last-portfolio
+ */
+const UserProfile = (() => {
+  const USERS_KEY  = 'pc-users';
+  const ACTIVE_KEY = 'pc-active-user';
+  const DATA_KEYS  = [
+    'pc-theme',
+    'pc-watchlist',
+    'pc-groups',
+    'pc-portfolio-history',
+    'pc-last-portfolio',
+  ];
+
+  function _load() {
+    try {
+      return JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+    } catch { return []; }
+  }
+
+  function _save(users) {
+    try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch { /* ignore */ }
+  }
+
+  /** Hash password using SHA-256 with username as prefix via Web Crypto.
+   *  NOTE: This is client-side only (no server); all data stays in the
+   *  user's own browser localStorage. The username prefix makes identical
+   *  passwords produce different hashes across accounts. */
+  async function _hashPassword(username, password) {
+    const text = username.toLowerCase() + '\x00' + password;
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Fallback: simple djb2-variant (non-cryptographic)
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = (Math.imul(h, 33) ^ text.charCodeAt(i)) >>> 0;
+    return h.toString(16);
+  }
+
+  /** Snapshot current localStorage data keys into an object. */
+  function _snapshotData() {
+    const data = {};
+    for (const key of DATA_KEYS) {
+      try {
+        const val = localStorage.getItem(key);
+        if (val !== null) data[key] = val;
+      } catch (e) { console.warn('[UserProfile] snapshot failed for key', key, e); }
+    }
+    return data;
+  }
+
+  /** Restore saved data object back into localStorage. */
+  function _restoreData(data) {
+    for (const key of DATA_KEYS) {
+      try {
+        if (key in data) localStorage.setItem(key, data[key]);
+      } catch (e) { console.warn('[UserProfile] restore failed for key', key, e); }
+    }
+  }
+
+  return {
+    /** Return the currently signed-in username, or null. */
+    getActiveUser() {
+      try { return localStorage.getItem(ACTIVE_KEY) || null; } catch { return null; }
+    },
+
+    /** Return true if `username` (case-insensitive) is already taken. */
+    userExists(username) {
+      return _load().some(u => u.username.toLowerCase() === username.toLowerCase());
+    },
+
+    /** Register a new user. Returns { ok, error }. */
+    async register(username, password) {
+      if (!username || username.length < 2) return { ok: false, error: 'Username must be at least 2 characters.' };
+      if (!password || password.length < 4)  return { ok: false, error: 'Password must be at least 4 characters.' };
+      if (this.userExists(username))          return { ok: false, error: 'That username is already taken.' };
+      const users = _load();
+      const passwordHash = await _hashPassword(username, password);
+      users.push({ username, passwordHash, savedAt: new Date().toISOString(), data: _snapshotData() });
+      _save(users);
+      try { localStorage.setItem(ACTIVE_KEY, username); } catch { /* ignore */ }
+      return { ok: true };
+    },
+
+    /** Sign in an existing user. Returns { ok, error }. */
+    async login(username, password) {
+      const users = _load();
+      const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+      if (!user) return { ok: false, error: 'No account found with that username.' };
+      const hash = await _hashPassword(username, password);
+      if (hash !== user.passwordHash) return { ok: false, error: 'Incorrect password.' };
+      try { localStorage.setItem(ACTIVE_KEY, user.username); } catch { /* ignore */ }
+      return { ok: true, username: user.username };
+    },
+
+    /** Sign out the current user. */
+    logout() {
+      try { localStorage.removeItem(ACTIVE_KEY); } catch { /* ignore */ }
+    },
+
+    /** Save current site data to the active user's profile. */
+    saveProfile() {
+      const active = this.getActiveUser();
+      if (!active) return { ok: false };
+      const users = _load();
+      const idx = users.findIndex(u => u.username.toLowerCase() === active.toLowerCase());
+      if (idx === -1) return { ok: false };
+      users[idx].data    = _snapshotData();
+      users[idx].savedAt = new Date().toISOString();
+      _save(users);
+      return { ok: true };
+    },
+
+    /** Restore the active user's saved profile data into localStorage. */
+    restoreProfile() {
+      const active = this.getActiveUser();
+      if (!active) return { ok: false };
+      const users = _load();
+      const user = users.find(u => u.username.toLowerCase() === active.toLowerCase());
+      if (!user || !user.data) return { ok: false, error: 'No saved profile data found.' };
+      _restoreData(user.data);
+      return { ok: true };
+    },
+  };
+})();
+
+/* ── User Profile UI ─────────────────────────────────────── */
+
+const userProfileBtn     = $('user-profile-btn');
+const userProfileOverlay = $('user-profile-overlay');
+const userProfileClose   = $('user-profile-close');
+const userAuthSection    = $('user-profile-auth');
+const userProfileView    = $('user-profile-view');
+const userDisplayName    = $('user-profile-display-name');
+const userFeedback       = $('user-profile-feedback');
+
+/** Update the header button appearance and modal view based on sign-in state. */
+function updateUserProfileUI() {
+  const active = UserProfile.getActiveUser();
+  if (active) {
+    userProfileBtn.classList.add('signed-in');
+    userProfileBtn.title = `Profile: ${active}`;
+    userProfileBtn.setAttribute('aria-label', `User profile: ${active}`);
+    userDisplayName.textContent = active;
+    setHidden(userAuthSection, true);
+    setHidden(userProfileView, false);
+  } else {
+    userProfileBtn.classList.remove('signed-in');
+    userProfileBtn.title = 'User Profile';
+    userProfileBtn.setAttribute('aria-label', 'Open user profile');
+    setHidden(userAuthSection, false);
+    setHidden(userProfileView, true);
+  }
+}
+
+function openUserProfileModal() {
+  updateUserProfileUI();
+  clearUserFeedback();
+  userProfileOverlay.classList.remove('hidden');
+  userProfileOverlay.focus();
+}
+
+function closeUserProfileModal() {
+  userProfileOverlay.classList.add('hidden');
+}
+
+function showUserFeedback(msg, type = 'success') {
+  userFeedback.textContent = msg;
+  userFeedback.className = `user-profile-feedback ${type}`;
+  setHidden(userFeedback, false);
+}
+
+function clearUserFeedback() {
+  setHidden(userFeedback, true);
+  userFeedback.textContent = '';
+  userFeedback.className = 'user-profile-feedback hidden';
+}
+
+function showAuthError(id, msg) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function clearAuthError(id) {
+  const el = $(id);
+  if (el) { el.textContent = ''; el.classList.add('hidden'); }
+}
+
+// Auth tab switching
+document.querySelectorAll('.user-auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.user-auth-tab').forEach(t => {
+      const active = t === tab;
+      t.classList.toggle('active', active);
+      t.setAttribute('aria-selected', active);
+    });
+    const target = tab.dataset.authTab;
+    setHidden($('user-auth-login'),    target !== 'login');
+    setHidden($('user-auth-register'), target !== 'register');
+    clearAuthError('user-login-error');
+    clearAuthError('user-register-error');
+  });
+});
+
+// Open / close modal
+userProfileBtn.addEventListener('click', openUserProfileModal);
+userProfileClose.addEventListener('click', closeUserProfileModal);
+userProfileOverlay.addEventListener('click', e => {
+  if (e.target === userProfileOverlay) closeUserProfileModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !userProfileOverlay.classList.contains('hidden')) {
+    closeUserProfileModal();
+  }
+});
+
+// Login
+$('user-login-btn').addEventListener('click', async () => {
+  clearAuthError('user-login-error');
+  const username = $('profile-login-username').value.trim();
+  const password = $('profile-login-password').value;
+  if (!username || !password) {
+    showAuthError('user-login-error', 'Please enter your username and password.');
+    return;
+  }
+  const result = await UserProfile.login(username, password);
+  if (!result.ok) {
+    showAuthError('user-login-error', result.error);
+    return;
+  }
+  $('profile-login-password').value = '';
+  updateUserProfileUI();
+  showUserFeedback(`Signed in as ${result.username}. Use "Restore Saved" to reload your data.`);
+});
+
+// Register
+$('user-register-btn').addEventListener('click', async () => {
+  clearAuthError('user-register-error');
+  const username  = $('profile-reg-username').value.trim();
+  const password  = $('profile-reg-password').value;
+  const password2 = $('profile-reg-password2').value;
+  if (!username || !password) {
+    showAuthError('user-register-error', 'Please fill in all fields.');
+    return;
+  }
+  if (password !== password2) {
+    showAuthError('user-register-error', 'Passwords do not match.');
+    return;
+  }
+  const result = await UserProfile.register(username, password);
+  if (!result.ok) {
+    showAuthError('user-register-error', result.error);
+    return;
+  }
+  $('profile-reg-username').value  = '';
+  $('profile-reg-password').value  = '';
+  $('profile-reg-password2').value = '';
+  updateUserProfileUI();
+  showUserFeedback('Account created! Your current data has been saved to your profile.');
+});
+
+// Save profile
+$('user-save-btn').addEventListener('click', () => {
+  const result = UserProfile.saveProfile();
+  if (result.ok) {
+    showUserFeedback('✓ Profile saved!', 'success');
+  } else {
+    showUserFeedback('Could not save profile. Please sign in first.', 'error');
+  }
+});
+
+// Restore saved data
+$('user-restore-btn').addEventListener('click', () => {
+  const result = UserProfile.restoreProfile();
+  if (!result.ok) {
+    showUserFeedback(result.error || 'No saved data to restore.', 'error');
+    return;
+  }
+  // Reload the page so all modules pick up the restored localStorage values
+  window.location.reload();
+});
+
+// Logout
+$('user-logout-btn').addEventListener('click', () => {
+  UserProfile.logout();
+  updateUserProfileUI();
+  clearUserFeedback();
+  closeUserProfileModal();
+});
+
+// Initialise profile button state on page load
+updateUserProfileUI();
+
 /* end of app.js */
 
