@@ -1688,7 +1688,7 @@ document.querySelectorAll('.top50-sort-btn').forEach(btn => {
         empty.textContent = 'No results found.';
         resultsBox.appendChild(empty);
       } else {
-        // Show up to 50 results (DexScreener typically returns 30)
+        // Limit to maximum 50 results (DexScreener typically returns ≤30)
         pairs.slice(0, 50).forEach(pair => {
           resultsBox.appendChild(buildResultRow(pair));
         });
@@ -4497,11 +4497,14 @@ updateUserProfileUI();
   const particles = [];
   let animId = null;
 
+  // Fallback trail colour used when the --primary CSS variable is not set
+  const TRAIL_COLOR_FALLBACK = '#9b59b6';
+
   // Accent colour sampled from CSS variable, fallback to purple
   function getAccentColor() {
     const v = getComputedStyle(document.documentElement)
       .getPropertyValue('--primary').trim();
-    return v || '#9b59b6';
+    return v || TRAIL_COLOR_FALLBACK;
   }
 
   function resize() {
