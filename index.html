@@ -220,7 +220,15 @@
 
   <!-- ===== TRENDING TICKER BAR ===== -->
   <div class="ticker-bar" id="ticker-bar" aria-label="Trending coins ticker" role="marquee">
-    <div class="ticker-label">🔥 Trending</div>
+    <div class="ticker-label-wrap" id="ticker-label-wrap">
+      <button class="ticker-label" id="ticker-mode-btn" aria-haspopup="true" aria-expanded="false" title="Switch ticker mode">
+        <span id="ticker-mode-icon">🔥</span> <span id="ticker-mode-text">Trending</span> <span class="ticker-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="ticker-mode-dropdown hidden" id="ticker-mode-dropdown" role="menu" aria-label="Ticker mode">
+        <button class="ticker-mode-option active" data-ticker-mode="trending" role="menuitem">🔥 Trending</button>
+        <button class="ticker-mode-option" data-ticker-mode="watchlist" role="menuitem">⭐ Watchlist</button>
+      </div>
+    </div>
     <div class="ticker-track-wrap">
       <div class="ticker-track" id="ticker-track">
         <div class="ticker-loading" id="ticker-loading">Loading trending tokens…</div>
@@ -466,7 +474,10 @@
             <button id="top50-next-btn" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
           </div>
           <div class="top50-toolbar-right">
-            <input id="top50-search-input" type="search" class="search-input" placeholder="Search all chains…" aria-label="Search all chains">
+            <div class="search-wrap" id="search-wrap">
+              <input id="top50-search-input" type="search" class="search-input" placeholder="Search all chains…" aria-label="Search all chains" autocomplete="off">
+              <div class="search-dropdown hidden" id="search-dropdown" role="listbox" aria-label="Search results"></div>
+            </div>
             <button id="top50-refresh-btn" class="btn btn-secondary" aria-label="Refresh Top 50 data">
               ↻ Refresh
             </button>

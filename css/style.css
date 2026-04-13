@@ -145,6 +145,62 @@ li + li { margin-top: 0.35rem; }
   box-shadow: 4px 0 12px var(--primary-glow);
 }
 
+/* ── Ticker mode switcher ── */
+.ticker-label-wrap {
+  position: relative;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.ticker-label {
+  border: none;
+  cursor: pointer;
+  gap: 0.3rem;
+}
+
+.ticker-caret {
+  font-size: 0.6rem;
+  opacity: 0.8;
+}
+
+.ticker-mode-dropdown {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 0 0 1px var(--primary-glow);
+  left: 0;
+  min-width: 140px;
+  padding: 0.3rem 0;
+  position: absolute;
+  top: calc(100% + 2px);
+  z-index: 200;
+}
+
+.ticker-mode-option {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  transition: color var(--transition), background var(--transition);
+  width: 100%;
+  white-space: nowrap;
+}
+
+.ticker-mode-option:hover {
+  background: var(--bg-card-hover);
+  color: var(--text);
+}
+
+.ticker-mode-option.active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
 .ticker-track-wrap {
   flex: 1;
   overflow: hidden;
@@ -912,6 +968,111 @@ li + li { margin-top: 0.35rem; }
 .search-input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+/* ── Search dropdown overlay ── */
+.search-wrap {
+  position: relative;
+}
+
+.search-dropdown {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 4px 24px rgba(0,0,0,0.18);
+  left: 0;
+  max-height: 420px;
+  min-width: 100%;
+  overflow-y: auto;
+  position: absolute;
+  top: calc(100% + 4px);
+  width: 520px;
+  max-width: 90vw;
+  z-index: 300;
+}
+
+.search-dropdown-item {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.6rem 1rem;
+  text-decoration: none;
+  transition: background var(--transition);
+  border-bottom: 1px solid var(--border);
+}
+.search-dropdown-item:last-child { border-bottom: none; }
+.search-dropdown-item:hover { background: var(--bg-card-hover); }
+
+.search-dropdown-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.search-dropdown-logo-ph {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-bg);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-size: 0.55rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.search-dropdown-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-dropdown-sym {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.search-dropdown-name {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-dropdown-price {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.search-dropdown-change {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 3.5rem;
+}
+
+.search-dropdown-empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: 1.25rem 1rem;
+  text-align: center;
+}
+
+.search-dropdown-loading {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem 1rem;
 }
 
 /* ── Trending cards ── */
