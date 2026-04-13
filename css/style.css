@@ -1311,7 +1311,7 @@ li + li { margin-top: 0.35rem; }
   border: none;
   color: var(--text-dim);
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 2.2rem;
   line-height: 1;
   padding: 0.2rem 0.4rem;
   transition: color var(--transition), transform var(--transition);
@@ -1426,6 +1426,21 @@ li + li { margin-top: 0.35rem; }
   transition: color var(--transition), border-color var(--transition);
 }
 .wl-remove-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+.wl-move-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  transition: color var(--transition), border-color var(--transition);
+  display: block;
+  margin: 0.1rem auto;
+}
+.wl-move-btn:hover:not(:disabled) { color: var(--primary); border-color: var(--primary); }
+.wl-move-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ── Profits tab ── */
 .profits-toolbar {
