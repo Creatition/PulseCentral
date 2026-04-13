@@ -2940,6 +2940,15 @@ li + li { margin-top: 0.35rem; }
   flex-shrink: 0;
 }
 
+.tab-dropdown-icon img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  border-radius: 3px;
+  display: inline-block;
+}
+
 /* ── Links tab: flyout nested submenus ── */
 .tab-dropdown-submenu {
   position: relative;
@@ -3421,6 +3430,14 @@ li + li { margin-top: 0.35rem; }
   flex-shrink: 0;
   line-height: 1;
   margin-top: 0.1rem;
+}
+
+.tools-card-icon img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border-radius: 6px;
+  display: block;
 }
 
 .tools-card-body h3 {
