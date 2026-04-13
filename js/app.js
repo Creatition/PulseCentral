@@ -218,7 +218,7 @@ let top50CurrentPage = 1;
 let top50SortCol = 'mcap';   // 'price' | 'change' | 'mcap' | 'vol' | 'liq'
 let top50SortDir = 'desc';   // 'asc' | 'desc'
 
-let activeMarketsPage = 'pls-top50'; // 'pls-top50' | 'crypto-top50'
+let activeMarketsPage = 'pls-top50'; // always 'pls-top50'
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -266,13 +266,10 @@ function switchMarketsPage(page) {
   });
 
   // Show/hide sub-pages
-  const plsPage    = $('markets-page-top50');
-  const cryptoPage = $('markets-page-crypto-top50');
-  if (plsPage)    plsPage.classList.toggle('hidden', page !== 'pls-top50');
-  if (cryptoPage) cryptoPage.classList.toggle('hidden', page !== 'crypto-top50');
+  const plsPage = $('markets-page-top50');
+  if (plsPage) plsPage.classList.toggle('hidden', page !== 'pls-top50');
 
-  if (page === 'pls-top50')    loadTop50();
-  if (page === 'crypto-top50') loadCryptoTop50();
+  if (page === 'pls-top50') loadTop50();
 }
 
 // Wire markets dropdown item clicks
@@ -1487,6 +1484,14 @@ function buildPortfolioRow(index, token, balance, price, change24h, pairAddress 
 
 /* ── Markets tab ────────────────────────────────────────── */
 
+/**
+ * Token display-name overrides keyed by lowercase token address.
+ * Used when DexScreener returns a generic name that should be shown differently.
+ */
+const TOKEN_NAME_OVERRIDES = {
+  '0xefd766ccb38eaf1dfd701853bfce31359239f305': 'pDAI',
+};
+
 let allMarketPairs  = [];
 let marketPairsPromise = null; // shared promise to avoid double-fetching
 
@@ -1552,6 +1557,203 @@ document.querySelectorAll('.top50-sort-btn').forEach(btn => {
     renderTop50();
   });
 });
+
+/* ── DexScreener global token search ─────────────────────── */
+
+(function initDexSearch() {
+  const searchInput   = $('dex-search-input');
+  const resultsBox    = $('dex-search-results');
+  const spinner       = $('dex-search-spinner');
+  if (!searchInput || !resultsBox) return;
+
+  let debounceTimer   = null;
+  let activeRequest   = null; // AbortController for in-flight fetch
+
+  function showResults() {
+    resultsBox.classList.remove('hidden');
+    searchInput.setAttribute('aria-expanded', 'true');
+  }
+
+  function hideResults() {
+    resultsBox.classList.add('hidden');
+    searchInput.setAttribute('aria-expanded', 'false');
+  }
+
+  function setSpinner(on) {
+    spinner.classList.toggle('hidden', !on);
+  }
+
+  function buildResultRow(pair) {
+    const token   = pair.baseToken || {};
+    const quote   = pair.quoteToken || {};
+    const logoUrl = pair.info?.imageUrl || null;
+    const price   = pair.priceUsd;
+    const change  = pair.priceChange?.h24;
+    const vol     = pair.volume?.h24;
+    const chain   = pair.chainId || '';
+
+    const { text: changeText, cls: changeCls } = fmt.change(change);
+
+    const row = document.createElement('div');
+    row.className = 'dex-search-result-row';
+    row.setAttribute('role', 'option');
+    row.tabIndex = 0;
+
+    const logoEl = buildTokenLogo(logoUrl, token.symbol);
+    logoEl.classList.add('dex-search-logo');
+
+    const infoWrap = document.createElement('div');
+    infoWrap.className = 'dex-search-info';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'dex-search-name-row';
+    const symEl = document.createElement('span');
+    symEl.className = 'dex-search-sym';
+    symEl.textContent = token.symbol || '—';
+    const pairEl = document.createElement('span');
+    pairEl.className = 'dex-search-pair';
+    pairEl.textContent = `/ ${quote.symbol || '—'}`;
+    const chainEl = document.createElement('span');
+    chainEl.className = 'dex-search-chain';
+    chainEl.textContent = chain;
+    nameRow.append(symEl, pairEl, chainEl);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'dex-search-token-name';
+    nameEl.textContent = token.name || token.symbol || '';
+
+    infoWrap.append(nameRow, nameEl);
+
+    const statsWrap = document.createElement('div');
+    statsWrap.className = 'dex-search-stats';
+
+    const priceEl = document.createElement('span');
+    priceEl.className = 'dex-search-price';
+    priceEl.textContent = price ? fmt.price(price) : '—';
+
+    const changeEl = document.createElement('span');
+    changeEl.className = `dex-search-change ${changeCls}`;
+    changeEl.textContent = changeText;
+
+    const volEl = document.createElement('span');
+    volEl.className = 'dex-search-vol';
+    volEl.textContent = vol ? fmt.large(vol) : '';
+
+    statsWrap.append(priceEl, changeEl, volEl);
+
+    row.append(logoEl, infoWrap, statsWrap);
+
+    const openUrl = `https://dexscreener.com/${chain}/${pair.pairAddress}`;
+    const activate = () => window.open(openUrl, '_blank', 'noopener');
+    row.addEventListener('click', activate);
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+
+    return row;
+  }
+
+  async function runSearch(query) {
+    query = query.trim();
+    if (!query) {
+      hideResults();
+      setSpinner(false);
+      return;
+    }
+
+    // Cancel any previous in-flight request
+    if (activeRequest) {
+      activeRequest.abort();
+      activeRequest = null;
+    }
+
+    setSpinner(true);
+    resultsBox.innerHTML = '';
+    showResults();
+
+    const controller = new AbortController();
+    activeRequest = controller;
+
+    try {
+      const url = `/api/dex/latest/dex/search?q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      activeRequest = null;
+
+      const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
+      resultsBox.innerHTML = '';
+
+      if (pairs.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dex-search-empty';
+        empty.textContent = 'No results found.';
+        resultsBox.appendChild(empty);
+      } else {
+        // Limit to maximum 50 results (DexScreener typically returns ≤30)
+        pairs.slice(0, 50).forEach(pair => {
+          resultsBox.appendChild(buildResultRow(pair));
+        });
+      }
+      showResults();
+    } catch (err) {
+      if (err.name === 'AbortError') return; // silently ignore cancels
+      resultsBox.innerHTML = '';
+      const errEl = document.createElement('div');
+      errEl.className = 'dex-search-empty';
+      errEl.textContent = 'Search failed. Please try again.';
+      resultsBox.appendChild(errEl);
+      showResults();
+    } finally {
+      setSpinner(false);
+    }
+  }
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = searchInput.value;
+    if (!q.trim()) {
+      hideResults();
+      setSpinner(false);
+      if (activeRequest) { activeRequest.abort(); activeRequest = null; }
+      return;
+    }
+    debounceTimer = setTimeout(() => runSearch(q), 280);
+  });
+
+  // Close results when clicking outside
+  document.addEventListener('click', e => {
+    if (!$('dex-search-wrap')?.contains(e.target)) hideResults();
+  });
+
+  // Keyboard navigation inside results
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      hideResults();
+      searchInput.blur();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const first = resultsBox.querySelector('.dex-search-result-row');
+      if (first) first.focus();
+    }
+  });
+
+  resultsBox.addEventListener('keydown', e => {
+    const rows = [...resultsBox.querySelectorAll('.dex-search-result-row')];
+    const idx  = rows.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (idx < rows.length - 1) rows[idx + 1].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (idx > 0) rows[idx - 1].focus();
+      else searchInput.focus();
+    } else if (e.key === 'Escape') {
+      hideResults();
+      searchInput.focus();
+    }
+  });
+})();
 
 /* ── PLS Top 50 ──────────────────────────────────────────── */
 
@@ -1678,7 +1880,7 @@ function buildTop50Row(rank, pair) {
   nameWrap.className = 'top50-name-wrap';
   const nameSpan = document.createElement('span');
   nameSpan.className = 'top50-token-name';
-  nameSpan.textContent = token.name || token.symbol || '—';
+  nameSpan.textContent = TOKEN_NAME_OVERRIDES[tokenAddr] || token.name || token.symbol || '—';
   const symSpan = document.createElement('span');
   symSpan.className = 'top50-token-sym';
   symSpan.textContent = token.symbol || '—';
@@ -1738,223 +1940,6 @@ function buildTop50Row(rank, pair) {
 }
 
 /* ── Crypto Top 50 ────────────────────────────────────────── */
-
-let cryptoTop50Loaded = false;
-let cryptoTop50Data   = [];
-let cryptoTop50CurrentPage = 1;
-let cryptoTop50SortCol = 'mcap';  // 'price' | 'change' | 'mcap' | 'vol'
-let cryptoTop50SortDir = 'desc';
-
-const CRYPTO_TOP50_PAGE_SIZE = 50;
-
-async function loadCryptoTop50() {
-  if (cryptoTop50Loaded) return;
-  cryptoTop50Loaded = true;
-
-  setHidden($('crypto-top50-error'), true);
-  setHidden($('crypto-top50-list'), true);
-  setVisible($('crypto-top50-loading'), true);
-
-  try {
-    const params = new URLSearchParams({
-      vs_currency: 'usd',
-      order: 'market_cap_desc',
-      per_page: '100',
-      page: '1',
-      sparkline: 'false',
-      price_change_percentage: '24h',
-    });
-    const data = await fetch(`/api/coingecko/markets?${params}`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    });
-    if (!Array.isArray(data) || data.length === 0) throw new Error('No data returned');
-    cryptoTop50Data = data;
-    renderCryptoTop50();
-  } catch (err) {
-    $('crypto-top50-error').textContent = `Error loading Crypto Top 50 data: ${err.message}`;
-    setVisible($('crypto-top50-error'), true);
-    cryptoTop50Loaded = false;
-  } finally {
-    setHidden($('crypto-top50-loading'), true);
-  }
-}
-
-function renderCryptoTop50() {
-  const getValue = (c) => {
-    switch (cryptoTop50SortCol) {
-      case 'price':  return Number(c.current_price || 0);
-      case 'change': return Number(c.price_change_percentage_24h || 0);
-      case 'vol':    return Number(c.total_volume || 0);
-      default:       return Number(c.market_cap || 0); // 'mcap'
-    }
-  };
-
-  const sorted = cryptoTop50Data
-    .slice()
-    .sort((a, b) => cryptoTop50SortDir === 'desc'
-      ? getValue(b) - getValue(a)
-      : getValue(a) - getValue(b));
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / CRYPTO_TOP50_PAGE_SIZE));
-  cryptoTop50CurrentPage = Math.max(1, Math.min(cryptoTop50CurrentPage, totalPages));
-
-  const startIdx  = (cryptoTop50CurrentPage - 1) * CRYPTO_TOP50_PAGE_SIZE;
-  const pageCoins = sorted.slice(startIdx, startIdx + CRYPTO_TOP50_PAGE_SIZE);
-
-  const container = $('crypto-top50-rows');
-  if (!container) return;
-  container.innerHTML = '';
-
-  pageCoins.forEach((coin, i) => {
-    container.appendChild(buildCryptoTop50Row(startIdx + i + 1, coin));
-  });
-
-  // Update sort indicators
-  document.querySelectorAll('.crypto-top50-sort-btn').forEach(btn => {
-    btn.classList.remove('sort-active', 'sort-asc', 'sort-desc');
-    if (btn.dataset.sortCol === cryptoTop50SortCol) {
-      btn.classList.add('sort-active', cryptoTop50SortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-    }
-  });
-
-  // Update pagination
-  const pageText      = `Page ${cryptoTop50CurrentPage} / ${totalPages}`;
-  const isPrevDisabled = cryptoTop50CurrentPage <= 1;
-  const isNextDisabled = cryptoTop50CurrentPage >= totalPages;
-
-  const pageInfoEl    = $('crypto-top50-page-info');
-  const prevBtn       = $('crypto-top50-prev-btn');
-  const nextBtn       = $('crypto-top50-next-btn');
-  const pageInfoBotEl = $('crypto-top50-page-info-bottom');
-  const prevBtnBot    = $('crypto-top50-prev-btn-bottom');
-  const nextBtnBot    = $('crypto-top50-next-btn-bottom');
-
-  if (pageInfoEl)    pageInfoEl.textContent    = pageText;
-  if (prevBtn)       prevBtn.disabled          = isPrevDisabled;
-  if (nextBtn)       nextBtn.disabled          = isNextDisabled;
-  if (pageInfoBotEl) pageInfoBotEl.textContent = pageText;
-  if (prevBtnBot)    prevBtnBot.disabled       = isPrevDisabled;
-  if (nextBtnBot)    nextBtnBot.disabled       = isNextDisabled;
-
-  setVisible($('crypto-top50-list'), true);
-}
-
-function buildCryptoTop50Row(rank, coin) {
-  const price     = coin.current_price;
-  const change24h = coin.price_change_percentage_24h;
-  const vol24h    = coin.total_volume;
-  const mcap      = coin.market_cap;
-  const logoUrl   = coin.image || null;
-
-  const { text: changeText, cls: changeCls } = fmt.change(change24h);
-
-  const row = document.createElement('div');
-  row.className = 'top50-row top50-data-row crypto-top50-row';
-  // Link to CoinGecko coin page
-  row.addEventListener('click', () => {
-    window.open(`https://www.coingecko.com/en/coins/${coin.id}`, '_blank', 'noopener');
-  });
-  row.style.cursor = 'pointer';
-
-  // Rank
-  const rankEl = document.createElement('span');
-  rankEl.className = 'top50-col top50-rank';
-  rankEl.textContent = rank;
-
-  // Name column: logo + name + symbol
-  const nameCol = document.createElement('span');
-  nameCol.className = 'top50-col top50-name';
-
-  const logoEl = buildTokenLogo(logoUrl, coin.symbol);
-  logoEl.classList.add('top50-logo');
-
-  const nameWrap = document.createElement('span');
-  nameWrap.className = 'top50-name-wrap';
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'top50-token-name';
-  nameSpan.textContent = coin.name || coin.symbol || '—';
-  const symSpan = document.createElement('span');
-  symSpan.className = 'top50-token-sym';
-  symSpan.textContent = (coin.symbol || '').toUpperCase();
-  nameWrap.append(nameSpan, symSpan);
-
-  nameCol.append(logoEl, nameWrap);
-
-  // Price
-  const priceEl = document.createElement('span');
-  priceEl.className = 'top50-col top50-price';
-  priceEl.textContent = price != null ? fmt.price(price) : '—';
-
-  // 24h change
-  const changeEl = document.createElement('span');
-  changeEl.className = `top50-col top50-change ${changeCls}`;
-  changeEl.textContent = changeText;
-
-  // Market cap
-  const mcapEl = document.createElement('span');
-  mcapEl.className = 'top50-col top50-mcap';
-  mcapEl.textContent = fmt.large(mcap);
-
-  // Volume
-  const volEl = document.createElement('span');
-  volEl.className = 'top50-col top50-vol';
-  volEl.textContent = fmt.large(vol24h);
-
-  row.append(rankEl, nameCol, priceEl, changeEl, mcapEl, volEl);
-  return row;
-}
-
-// Wire Crypto Top 50 controls
-$('crypto-top50-refresh-btn').addEventListener('click', () => {
-  cryptoTop50Loaded = false;
-  cryptoTop50Data   = [];
-  cryptoTop50CurrentPage = 1;
-  loadCryptoTop50();
-});
-
-$('crypto-top50-prev-btn').addEventListener('click', () => {
-  if (cryptoTop50CurrentPage > 1) {
-    cryptoTop50CurrentPage--;
-    renderCryptoTop50();
-    $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-});
-
-$('crypto-top50-next-btn').addEventListener('click', () => {
-  cryptoTop50CurrentPage++;
-  renderCryptoTop50();
-  $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
-$('crypto-top50-prev-btn-bottom').addEventListener('click', () => {
-  if (cryptoTop50CurrentPage > 1) {
-    cryptoTop50CurrentPage--;
-    renderCryptoTop50();
-    $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-});
-
-$('crypto-top50-next-btn-bottom').addEventListener('click', () => {
-  cryptoTop50CurrentPage++;
-  renderCryptoTop50();
-  $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
-// Wire sort button clicks on the crypto top50 header
-document.querySelectorAll('.crypto-top50-sort-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const col = btn.dataset.sortCol;
-    if (cryptoTop50SortCol === col) {
-      cryptoTop50SortDir = cryptoTop50SortDir === 'desc' ? 'asc' : 'desc';
-    } else {
-      cryptoTop50SortCol = col;
-      cryptoTop50SortDir = 'desc';
-    }
-    cryptoTop50CurrentPage = 1;
-    renderCryptoTop50();
-  });
-});
 
 /**
  * All watchlist state lives in localStorage under 'pc-watchlist'.
@@ -4501,3 +4486,74 @@ updateUserProfileUI();
 
 /* end of app.js */
 
+/* ── Mouse trail canvas effect ───────────────────────────── */
+
+(function initMouseTrail() {
+  const canvas = document.getElementById('mouse-trail-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let W = 0, H = 0;
+  const particles = [];
+  let animId = null;
+
+  // Fallback trail colour used when the --primary CSS variable is not set
+  const TRAIL_COLOR_FALLBACK = '#9b59b6';
+
+  // Accent colour sampled from CSS variable, fallback to purple
+  function getAccentColor() {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue('--primary').trim();
+    return v || TRAIL_COLOR_FALLBACK;
+  }
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+
+  window.addEventListener('mousemove', e => {
+    const color = getAccentColor();
+    particles.push({
+      x:     e.clientX,
+      y:     e.clientY,
+      r:     Math.random() * 4 + 2,   // radius 2–6 px
+      alpha: 0.7,
+      dx:    (Math.random() - 0.5) * 1.2,
+      dy:    (Math.random() - 0.5) * 1.2 - 0.6,
+      color,
+    });
+  });
+
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.alpha -= 0.025;
+      p.r     *= 0.97;
+      p.x     += p.dx;
+      p.y     += p.dy;
+
+      if (p.alpha <= 0 || p.r < 0.3) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    animId = requestAnimationFrame(tick);
+  }
+
+  tick();
+})();
