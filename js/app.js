@@ -2106,10 +2106,21 @@ const Watchlist = (() => {
     return load().tokens.some(t => t.address.toLowerCase() === norm);
   }
 
+  function moveToken(address, direction) {
+    const data = load();
+    const norm = address.toLowerCase();
+    const idx = data.tokens.findIndex(t => t.address.toLowerCase() === norm);
+    if (idx === -1) return;
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= data.tokens.length) return;
+    [data.tokens[idx], data.tokens[newIdx]] = [data.tokens[newIdx], data.tokens[idx]];
+    save(data);
+  }
+
   function getWallets() { return load().wallets; }
   function getTokens()  { return load().tokens; }
 
-  return { addWallet, removeWallet, hasWallet, updateWalletName, getWalletName, addToken, removeToken, hasToken, getWallets, getTokens };
+  return { addWallet, removeWallet, hasWallet, updateWalletName, getWalletName, addToken, removeToken, hasToken, getWallets, getTokens, moveToken };
 })();
 
 /* ── Portfolio Groups module ─────────────────────────────── */
@@ -3316,7 +3327,7 @@ function renderWatchlistTokens(tokens, pairMap) {
   const tbody = $('wl-tokens-tbody');
   tbody.innerHTML = '';
 
-  tokens.forEach(token => {
+  tokens.forEach((token, idx) => {
     const pair      = pairMap.get(token.address.toLowerCase());
     const price     = Number(pair?.priceUsd || 0);
     const change24h = Number(pair?.priceChange?.h24 || 0);
@@ -3326,6 +3337,31 @@ function renderWatchlistTokens(tokens, pairMap) {
     const logoUrl   = pair?.info?.imageUrl || token.logoUrl || null;
 
     const tr = document.createElement('tr');
+
+    // Reorder buttons (up/down)
+    const tdMove = document.createElement('td');
+    tdMove.className = 'align-center';
+    const upBtn = document.createElement('button');
+    upBtn.className = 'wl-move-btn';
+    upBtn.textContent = '▲';
+    upBtn.title = 'Move up';
+    upBtn.disabled = idx === 0;
+    upBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      Watchlist.moveToken(token.address, 'up');
+      loadWatchlistTokenPrices();
+    });
+    const downBtn = document.createElement('button');
+    downBtn.className = 'wl-move-btn';
+    downBtn.textContent = '▼';
+    downBtn.title = 'Move down';
+    downBtn.disabled = idx === tokens.length - 1;
+    downBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      Watchlist.moveToken(token.address, 'down');
+      loadWatchlistTokenPrices();
+    });
+    tdMove.append(upBtn, downBtn);
 
     // Token name + logo
     const tdToken = document.createElement('td');
@@ -3380,7 +3416,7 @@ function renderWatchlistTokens(tokens, pairMap) {
     });
     tdRemove.appendChild(removeBtn);
 
-    tr.append(tdToken, tdSym, tdPrice, tdChange, tdVol, tdMcap, tdLiq, tdRemove);
+    tr.append(tdMove, tdToken, tdSym, tdPrice, tdChange, tdVol, tdMcap, tdLiq, tdRemove);
 
     // Open DexScreener pair page when row is clicked
     const pairAddress = pair?.pairAddress;
