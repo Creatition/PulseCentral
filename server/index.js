@@ -1,8 +1,9 @@
 'use strict';
 
-const express = require('express');
-const path    = require('path');
-const fs      = require('fs');
+const express  = require('express');
+const path     = require('path');
+const fs       = require('fs');
+const { Readable } = require('stream');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -562,6 +563,55 @@ app.get('/api/pulsex/factory', async (req, res) => {
   } catch (err) {
     console.error('[PulseCentral proxy] PulseX factory:', err.message);
     res.status(502).json({ error: 'Proxy request failed', detail: err.message });
+  }
+});
+
+// Meme image generator — proxies image.pollinations.ai so the browser avoids
+// CORS restrictions and benefits from the server's longer network timeout.
+// Frontend: /api/meme-generate?prompt=<text>&width=1024&height=1024&seed=<n>
+app.get('/api/meme-generate', async (req, res) => {
+  const { prompt, width = '1024', height = '1024', seed = '0', nologo = 'true' } = req.query;
+
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+    return res.status(400).json({ error: 'prompt is required' });
+  }
+
+  // Limit prompt length to prevent excessively large upstream URLs.
+  // Express auto-decodes req.query values, so re-encoding here for the
+  // upstream URL path is intentional and correct (not double-encoding).
+  const safePrompt = prompt.slice(0, 500);
+  const encoded    = encodeURIComponent(safePrompt);
+  const safeWidth  = /^\d+$/.test(width)  ? width  : '1024';
+  const safeHeight = /^\d+$/.test(height) ? height : '1024';
+  const safeSeed   = /^\d+$/.test(seed)   ? seed   : '0';
+
+  const upstreamUrl =
+    `https://image.pollinations.ai/prompt/${encoded}` +
+    `?width=${safeWidth}&height=${safeHeight}&seed=${safeSeed}&nologo=${nologo === 'true' ? 'true' : 'false'}`;
+
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PulseCentral/1.0)' },
+      signal: AbortSignal.timeout(90_000),
+    });
+
+    if (!upstream.ok) {
+      console.error('[PulseCentral proxy] meme-generate upstream error:', upstream.status);
+      return res.status(502).json({ error: `Image generation failed: HTTP ${upstream.status}` });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
+      console.error('[PulseCentral proxy] meme-generate unexpected content-type:', contentType);
+      return res.status(502).json({ error: 'Image generation returned unexpected content' });
+    }
+
+    res.setHeader('Content-Type', contentType);
+    // Stream the image to the client instead of buffering it in memory
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    console.error('[PulseCentral proxy] meme-generate:', err.message);
+    res.status(502).json({ error: 'Image generation failed', detail: err.message });
   }
 });
 
