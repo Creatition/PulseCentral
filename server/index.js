@@ -478,6 +478,12 @@ app.get('/api/coingecko/global', (req, res) => {
   proxyJson(res, 'https://api.coingecko.com/api/v3/global');
 });
 
+// CoinGecko Top Coins by Market Cap
+// Frontend: /api/coingecko/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1
+app.get('/api/coingecko/markets', (req, res) => {
+  proxyJson(res, `https://api.coingecko.com/api/v3/coins/markets${qs(req)}`);
+});
+
 // PulseX V1 subgraph TVL / factory stats
 // Frontend: POST /api/graph/pulsex/factory  (no body needed)
 app.get('/api/pulsex/factory', async (req, res) => {
