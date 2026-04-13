@@ -929,9 +929,31 @@ const API = (() => {
   }
 
   /**
+   * Fetch the weekly chart snapshot from the server for PLSX, HEX, INC, and PRVX.
+   * Returns a map of symbol → weekly bar array, or an empty map on failure.
+   * @returns {Promise<Map<string, object[]>>}
+   */
+  async function fetchChartSnapshots() {
+    try {
+      const data = await fetchJSON('/api/chart-snapshots', 10000);
+      const result = new Map();
+      if (data && data.coins) {
+        for (const [symbol, bars] of Object.entries(data.coins)) {
+          result.set(symbol, Array.isArray(bars) ? bars : []);
+        }
+      }
+      return result;
+    } catch (err) {
+      console.warn('[PulseCentral] fetchChartSnapshots failed:', err.message);
+      return new Map();
+    }
+  }
+
+  /**
    * Fetch live pair data for the 6 core coins shown on the Home landing page
    * using the exact pair contract addresses defined in CORE_COINS.
-   * Also fetches OHLCV chart bars for each coin in parallel.
+   * - PLS gets live OHLCV chart bars fetched from DexScreener / subgraph.
+   * - PLSX, HEX, INC, PRVX use the server-side weekly snapshot (taken each Monday).
    * Returns an array of { symbol, pair, chartBars, chartRes, color } objects
    * in the order defined by CORE_COINS. `pair` is null when unavailable.
    * @returns {Promise<Array<{symbol:string, pair:object|null, chartBars:object[], chartRes:string, color:string}>>}
@@ -940,11 +962,16 @@ const API = (() => {
     const pairAddresses = CORE_COINS.map(c => c.pairAddress).filter(Boolean);
     const url = `${DSX_BASE}/pairs/pulsechain/${pairAddresses.join(',')}`;
 
-    // Fetch price data and OHLCV bars in parallel.
-    // Pass tokenAddress so getCoreCoinChartBars can try the subgraph first.
-    const [pairData, ...chartResults] = await Promise.all([
+    // PLS is the only coin that uses live chart bars; all others use the snapshot.
+    const plsCoin = CORE_COINS.find(c => c.symbol === 'PLS' || c.symbol === 'WPLS');
+
+    // Fetch live price data, the weekly snapshot, and PLS live chart bars in parallel.
+    const [pairData, snapshots, plsChart] = await Promise.all([
       fetchJSON(url).catch(err => { console.warn('[PulseCentral] getCoreCoinPairs failed:', err); return {}; }),
-      ...CORE_COINS.map(c => getCoreCoinChartBars(c.pairAddress, c.chartRes, c.address)),
+      fetchChartSnapshots(),
+      plsCoin
+        ? getCoreCoinChartBars(plsCoin.pairAddress, plsCoin.chartRes, plsCoin.address)
+        : Promise.resolve({ bars: [], resolution: 'W' }),
     ]);
 
     const pairsById = new Map();
@@ -954,15 +981,23 @@ const API = (() => {
       }
     }
 
-    return CORE_COINS.map((coin, i) => {
-      const { bars, resolution } = chartResults[i] || { bars: [], resolution: coin.chartRes };
+    return CORE_COINS.map(coin => {
+      const isLive = coin.symbol === 'PLS' || coin.symbol === 'WPLS';
+      let bars, resolution;
+      if (isLive) {
+        bars       = plsChart.bars;
+        resolution = plsChart.resolution;
+      } else {
+        bars       = snapshots.get(coin.symbol) || [];
+        resolution = 'W';
+      }
       return {
-        symbol:      coin.symbol,
-        address:     coin.address,
-        pair:        pairsById.get(coin.pairAddress.toLowerCase()) || null,
-        chartBars:   bars,
-        chartRes:    resolution,
-        color:       coin.color,
+        symbol:       coin.symbol,
+        address:      coin.address,
+        pair:         pairsById.get(coin.pairAddress.toLowerCase()) || null,
+        chartBars:    bars,
+        chartRes:     resolution,
+        color:        coin.color,
         hideFromHome: coin.hideFromHome || false,
       };
     });
