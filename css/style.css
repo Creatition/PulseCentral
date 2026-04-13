@@ -189,6 +189,10 @@ li + li { margin-top: 0.35rem; }
   align-items: center;
   gap: 0;
   white-space: nowrap;
+  /* width: max-content ensures the element's own width equals its full content
+     width (all 50 duplicated items), so translateX(-50%) in the keyframe
+     animation scrolls exactly one set of 25 items before looping back to #1. */
+  width: max-content;
   will-change: transform;
   /* 5s is the initial fallback; JS overrides this after measuring content width */
   animation: ticker-scroll 5s linear infinite;
