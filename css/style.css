@@ -130,14 +130,6 @@ li + li { margin-top: 0.35rem; }
   z-index: 99;
 }
 
-.ticker-label-wrap {
-  position: relative;
-  flex-shrink: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: stretch;
-}
-
 .ticker-label {
   background: linear-gradient(135deg, var(--primary), var(--accent));
   color: #fff;
@@ -148,60 +140,9 @@ li + li { margin-top: 0.35rem; }
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
   white-space: nowrap;
   flex-shrink: 0;
   box-shadow: 4px 0 12px var(--primary-glow);
-  border: none;
-  cursor: pointer;
-  transition: filter var(--transition);
-}
-
-.ticker-label:hover { filter: brightness(1.12); }
-
-.ticker-dropdown-caret {
-  font-size: 0.65rem;
-  opacity: 0.85;
-  transition: transform 0.2s;
-}
-
-.ticker-label[aria-expanded="true"] .ticker-dropdown-caret {
-  transform: rotate(180deg);
-}
-
-.ticker-mode-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
-  z-index: 200;
-  min-width: 150px;
-  overflow: hidden;
-}
-
-.ticker-mode-option {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.55rem 1rem;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--transition);
-  white-space: nowrap;
-}
-
-.ticker-mode-option:hover { background: var(--bg-card-hover, rgba(255,255,255,0.06)); }
-
-.ticker-mode-option.active {
-  color: var(--primary);
-  background: var(--primary-bg);
 }
 
 .ticker-track-wrap {
@@ -4014,20 +3955,17 @@ li + li { margin-top: 0.35rem; }
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
-/* Keep content above the trail canvas.
-   Do NOT set z-index on main-content/tab-panel/footer — giving them an
-   explicit z-index would create stacking contexts that trap their dropdown
-   children below the sticky ticker bar (z-index: 99).  The canvas is now
-   at z-index: -1 so all normal-flow content renders above it automatically. */
+/* Ensure all page content sits above the trail canvas */
 .site-header,
 .ticker-bar,
 .main-content,
 .tab-panel,
 footer {
   position: relative;
+  z-index: 1;
 }
 
 /* ── DexScreener token search ── */
@@ -4035,8 +3973,8 @@ footer {
   position: relative;
   margin-left: auto;
   min-width: 220px;
-  max-width: 520px;
-  flex: 1 1 300px;
+  max-width: 340px;
+  flex: 1 1 220px;
 }
 
 .dex-search-input-row {
@@ -4184,12 +4122,6 @@ footer {
 .dex-search-change { white-space: nowrap; font-size: 0.75rem; }
 
 .dex-search-vol {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.dex-search-liq {
   font-size: 0.7rem;
   color: var(--text-muted);
   white-space: nowrap;
