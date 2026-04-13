@@ -1023,6 +1023,120 @@ async function loadTicker() {
 loadTicker();
 let tickerInterval = setInterval(loadTicker, 5 * 60_000);
 
+/* ── Ticker mode (Trending / Watchlist) ─────────────────────── */
+
+let _tickerMode = 'trending'; // 'trending' | 'watchlist'
+
+/**
+ * Load and render the watchlist tokens in the ticker.
+ * Fetches live prices for saved tokens then renders them via renderTicker.
+ */
+async function loadWatchlistTicker() {
+  const tokens = Watchlist.getTokens();
+  const track  = $('ticker-track');
+  if (!track) return;
+
+  if (tokens.length === 0) {
+    track.style.animation = 'none';
+    track.innerHTML = '<div class="ticker-loading">No tokens in watchlist.</div>';
+    return;
+  }
+
+  track.style.animation = 'none';
+  track.innerHTML = '<div class="ticker-loading">Loading watchlist…</div>';
+
+  try {
+    const addresses = tokens.map(t => t.address);
+    const pairMap   = await API.getPairsByAddresses(addresses);
+
+    // Build synthetic pair objects from watchlist tokens in saved order
+    const pairs = tokens.map(token => {
+      const pair = pairMap.get(token.address.toLowerCase());
+      if (pair) return pair;
+      // Fallback: minimal pair-like object so buildTickerItem still works
+      return {
+        baseToken: { symbol: token.symbol, address: token.address },
+        priceUsd: 0,
+        priceChange: {},
+        info: { imageUrl: token.logoUrl || null },
+        pairAddress: '',
+      };
+    });
+
+    renderTicker(pairs);
+  } catch (err) {
+    console.warn('[PulseCentral] Watchlist ticker load failed:', err);
+    if (track) track.innerHTML = '<div class="ticker-loading">Failed to load watchlist.</div>';
+  }
+}
+
+/** Switch the ticker to the given mode and refresh content. */
+function setTickerMode(mode) {
+  _tickerMode = mode;
+
+  // Update button label
+  const iconEl = $('ticker-mode-icon');
+  const textEl = $('ticker-mode-text');
+  if (iconEl) iconEl.textContent = mode === 'watchlist' ? '⭐' : '🔥';
+  if (textEl) textEl.textContent = mode === 'watchlist' ? 'Watchlist' : 'Trending';
+
+  // Update active state on menu options
+  document.querySelectorAll('.ticker-mode-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tickerMode === mode);
+  });
+
+  // Update aria-label on ticker bar
+  const bar = $('ticker-bar');
+  if (bar) bar.setAttribute('aria-label', mode === 'watchlist' ? 'Watchlist ticker' : 'Trending coins ticker');
+
+  // Cancel the old auto-refresh interval and start the right one
+  clearInterval(tickerInterval);
+  if (mode === 'watchlist') {
+    loadWatchlistTicker();
+    tickerInterval = setInterval(loadWatchlistTicker, 5 * 60_000);
+  } else {
+    loadTicker();
+    tickerInterval = setInterval(loadTicker, 5 * 60_000);
+  }
+}
+
+// Wire up the ticker mode dropdown button
+(function _initTickerModeDropdown() {
+  const modeBtn      = $('ticker-mode-btn');
+  const dropdown     = $('ticker-mode-dropdown');
+  if (!modeBtn || !dropdown) return;
+
+  modeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = !dropdown.classList.contains('hidden');
+    dropdown.classList.toggle('hidden', isOpen);
+    modeBtn.setAttribute('aria-expanded', String(!isOpen));
+  });
+
+  dropdown.querySelectorAll('.ticker-mode-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.tickerMode;
+      if (mode !== _tickerMode) {
+        dropdown.classList.add('hidden');
+        modeBtn.setAttribute('aria-expanded', 'false');
+        setTickerMode(mode);
+      } else {
+        dropdown.classList.add('hidden');
+        modeBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    const wrap = $('ticker-label-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      dropdown.classList.add('hidden');
+      modeBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+
 /* ── Ticker manual scroll controls ─────────────────────────── */
 
 /**
@@ -1503,7 +1617,7 @@ async function fetchMarketPairs() {
 $('top50-refresh-btn').addEventListener('click', () => {
   // Clear search if active
   if (top50SearchInput) top50SearchInput.value = '';
-  top50SearchActive = false;
+  showSearchDropdown(false);
   clearTimeout(top50SearchDebounce);
 
   top50Loaded = false;
@@ -1583,7 +1697,6 @@ async function loadTop50() {
 const TOP50_PAGE_SIZE = 50;
 
 function renderTop50() {
-  // Restore pagination visibility (may have been hidden by search)
   setVisible($('top50-pagination-top'), true);
   setVisible($('top50-pagination-bottom'), true);
 
@@ -1746,66 +1859,117 @@ function buildTop50Row(rank, pair) {
 
 /* ── PLS Top 50 Search ─────────────────────────────────────── */
 
+/** Max results shown in the search dropdown. */
+const SEARCH_RESULTS_LIMIT = 25;
+/** Delay (ms) after blur before hiding the search dropdown, allowing click events on items to register. */
+const SEARCH_DROPDOWN_BLUR_DELAY = 150;
+
 let top50SearchDebounce = null;
-let top50SearchActive   = false;
 let top50SearchLoading  = false;
 
-const top50SearchInput = $('top50-search-input');
+const top50SearchInput    = $('top50-search-input');
+const searchDropdown      = $('search-dropdown');
 
-function renderTop50SearchResults(pairs) {
-  const container = $('top50-rows');
-  if (!container) return;
-  container.innerHTML = '';
+/** Build a single search-dropdown result item for a DexScreener pair. */
+function buildSearchDropdownItem(pair) {
+  const token    = pair.baseToken || {};
+  const symbol   = token.symbol || '?';
+  const name     = token.name   || symbol;
+  const price    = Number(pair.priceUsd || 0);
+  const change   = Number(pair.priceChange?.h24 || 0);
+  const logoUrl  = pair.info?.imageUrl || null;
+  const pairAddr = pair.pairAddress || '';
+  const chainId  = pair.chainId || 'pulsechain';
+  const { text: changeText, cls: changeCls } = fmt.change(change);
 
-  // Hide regular pagination while search is active
-  setHidden($('top50-pagination-top'), true);
-  setHidden($('top50-pagination-bottom'), true);
+  const item = document.createElement('a');
+  item.className = 'search-dropdown-item';
+  item.href      = pairAddr ? `https://dexscreener.com/${chainId}/${pairAddr}` : '#';
+  item.target    = '_blank';
+  item.rel       = 'noopener noreferrer';
+  item.setAttribute('role', 'option');
+
+  // Logo
+  if (logoUrl) {
+    const img = document.createElement('img');
+    img.src   = logoUrl;
+    img.alt   = symbol;
+    img.className = 'search-dropdown-logo';
+    img.onerror = () => {
+      const ph = document.createElement('div');
+      ph.className = 'search-dropdown-logo-ph';
+      ph.textContent = symbol.slice(0, 3).toUpperCase();
+      img.replaceWith(ph);
+    };
+    item.appendChild(img);
+  } else {
+    const ph = document.createElement('div');
+    ph.className = 'search-dropdown-logo-ph';
+    ph.textContent = symbol.slice(0, 3).toUpperCase();
+    item.appendChild(ph);
+  }
+
+  const info = document.createElement('div');
+  info.className = 'search-dropdown-info';
+  const symEl = document.createElement('div');
+  symEl.className = 'search-dropdown-sym';
+  symEl.textContent = symbol;
+  const nameEl = document.createElement('div');
+  nameEl.className = 'search-dropdown-name';
+  nameEl.textContent = name;
+  info.append(symEl, nameEl);
+
+  const priceEl = document.createElement('div');
+  priceEl.className = 'search-dropdown-price';
+  priceEl.textContent = price ? fmt.price(price) : '—';
+
+  const changeEl = document.createElement('div');
+  changeEl.className = `search-dropdown-change ${changeCls}`;
+  changeEl.textContent = changeText;
+
+  item.append(info, priceEl, changeEl);
+  return item;
+}
+
+/** Show or hide the search dropdown. */
+function showSearchDropdown(visible) {
+  if (searchDropdown) setHidden(searchDropdown, !visible);
+}
+
+/** Populate the search dropdown with results. */
+function renderSearchDropdown(pairs) {
+  if (!searchDropdown) return;
+  searchDropdown.innerHTML = '';
 
   if (pairs.length === 0) {
     const empty = document.createElement('div');
-    empty.className = 'top50-row';
-    empty.style.padding = '1.5rem';
-    empty.style.justifyContent = 'center';
-    empty.style.color = 'var(--text-muted)';
+    empty.className = 'search-dropdown-empty';
     empty.textContent = 'No tokens found for that search.';
-    container.appendChild(empty);
-    setVisible($('top50-list'), true);
+    searchDropdown.appendChild(empty);
+    showSearchDropdown(true);
     return;
   }
 
-  pairs.forEach((pair, i) => {
-    container.appendChild(buildTop50Row(i + 1, pair));
+  pairs.forEach(pair => {
+    searchDropdown.appendChild(buildSearchDropdownItem(pair));
   });
-
-  setVisible($('top50-list'), true);
+  showSearchDropdown(true);
 }
 
 async function runTop50Search(query) {
   const q = query.trim();
 
   if (!q) {
-    // Restore normal view
-    top50SearchActive = false;
-    setVisible($('top50-pagination-top'), true);
-    setVisible($('top50-pagination-bottom'), true);
-    renderTop50();
+    showSearchDropdown(false);
     return;
   }
 
-  top50SearchActive  = true;
   top50SearchLoading = true;
 
-  setHidden($('top50-error'), true);
-  setVisible($('top50-list'), true);
-  const container = $('top50-rows');
-  if (container) {
-    container.innerHTML = '';
-    const loadingRow = document.createElement('div');
-    loadingRow.className = 'top50-row';
-    loadingRow.style.padding = '1.5rem';
-    loadingRow.style.justifyContent = 'center';
-    loadingRow.innerHTML = '<div class="pulse-loader" aria-label="Searching…"></div>';
-    container.appendChild(loadingRow);
+  // Show a loading spinner inside the dropdown while fetching
+  if (searchDropdown) {
+    searchDropdown.innerHTML = '<div class="search-dropdown-loading"><div class="pulse-loader" aria-label="Searching…"></div></div>';
+    showSearchDropdown(true);
   }
 
   try {
@@ -1814,14 +1978,12 @@ async function runTop50Search(query) {
     const pairs = (data?.pairs || []);
     // Sort by liquidity descending so most liquid results come first
     pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
-    renderTop50SearchResults(pairs.slice(0, TOP50_PAGE_SIZE));
+    renderSearchDropdown(pairs.slice(0, SEARCH_RESULTS_LIMIT));
   } catch (err) {
-    const errEl = $('top50-error');
-    if (errEl) {
-      errEl.textContent = `Search error: ${err.message}`;
-      setVisible(errEl, true);
+    if (searchDropdown) {
+      searchDropdown.innerHTML = `<div class="search-dropdown-empty">Search error: ${escHtml(err.message)}</div>`;
+      showSearchDropdown(true);
     }
-    if (container) container.innerHTML = '';
   } finally {
     top50SearchLoading = false;
   }
@@ -1838,7 +2000,23 @@ if (top50SearchInput) {
     clearTimeout(top50SearchDebounce);
     runTop50Search(top50SearchInput.value);
   });
+
+  // Close dropdown when focus leaves the search area
+  top50SearchInput.addEventListener('blur', () => {
+    // Small delay so clicks on dropdown items register before the dropdown closes
+    setTimeout(() => showSearchDropdown(false), SEARCH_DROPDOWN_BLUR_DELAY);
+  });
+
+  top50SearchInput.addEventListener('focus', () => {
+    if (top50SearchInput.value.trim()) showSearchDropdown(true);
+  });
 }
+
+// Close search dropdown when clicking outside
+document.addEventListener('click', e => {
+  const wrap = $('search-wrap');
+  if (wrap && !wrap.contains(e.target)) showSearchDropdown(false);
+});
 
 /**
  * All watchlist state lives in localStorage under 'pc-watchlist'.
