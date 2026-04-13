@@ -253,7 +253,6 @@ function switchTab(name) {
     autoLoadLastPortfolio();
   }
   if (name === 'swap')  initSwapIframe();
-  if (name === 'stats') loadPulseStats();
 }
 
 /** Show a markets sub-page ('main' or 'top50') and trigger loading if needed. */
@@ -1541,7 +1540,6 @@ $('top50-refresh-btn').addEventListener('click', () => {
   allMarketPairs = [];
   marketsLoaded = false; // also mark main page stale so it re-renders with fresh data
   top50CurrentPage = 1;
-  pulseStatsLoaded = false; // refresh pulse stats data too
   loadTop50();
 });
 
@@ -4177,69 +4175,5 @@ document.querySelectorAll('.td-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTokenDetailsTab(btn.dataset.tdTab));
 });
 
-/* ── PulseChain Stats Tab ─────────────────────────────────── */
-
-let pulseStatsLoaded = false;
-
-async function loadPulseStats() {
-  if (pulseStatsLoaded) return;
-  pulseStatsLoaded = true;
-
-  const loadingEl = $('pulse-stats-loading');
-  const errorEl   = $('pulse-stats-error');
-  const contentEl = $('pulse-stats-content');
-
-  setVisible(loadingEl, true);
-  setHidden(errorEl,    true);
-  setHidden(contentEl,  true);
-
-  try {
-    // Fetch BlockScout v2 stats and DefiLlama bridge TVL in parallel
-    const [scanResult, llamaResult] = await Promise.allSettled([
-      fetch('/api/scan-v2/stats'),
-      fetch('/api/llama/tvl/pulsechain-bridge'),
-    ]);
-
-    // Wallet holders + daily transactions — from BlockScout v2
-    if (scanResult.status === 'fulfilled' && scanResult.value.ok) {
-      const sd = await scanResult.value.json();
-
-      const holdersEl = $('pcs-holders-value');
-      if (holdersEl) {
-        const a = sd?.total_addresses;
-        holdersEl.textContent = a != null ? Number(a).toLocaleString('en-US') : '—';
-      }
-
-      const txnsEl = $('pcs-txns-value');
-      if (txnsEl) {
-        const t = sd?.transactions_today;
-        txnsEl.textContent = t != null ? Number(t).toLocaleString('en-US') : '—';
-      }
-    }
-
-    // Bridged total value — from DefiLlama (simple TVL number in USD)
-    const bridgeEl    = $('pcs-bridge-value');
-    const bridgeSubEl = $('pcs-bridge-sub');
-    if (llamaResult.status === 'fulfilled' && llamaResult.value.ok) {
-      const tvl = await llamaResult.value.json();
-      if (bridgeEl) {
-        const num = Number(tvl);
-        bridgeEl.textContent = isNaN(num) || num === 0 ? '—' : fmt.large(num);
-      }
-    } else {
-      if (bridgeEl) bridgeEl.textContent = '—';
-      if (bridgeSubEl) bridgeSubEl.textContent = 'Bridge TVL unavailable — check DefiLlama for details';
-    }
-
-    setHidden(loadingEl, true);
-    setVisible(contentEl, true);
-  } catch (err) {
-    setHidden(loadingEl, true);
-    if (errorEl) {
-      errorEl.textContent = `Failed to load PulseChain stats: ${err.message}`;
-      setVisible(errorEl, true);
-    }
-    pulseStatsLoaded = false;
-  }
-}
+/* end of app.js */
 
