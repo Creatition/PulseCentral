@@ -284,14 +284,23 @@ function saveSnapshot(data) {
 
 /**
  * Refresh the snapshot if it is stale (i.e. its `weekCutoff` predates the
- * current Monday).  Runs at startup and whenever the hourly timer fires.
+ * current Monday) OR if any coin has insufficient bar data (< 3 bars).
+ * Runs at startup and whenever the hourly timer fires.
  */
 async function refreshSnapshotIfNeeded() {
   const mondayMs = getMondayMs();
   const current  = snapshotCache || loadSnapshot();
 
-  // Already up-to-date for this Monday
-  if (current && current.weekCutoff >= mondayMs) return;
+  // Check that every coin in the snapshot has at least 3 bars of real history.
+  // If the initial build ran while the subgraph was unavailable, coins may have
+  // empty arrays — in that case we must rebuild even if weekCutoff looks fresh.
+  const hasAdequateData = current &&
+    SNAPSHOT_COINS.every(({ symbol }) =>
+      Array.isArray(current.coins?.[symbol]) && current.coins[symbol].length >= 3
+    );
+
+  // Already up-to-date for this Monday and has adequate data for every coin
+  if (current && current.weekCutoff >= mondayMs && hasAdequateData) return;
 
   console.log('[PulseCentral snapshot] Building weekly chart snapshot…');
   try {
