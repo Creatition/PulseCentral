@@ -3142,6 +3142,27 @@ li + li { margin-top: 0.35rem; }
   margin-top: 0.5rem;
 }
 
+#crypto-top50-list {
+  border-radius: var(--radius);
+  margin-top: 0.5rem;
+}
+
+.crypto-top50-row {
+  grid-template-columns: 3rem 1fr 9rem 7rem 10rem 10rem;
+}
+
+@media (max-width: 900px) {
+  .crypto-top50-row {
+    grid-template-columns: 2.5rem 1fr 7rem 6rem 8rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .crypto-top50-row {
+    grid-template-columns: 2rem 1fr 6rem 5.5rem;
+  }
+}
+
 @media (max-width: 900px) {
   .top50-row {
     grid-template-columns: 2.5rem 1fr 7rem 6rem 8rem;
