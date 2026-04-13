@@ -218,7 +218,7 @@ let top50CurrentPage = 1;
 let top50SortCol = 'mcap';   // 'price' | 'change' | 'mcap' | 'vol' | 'liq'
 let top50SortDir = 'desc';   // 'asc' | 'desc'
 
-let activeMarketsPage = 'pls-top50'; // 'pls-top50' | 'crypto-top50'
+let activeMarketsPage = 'pls-top50';
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -266,13 +266,10 @@ function switchMarketsPage(page) {
   });
 
   // Show/hide sub-pages
-  const plsPage    = $('markets-page-top50');
-  const cryptoPage = $('markets-page-crypto-top50');
-  if (plsPage)    plsPage.classList.toggle('hidden', page !== 'pls-top50');
-  if (cryptoPage) cryptoPage.classList.toggle('hidden', page !== 'crypto-top50');
+  const plsPage = $('markets-page-top50');
+  if (plsPage) plsPage.classList.toggle('hidden', page !== 'pls-top50');
 
-  if (page === 'pls-top50')    loadTop50();
-  if (page === 'crypto-top50') loadCryptoTop50();
+  if (page === 'pls-top50') loadTop50();
 }
 
 // Wire markets dropdown item clicks
@@ -1504,6 +1501,11 @@ async function fetchMarketPairs() {
 }
 
 $('top50-refresh-btn').addEventListener('click', () => {
+  // Clear search if active
+  if (top50SearchInput) top50SearchInput.value = '';
+  top50SearchActive = false;
+  clearTimeout(top50SearchDebounce);
+
   top50Loaded = false;
   allMarketPairs = [];
   top50CurrentPage = 1;
@@ -1581,6 +1583,10 @@ async function loadTop50() {
 const TOP50_PAGE_SIZE = 50;
 
 function renderTop50() {
+  // Restore pagination visibility (may have been hidden by search)
+  setVisible($('top50-pagination-top'), true);
+  setVisible($('top50-pagination-bottom'), true);
+
   // Sort pairs by the selected column
   const getValue = (p) => {
     switch (top50SortCol) {
@@ -1737,224 +1743,101 @@ function buildTop50Row(rank, pair) {
   return row;
 }
 
-/* ── Crypto Top 50 ────────────────────────────────────────── */
+/* ── PLS Top 50 Search ─────────────────────────────────────── */
 
-let cryptoTop50Loaded = false;
-let cryptoTop50Data   = [];
-let cryptoTop50CurrentPage = 1;
-let cryptoTop50SortCol = 'mcap';  // 'price' | 'change' | 'mcap' | 'vol'
-let cryptoTop50SortDir = 'desc';
+let top50SearchDebounce = null;
+let top50SearchActive   = false;
+let top50SearchLoading  = false;
 
-const CRYPTO_TOP50_PAGE_SIZE = 50;
+const top50SearchInput = $('top50-search-input');
 
-async function loadCryptoTop50() {
-  if (cryptoTop50Loaded) return;
-  cryptoTop50Loaded = true;
-
-  setHidden($('crypto-top50-error'), true);
-  setHidden($('crypto-top50-list'), true);
-  setVisible($('crypto-top50-loading'), true);
-
-  try {
-    const params = new URLSearchParams({
-      vs_currency: 'usd',
-      order: 'market_cap_desc',
-      per_page: '100',
-      page: '1',
-      sparkline: 'false',
-      price_change_percentage: '24h',
-    });
-    const data = await fetch(`/api/coingecko/markets?${params}`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    });
-    if (!Array.isArray(data) || data.length === 0) throw new Error('No data returned');
-    cryptoTop50Data = data;
-    renderCryptoTop50();
-  } catch (err) {
-    $('crypto-top50-error').textContent = `Error loading Crypto Top 50 data: ${err.message}`;
-    setVisible($('crypto-top50-error'), true);
-    cryptoTop50Loaded = false;
-  } finally {
-    setHidden($('crypto-top50-loading'), true);
-  }
-}
-
-function renderCryptoTop50() {
-  const getValue = (c) => {
-    switch (cryptoTop50SortCol) {
-      case 'price':  return Number(c.current_price || 0);
-      case 'change': return Number(c.price_change_percentage_24h || 0);
-      case 'vol':    return Number(c.total_volume || 0);
-      default:       return Number(c.market_cap || 0); // 'mcap'
-    }
-  };
-
-  const sorted = cryptoTop50Data
-    .slice()
-    .sort((a, b) => cryptoTop50SortDir === 'desc'
-      ? getValue(b) - getValue(a)
-      : getValue(a) - getValue(b));
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / CRYPTO_TOP50_PAGE_SIZE));
-  cryptoTop50CurrentPage = Math.max(1, Math.min(cryptoTop50CurrentPage, totalPages));
-
-  const startIdx  = (cryptoTop50CurrentPage - 1) * CRYPTO_TOP50_PAGE_SIZE;
-  const pageCoins = sorted.slice(startIdx, startIdx + CRYPTO_TOP50_PAGE_SIZE);
-
-  const container = $('crypto-top50-rows');
+function renderTop50SearchResults(pairs) {
+  const container = $('top50-rows');
   if (!container) return;
   container.innerHTML = '';
 
-  pageCoins.forEach((coin, i) => {
-    container.appendChild(buildCryptoTop50Row(startIdx + i + 1, coin));
+  // Hide regular pagination while search is active
+  setHidden($('top50-pagination-top'), true);
+  setHidden($('top50-pagination-bottom'), true);
+
+  if (pairs.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'top50-row';
+    empty.style.padding = '1.5rem';
+    empty.style.justifyContent = 'center';
+    empty.style.color = 'var(--text-muted)';
+    empty.textContent = 'No PulseChain tokens found for that search.';
+    container.appendChild(empty);
+    setVisible($('top50-list'), true);
+    return;
+  }
+
+  pairs.forEach((pair, i) => {
+    container.appendChild(buildTop50Row(i + 1, pair));
   });
 
-  // Update sort indicators
-  document.querySelectorAll('.crypto-top50-sort-btn').forEach(btn => {
-    btn.classList.remove('sort-active', 'sort-asc', 'sort-desc');
-    if (btn.dataset.sortCol === cryptoTop50SortCol) {
-      btn.classList.add('sort-active', cryptoTop50SortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-    }
-  });
-
-  // Update pagination
-  const pageText      = `Page ${cryptoTop50CurrentPage} / ${totalPages}`;
-  const isPrevDisabled = cryptoTop50CurrentPage <= 1;
-  const isNextDisabled = cryptoTop50CurrentPage >= totalPages;
-
-  const pageInfoEl    = $('crypto-top50-page-info');
-  const prevBtn       = $('crypto-top50-prev-btn');
-  const nextBtn       = $('crypto-top50-next-btn');
-  const pageInfoBotEl = $('crypto-top50-page-info-bottom');
-  const prevBtnBot    = $('crypto-top50-prev-btn-bottom');
-  const nextBtnBot    = $('crypto-top50-next-btn-bottom');
-
-  if (pageInfoEl)    pageInfoEl.textContent    = pageText;
-  if (prevBtn)       prevBtn.disabled          = isPrevDisabled;
-  if (nextBtn)       nextBtn.disabled          = isNextDisabled;
-  if (pageInfoBotEl) pageInfoBotEl.textContent = pageText;
-  if (prevBtnBot)    prevBtnBot.disabled       = isPrevDisabled;
-  if (nextBtnBot)    nextBtnBot.disabled       = isNextDisabled;
-
-  setVisible($('crypto-top50-list'), true);
+  setVisible($('top50-list'), true);
 }
 
-function buildCryptoTop50Row(rank, coin) {
-  const price     = coin.current_price;
-  const change24h = coin.price_change_percentage_24h;
-  const vol24h    = coin.total_volume;
-  const mcap      = coin.market_cap;
-  const logoUrl   = coin.image || null;
+async function runTop50Search(query) {
+  const q = query.trim();
 
-  const { text: changeText, cls: changeCls } = fmt.change(change24h);
+  if (!q) {
+    // Restore normal view
+    top50SearchActive = false;
+    setVisible($('top50-pagination-top'), true);
+    setVisible($('top50-pagination-bottom'), true);
+    renderTop50();
+    return;
+  }
 
-  const row = document.createElement('div');
-  row.className = 'top50-row top50-data-row crypto-top50-row';
-  // Link to CoinGecko coin page
-  row.addEventListener('click', () => {
-    window.open(`https://www.coingecko.com/en/coins/${coin.id}`, '_blank', 'noopener');
-  });
-  row.style.cursor = 'pointer';
+  top50SearchActive  = true;
+  top50SearchLoading = true;
 
-  // Rank
-  const rankEl = document.createElement('span');
-  rankEl.className = 'top50-col top50-rank';
-  rankEl.textContent = rank;
+  setHidden($('top50-error'), true);
+  setVisible($('top50-list'), true);
+  const container = $('top50-rows');
+  if (container) {
+    container.innerHTML = '';
+    const loadingRow = document.createElement('div');
+    loadingRow.className = 'top50-row';
+    loadingRow.style.padding = '1.5rem';
+    loadingRow.style.justifyContent = 'center';
+    loadingRow.innerHTML = '<div class="pulse-loader" aria-label="Searching…"></div>';
+    container.appendChild(loadingRow);
+  }
 
-  // Name column: logo + name + symbol
-  const nameCol = document.createElement('span');
-  nameCol.className = 'top50-col top50-name';
-
-  const logoEl = buildTokenLogo(logoUrl, coin.symbol);
-  logoEl.classList.add('top50-logo');
-
-  const nameWrap = document.createElement('span');
-  nameWrap.className = 'top50-name-wrap';
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'top50-token-name';
-  nameSpan.textContent = coin.name || coin.symbol || '—';
-  const symSpan = document.createElement('span');
-  symSpan.className = 'top50-token-sym';
-  symSpan.textContent = (coin.symbol || '').toUpperCase();
-  nameWrap.append(nameSpan, symSpan);
-
-  nameCol.append(logoEl, nameWrap);
-
-  // Price
-  const priceEl = document.createElement('span');
-  priceEl.className = 'top50-col top50-price';
-  priceEl.textContent = price != null ? fmt.price(price) : '—';
-
-  // 24h change
-  const changeEl = document.createElement('span');
-  changeEl.className = `top50-col top50-change ${changeCls}`;
-  changeEl.textContent = changeText;
-
-  // Market cap
-  const mcapEl = document.createElement('span');
-  mcapEl.className = 'top50-col top50-mcap';
-  mcapEl.textContent = fmt.large(mcap);
-
-  // Volume
-  const volEl = document.createElement('span');
-  volEl.className = 'top50-col top50-vol';
-  volEl.textContent = fmt.large(vol24h);
-
-  row.append(rankEl, nameCol, priceEl, changeEl, mcapEl, volEl);
-  return row;
+  try {
+    const data = await fetch(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+    const pairs = (data?.pairs || []).filter(p => p.chainId === 'pulsechain');
+    // Sort by liquidity descending so most liquid results come first
+    pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
+    renderTop50SearchResults(pairs.slice(0, TOP50_PAGE_SIZE));
+  } catch (err) {
+    const errEl = $('top50-error');
+    if (errEl) {
+      errEl.textContent = `Search error: ${err.message}`;
+      setVisible(errEl, true);
+    }
+    if (container) container.innerHTML = '';
+  } finally {
+    top50SearchLoading = false;
+  }
 }
 
-// Wire Crypto Top 50 controls
-$('crypto-top50-refresh-btn').addEventListener('click', () => {
-  cryptoTop50Loaded = false;
-  cryptoTop50Data   = [];
-  cryptoTop50CurrentPage = 1;
-  loadCryptoTop50();
-});
-
-$('crypto-top50-prev-btn').addEventListener('click', () => {
-  if (cryptoTop50CurrentPage > 1) {
-    cryptoTop50CurrentPage--;
-    renderCryptoTop50();
-    $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-});
-
-$('crypto-top50-next-btn').addEventListener('click', () => {
-  cryptoTop50CurrentPage++;
-  renderCryptoTop50();
-  $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
-$('crypto-top50-prev-btn-bottom').addEventListener('click', () => {
-  if (cryptoTop50CurrentPage > 1) {
-    cryptoTop50CurrentPage--;
-    renderCryptoTop50();
-    $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-});
-
-$('crypto-top50-next-btn-bottom').addEventListener('click', () => {
-  cryptoTop50CurrentPage++;
-  renderCryptoTop50();
-  $('crypto-top50-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
-// Wire sort button clicks on the crypto top50 header
-document.querySelectorAll('.crypto-top50-sort-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const col = btn.dataset.sortCol;
-    if (cryptoTop50SortCol === col) {
-      cryptoTop50SortDir = cryptoTop50SortDir === 'desc' ? 'asc' : 'desc';
-    } else {
-      cryptoTop50SortCol = col;
-      cryptoTop50SortDir = 'desc';
-    }
-    cryptoTop50CurrentPage = 1;
-    renderCryptoTop50();
+if (top50SearchInput) {
+  top50SearchInput.addEventListener('input', () => {
+    clearTimeout(top50SearchDebounce);
+    top50SearchDebounce = setTimeout(() => runTop50Search(top50SearchInput.value), 350);
   });
-});
+
+  top50SearchInput.addEventListener('search', () => {
+    // Fires when the native clear (×) button is clicked
+    clearTimeout(top50SearchDebounce);
+    runTop50Search(top50SearchInput.value);
+  });
+}
 
 /**
  * All watchlist state lives in localStorage under 'pc-watchlist'.

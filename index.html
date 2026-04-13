@@ -45,9 +45,6 @@
             <button class="tab-dropdown-item active" role="menuitem" data-markets-page="pls-top50">
               <span class="tab-dropdown-icon">💜</span> PLS Top 50
             </button>
-            <button class="tab-dropdown-item" role="menuitem" data-markets-page="crypto-top50">
-              <span class="tab-dropdown-icon">🌐</span> Crypto Top 50
-            </button>
           </div>
         </div>
         <!-- Swap tab with hover dropdown -->
@@ -468,9 +465,12 @@
             <span id="top50-page-info" class="top50-page-info">Page 1</span>
             <button id="top50-next-btn" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
           </div>
-          <button id="top50-refresh-btn" class="btn btn-secondary" aria-label="Refresh Top 50 data">
-            ↻ Refresh
-          </button>
+          <div class="top50-toolbar-right">
+            <input id="top50-search-input" type="search" class="search-input" placeholder="Search PulseChain tokens…" aria-label="Search PulseChain tokens">
+            <button id="top50-refresh-btn" class="btn btn-secondary" aria-label="Refresh Top 50 data">
+              ↻ Refresh
+            </button>
+          </div>
         </div>
 
         <div id="top50-error" class="error-banner hidden" role="alert"></div>
@@ -497,51 +497,6 @@
             <button id="top50-prev-btn-bottom" class="btn btn-secondary btn-sm" disabled aria-label="Previous page">← Prev</button>
             <span id="top50-page-info-bottom" class="top50-page-info">Page 1</span>
             <button id="top50-next-btn-bottom" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Markets: Crypto Top 50 sub-page ── -->
-      <div id="markets-page-crypto-top50" class="hidden">
-        <div class="section-header">
-          <h1>Crypto Top 50</h1>
-          <p class="section-subtitle">Top 50 cryptocurrencies ranked by market capitalization</p>
-        </div>
-
-        <div class="markets-toolbar top50-toolbar">
-          <div class="top50-pagination" id="crypto-top50-pagination-top">
-            <button id="crypto-top50-prev-btn" class="btn btn-secondary btn-sm" disabled aria-label="Previous page">← Prev</button>
-            <span id="crypto-top50-page-info" class="top50-page-info">Page 1</span>
-            <button id="crypto-top50-next-btn" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
-          </div>
-          <button id="crypto-top50-refresh-btn" class="btn btn-secondary" aria-label="Refresh Crypto Top 50 data">
-            ↻ Refresh
-          </button>
-        </div>
-
-        <div id="crypto-top50-error" class="error-banner hidden" role="alert"></div>
-
-        <div id="crypto-top50-loading" class="loading-wrap">
-          <div class="pulse-loader" aria-label="Loading Crypto Top 50 data"></div>
-          <p>Loading global crypto market data…</p>
-        </div>
-
-        <div id="crypto-top50-list" class="hidden">
-          <!-- header row -->
-          <div class="top50-header top50-row crypto-top50-row">
-            <span class="top50-col top50-rank">#</span>
-            <span class="top50-col top50-name">Name</span>
-            <button class="top50-col top50-price crypto-top50-sort-btn" data-sort-col="price" aria-label="Sort by Price">Price</button>
-            <button class="top50-col top50-change crypto-top50-sort-btn" data-sort-col="change" aria-label="Sort by 24h %">24h %</button>
-            <button class="top50-col top50-mcap crypto-top50-sort-btn sort-active sort-desc" data-sort-col="mcap" aria-label="Sort by Market Cap">Market Cap</button>
-            <button class="top50-col top50-vol crypto-top50-sort-btn" data-sort-col="vol" aria-label="Sort by Volume">Volume (24h)</button>
-          </div>
-          <div id="crypto-top50-rows"></div>
-          <!-- bottom pagination -->
-          <div class="top50-pagination top50-pagination-bottom" id="crypto-top50-pagination-bottom">
-            <button id="crypto-top50-prev-btn-bottom" class="btn btn-secondary btn-sm" disabled aria-label="Previous page">← Prev</button>
-            <span id="crypto-top50-page-info-bottom" class="top50-page-info">Page 1</span>
-            <button id="crypto-top50-next-btn-bottom" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
           </div>
         </div>
       </div>
