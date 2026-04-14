@@ -1987,7 +1987,7 @@ async function runTop50Search(query) {
   try {
     const data = await fetch(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
-    const pairs = (data?.pairs || []);
+    const pairs = (data?.pairs || []).filter(p => (p.marketCap || p.fdv || 0) >= 5000);
     // Sort by liquidity descending so most liquid results come first
     pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
     renderSearchDropdown(pairs.slice(0, SEARCH_RESULTS_LIMIT));
@@ -2095,10 +2095,11 @@ async function loadMemes() {
       }
     }
 
-    // Only show tokens that have real DexScreener data with non-zero liquidity.
+    // Only show tokens that have real DexScreener data with non-zero liquidity
+    // and at least $5,000 market cap.
     memesPairs = MEME_TOKENS
       .map(token => pairMap.get(token.address.toLowerCase()))
-      .filter(pair => pair && Number(pair.liquidity?.usd || 0) > 0);
+      .filter(pair => pair && Number(pair.liquidity?.usd || 0) > 0 && (pair.marketCap || pair.fdv || 0) >= 5000);
 
     renderMemes();
   } catch (err) {
@@ -2162,7 +2163,7 @@ async function runMemesSearch(query) {
   try {
     const data = await fetch(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
-    const pairs = (data?.pairs || []);
+    const pairs = (data?.pairs || []).filter(p => (p.marketCap || p.fdv || 0) >= 5000);
     pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
 
     if (!memesSearchDropdown) return;
