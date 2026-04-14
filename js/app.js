@@ -2036,8 +2036,9 @@ document.addEventListener('click', e => {
 /* ── Memes Page ─────────────────────────────────────────── */
 
 /**
- * Fixed list of RH meme tokens on PulseChain, with fallback symbols so every
- * entry is displayed even when DexScreener has no indexed pair for it.
+ * Fixed list of RH meme tokens on PulseChain.
+ * An optional `pairAddress` pins the exact DEX pair to use for tokens whose
+ * highest-liquidity pair is not reliably found by DexScreener's token search.
  */
 const MEME_TOKENS = [
   { address: '0xe33a5AE21F93aceC5CfC0b7b0FDBB65A0f0Be5cC', symbol: 'MOST'  },
@@ -2057,7 +2058,7 @@ const MEME_TOKENS = [
   { address: '0xBFcfA52225Baa5feec5fbb54E6458957D53ddD94', symbol: 'ETH'   },
   { address: '0x080f7A005834c84240F25B2Df4AED8236bd57812', symbol: 'USDC'  },
   { address: '0x435363A7C8C63057aAD5d9903c154b4d43E00093', symbol: 'ELON'  },
-  { address: '0x279d6564A78Cc9f126eC630e8a826DD55294f875', symbol: 'USDT'  },
+  { address: '0x279d6564A78Cc9f126eC630e8a826DD55294f875', symbol: 'USDT', pairAddress: '0x562D6ce995f81871a2A81fB63B4B91D630ca38Cc' },
   { address: '0x0392fBD58918E7ECBB2C68f4EBe4e2225C9a6468', symbol: 'TRX'   },
   { address: '0x709e07230860FE0543DCBC359Fdf1D1b5eD13305', symbol: 'MARS'  },
 ];
@@ -2075,23 +2076,30 @@ async function loadMemes() {
 
   try {
     const pairMap = await API.getPairsByAddresses(MEME_TOKENS.map(t => t.address));
-    // Show every configured token; fall back to a minimal object when DexScreener
-    // has no indexed pair so that all RH memes always appear in the list.
-    memesPairs = MEME_TOKENS.map(token => {
-      const pair = pairMap.get(token.address.toLowerCase());
-      if (pair) return pair;
-      return {
-        baseToken: { symbol: token.symbol, address: token.address },
-        priceUsd: 0,
-        priceChange: {},
-        info: {},
-        pairAddress: '',
-        liquidity: {},
-        volume: {},
-        marketCap: 0,
-        fdv: 0,
-      };
-    });
+
+    // For tokens with an explicit pairAddress, fetch that pair directly from
+    // DexScreener and override whatever the token-address search returned.
+    // This ensures the highest-liquidity designated pair is always used.
+    const withExplicit = MEME_TOKENS.filter(t => t.pairAddress);
+    if (withExplicit.length > 0) {
+      const addrs = withExplicit.map(t => t.pairAddress).join(',');
+      try {
+        const data = await fetch(`/api/dex/latest/dex/pairs/pulsechain/${addrs}`)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+        for (const pair of (data.pairs || [])) {
+          const tokenAddr = pair.baseToken?.address?.toLowerCase();
+          if (tokenAddr) pairMap.set(tokenAddr, pair);
+        }
+      } catch (err) {
+        console.warn('[PulseCentral] Meme explicit pair fetch failed:', err);
+      }
+    }
+
+    // Only show tokens that have real DexScreener data with non-zero liquidity.
+    memesPairs = MEME_TOKENS
+      .map(token => pairMap.get(token.address.toLowerCase()))
+      .filter(pair => pair && Number(pair.liquidity?.usd || 0) > 0);
+
     renderMemes();
   } catch (err) {
     $('memes-error').textContent = `Error loading meme token data: ${err.message}`;
