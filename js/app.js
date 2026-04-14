@@ -269,7 +269,11 @@ function switchMarketsPage(page) {
   const plsPage = $('markets-page-top50');
   if (plsPage) plsPage.classList.toggle('hidden', page !== 'pls-top50');
 
+  const memesPage = $('markets-page-memes');
+  if (memesPage) memesPage.classList.toggle('hidden', page !== 'memes');
+
   if (page === 'pls-top50') loadTop50();
+  if (page === 'memes') loadMemes();
 }
 
 // Wire markets dropdown item clicks
@@ -2022,7 +2026,161 @@ if (top50SearchInput) {
 document.addEventListener('click', e => {
   const wrap = $('search-wrap');
   if (wrap && !wrap.contains(e.target)) showSearchDropdown(false);
+
+  const memesWrap = $('memes-search-wrap');
+  if (memesWrap && !memesWrap.contains(e.target)) showMemesSearchDropdown(false);
 });
+
+/* ── Memes Page ─────────────────────────────────────────── */
+
+/**
+ * Fixed list of RH meme token addresses on PulseChain.
+ * getPairsByAddresses will automatically pick the highest-liquidity pair for each.
+ */
+const MEME_TOKENS = [
+  '0xe33a5AE21F93aceC5CfC0b7b0FDBB65A0f0Be5cC', // Most
+  '0xec4252e62C6dE3D655cA9Ce3AfC12E553ebBA274', // Pump
+  '0x8cC6d99114Edd628249fAbc8a4d64F9A759a77Bf', // Trump
+  '0x55C50875e890c7eE5621480baB02511C380E12C6', // Hex
+  '0x1B71505D95Ab3e7234ed2239b8EC7aa65b94ae7B', // Pepe
+  '0xf598cB1D27Fb2c5C731F535AD6c1D0ec5EfE1320', // DAI
+  '0x9Ff4f187D1a41DCD05d6a80c060c6489C132e372', // XRP
+  '0x873301F2B4B83FeaFF04121B68eC9231B29Ce0df', // Sol
+  '0x260e5dA7eF6E30e0A647d1aDF47628198DCb0709', // PLS
+  '0x4774e075c16989be68C26cC146fE707Ef4393661', // Ada
+  '0xF7bf2A938f971D7e4811A1170C43d651d21A0F81', // Btc
+  '0xDDe9164E7E0DA7ae48b58F36B42c1c9f80e7245F', // Doge
+  '0x35Cf97eC047F93660C27c21FdD846dEa72bc66D7', // XRP (v2)
+  '0xd73731bDA87C3464e76268c094D959c1B35b9bF1', // Plsx
+  '0xBFcfA52225Baa5feec5fbb54E6458957D53ddD94', // Eth
+  '0x080f7A005834c84240F25B2Df4AED8236bd57812', // Usdc
+  '0x435363A7C8C63057aAD5d9903c154b4d43E00093', // elon
+  '0x279d6564A78Cc9f126eC630e8a826DD55294f875', // Usdt
+  '0x0392fBD58918E7ECBB2C68f4EBe4e2225C9a6468', // Trx
+  '0x709e07230860FE0543DCBC359Fdf1D1b5eD13305', // Mars
+];
+
+let memesLoaded = false;
+let memesPairs  = [];
+
+async function loadMemes() {
+  if (memesLoaded) return;
+  memesLoaded = true;
+
+  setHidden($('memes-error'), true);
+  setHidden($('memes-list'), true);
+  setVisible($('memes-loading'), true);
+
+  try {
+    const pairMap = await API.getPairsByAddresses(MEME_TOKENS);
+    memesPairs = MEME_TOKENS
+      .map(addr => pairMap.get(addr.toLowerCase()))
+      .filter(Boolean);
+    renderMemes();
+  } catch (err) {
+    $('memes-error').textContent = `Error loading meme token data: ${err.message}`;
+    setVisible($('memes-error'), true);
+    memesLoaded = false;
+  } finally {
+    setHidden($('memes-loading'), true);
+  }
+}
+
+function renderMemes() {
+  const container = $('memes-rows');
+  if (!container) return;
+  container.innerHTML = '';
+
+  memesPairs.forEach((pair, i) => {
+    container.appendChild(buildTop50Row(i + 1, pair));
+  });
+
+  setVisible($('memes-list'), true);
+}
+
+// Memes refresh button
+const memesRefreshBtn = $('memes-refresh-btn');
+if (memesRefreshBtn) {
+  memesRefreshBtn.addEventListener('click', () => {
+    const inp = $('memes-search-input');
+    if (inp) inp.value = '';
+    showMemesSearchDropdown(false);
+    memesLoaded = false;
+    memesPairs  = [];
+    loadMemes();
+  });
+}
+
+/* ── Memes Search ───────────────────────────────────────── */
+
+let memesSearchDebounce = null;
+
+const memesSearchInput    = $('memes-search-input');
+const memesSearchDropdown = $('memes-search-dropdown');
+
+function showMemesSearchDropdown(visible) {
+  if (memesSearchDropdown) setHidden(memesSearchDropdown, !visible);
+}
+
+async function runMemesSearch(query) {
+  const q = query.trim();
+
+  if (!q) {
+    showMemesSearchDropdown(false);
+    return;
+  }
+
+  if (memesSearchDropdown) {
+    memesSearchDropdown.innerHTML = '<div class="search-dropdown-loading"><div class="pulse-loader" aria-label="Searching…"></div></div>';
+    showMemesSearchDropdown(true);
+  }
+
+  try {
+    const data = await fetch(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+    const pairs = (data?.pairs || []);
+    pairs.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0));
+
+    if (!memesSearchDropdown) return;
+    memesSearchDropdown.innerHTML = '';
+    if (pairs.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'search-dropdown-empty';
+      empty.textContent = 'No tokens found for that search.';
+      memesSearchDropdown.appendChild(empty);
+    } else {
+      pairs.slice(0, SEARCH_RESULTS_LIMIT).forEach(pair => {
+        memesSearchDropdown.appendChild(buildSearchDropdownItem(pair));
+      });
+    }
+    showMemesSearchDropdown(true);
+  } catch (err) {
+    if (memesSearchDropdown) {
+      memesSearchDropdown.innerHTML = `<div class="search-dropdown-empty">Search error: ${escHtml(err.message)}</div>`;
+      showMemesSearchDropdown(true);
+    }
+  }
+}
+
+if (memesSearchInput) {
+  memesSearchInput.addEventListener('input', () => {
+    clearTimeout(memesSearchDebounce);
+    memesSearchDebounce = setTimeout(() => runMemesSearch(memesSearchInput.value), 350);
+  });
+
+  memesSearchInput.addEventListener('search', () => {
+    clearTimeout(memesSearchDebounce);
+    runMemesSearch(memesSearchInput.value);
+  });
+
+  memesSearchInput.addEventListener('blur', () => {
+    setTimeout(() => showMemesSearchDropdown(false), SEARCH_DROPDOWN_BLUR_DELAY);
+  });
+
+  memesSearchInput.addEventListener('focus', () => {
+    if (memesSearchInput.value.trim()) showMemesSearchDropdown(true);
+  });
+}
 
 /**
  * All watchlist state lives in localStorage under 'pc-watchlist'.
