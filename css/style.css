@@ -2537,6 +2537,27 @@ li + li { margin-top: 0.35rem; }
   font-size: 0.72rem;
 }
 
+.alert-item-delete {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1;
+  opacity: 0;
+  padding: 0.2rem 0.35rem;
+  transition: color var(--transition), background var(--transition), opacity var(--transition);
+}
+.alert-item:hover .alert-item-delete {
+  opacity: 1;
+}
+.alert-item-delete:hover {
+  background: rgba(239,68,68,0.1);
+  color: var(--danger);
+}
+
 /* ── Social links on market / trending cards ── */
 .market-card-socials {
   display: flex;
