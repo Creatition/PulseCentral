@@ -999,12 +999,12 @@ function renderTicker(pairs) {
 
   // Measure content width, compute a fixed-speed duration, and (re)start the
   // animation from the beginning so the seamless loop works regardless of prior
-  // state.  Targeting 160 px/s keeps the scroll readable without a minimum-
+  // state.  Targeting 144 px/s keeps the scroll readable without a minimum-
   // duration floor, which stabilises the visual speed regardless of how many
   // tokens are loaded (trending or watchlist).
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = totalWidth / 160;
+    const speed = totalWidth / 144;
     _tickerDuration = speed;
     // Force a reflow so the browser registers the animation = none above,
     // then start fresh with the correct duration.
@@ -1660,7 +1660,7 @@ async function loadTop50() {
     }
     renderTop50();
   } catch (err) {
-    $('top50-error').textContent = `Error loading Top 50 data: ${err.message}`;
+    $('top50-error').textContent = `Error loading PulseChain market data: ${err.message}`;
     setVisible($('top50-error'), true);
     top50Loaded = false;
   } finally {
@@ -3691,17 +3691,28 @@ function escHtml(str) {
 
 /**
  * Tracks tokens that surged ≥10% in 6 hours.
- * Alerts are kept in memory (not persisted) and capped at MAX_ALERTS.
+ * Alerts are persisted in localStorage under 'pc-alerts' and capped at MAX_ALERTS.
  * Each token has a per-symbol cooldown to prevent duplicate firing.
  */
 const PriceAlerts = (() => {
   const MAX_ALERTS  = 50;
   const COOLDOWN_MS = 10 * 60 * 1000; // 10-min cooldown per symbol
-  const THRESHOLD   = 10;              // minimum m5 % gain
+  const THRESHOLD   = 10;              // minimum h6 % gain
+  const STORAGE_KEY = 'pc-alerts';
 
-  let alerts    = []; // [{ symbol, name, change, time }] newest first
+  // Load persisted alerts from localStorage on init
+  let alerts = [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) alerts = JSON.parse(raw) || [];
+  } catch { /* ignore */ }
+
   let unread    = 0;
   const lastFired = new Map(); // symbol → timestamp
+
+  function _persist() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts)); } catch { /* ignore */ }
+  }
 
   /** Check one token; fires an alert when h6Change ≥ THRESHOLD and cooldown passed. */
   function check(symbol, name, h6Change) {
@@ -3713,15 +3724,22 @@ const PriceAlerts = (() => {
     alerts.unshift({ symbol, name, change: h6Change, time: now });
     if (alerts.length > MAX_ALERTS) alerts = alerts.slice(0, MAX_ALERTS);
     unread++;
+    _persist();
     renderBellBadge();
   }
 
   function getAlerts() { return alerts; }
   function getUnread()  { return unread;  }
   function markRead()   { unread = 0; renderBellBadge(); }
-  function clear()      { alerts = []; unread = 0; renderBellBadge(); }
+  function clear()      { alerts = []; unread = 0; _persist(); renderBellBadge(); }
+  function deleteAlert(index) {
+    if (index >= 0 && index < alerts.length) {
+      alerts.splice(index, 1);
+      _persist();
+    }
+  }
 
-  return { check, getAlerts, getUnread, markRead, clear };
+  return { check, getAlerts, getUnread, markRead, clear, deleteAlert };
 })();
 
 /* ── Bell button & dropdown ──────────────────────────────── */
@@ -3753,7 +3771,7 @@ function renderAlertsDropdown() {
     return;
   }
 
-  alerts.forEach(({ symbol, name, change, time }) => {
+  alerts.forEach(({ symbol, name, change, time }, index) => {
     const item = document.createElement('div');
     item.className = 'alert-item';
     item.setAttribute('role', 'menuitem');
@@ -3772,7 +3790,7 @@ function renderAlertsDropdown() {
 
     const changeEl = document.createElement('div');
     changeEl.className = 'alert-item-change';
-    changeEl.textContent = `+${change.toFixed(2)}% in 5 min`;
+    changeEl.textContent = `+${change.toFixed(2)}% in 6h`;
 
     info.append(nameEl, changeEl);
 
@@ -3780,7 +3798,17 @@ function renderAlertsDropdown() {
     timeEl.className = 'alert-item-time';
     timeEl.textContent = new Date(time).toLocaleTimeString();
 
-    item.append(icon, info, timeEl);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'alert-item-delete';
+    delBtn.setAttribute('aria-label', `Delete alert for ${symbol}`);
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      PriceAlerts.deleteAlert(index);
+      renderAlertsDropdown();
+    });
+
+    item.append(icon, info, timeEl, delBtn);
     list.appendChild(item);
   });
 }
@@ -4436,6 +4464,7 @@ const UserProfile = (() => {
     'pc-groups',
     'pc-portfolio-history',
     'pc-last-portfolio',
+    'pc-alerts',
   ];
 
   function _load() {

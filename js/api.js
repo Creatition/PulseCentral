@@ -683,40 +683,63 @@ const API = (() => {
   /**
    * Fetch top PulseChain pairs from DexScreener sorted by 24-hour volume.
    * Collects addresses from token profiles, boosted tokens (latest and top),
-   * and hardcoded KNOWN_TOKENS, then deduplicates by token address.
+   * DexScreener search results for popular PulseChain symbols, and hardcoded
+   * KNOWN_TOKENS, then deduplicates by token address.
    *
    * @returns {Promise<object[]>} array of DexScreener pair objects sorted by 24h volume
    */
   async function getTopPulsechainPairs() {
-    // Step 1: Fetch PulseChain token profiles and boosted tokens for a wider address pool
+    // Search terms that reliably surface active PulseChain pairs on DexScreener.
+    const SEARCH_TERMS = [
+      'PLS', 'PLSX', 'HEX', 'INC', 'WPLS', 'PLSD', 'PLSB', 'eHex',
+      '9MM', 'MAXI', 'HDRN', 'ICSA', 'PHIAT', 'LOAN', 'TEAM', 'BASE',
+      'EARN', 'GENI', 'MINT', 'WATT', 'Atropa', '9INCH', 'SPARK', 'TIME',
+    ];
+
+    // Step 1: Fetch token profiles, boosted tokens, and search results in parallel
     const profileAddresses = [];
-    try {
-      const [profiles, latestBoosts, topBoosts] = await Promise.allSettled([
-        fetchJSON('/api/dex/token-profiles/latest/v1'),
-        fetchJSON('/api/dex/token-boosts/latest/v1'),
-        fetchJSON('/api/dex/token-boosts/top/v1'),
-      ]);
-      if (profiles.status === 'fulfilled') {
-        (profiles.value || [])
-          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-          .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-      if (latestBoosts.status === 'fulfilled') {
-        (latestBoosts.value || [])
-          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-          .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-      if (topBoosts.status === 'fulfilled') {
-        (topBoosts.value || [])
-          .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
-          .forEach(p => profileAddresses.push(p.tokenAddress));
-      }
-    } catch (_) {
-      // Non-fatal – fall back to KNOWN_TOKENS only
+    const [profiles, latestBoosts, topBoosts, ...searchResults] = await Promise.allSettled([
+      fetchJSON('/api/dex/token-profiles/latest/v1'),
+      fetchJSON('/api/dex/token-boosts/latest/v1'),
+      fetchJSON('/api/dex/token-boosts/top/v1'),
+      ...SEARCH_TERMS.map(q => fetchJSON(`/api/dex/latest/dex/search?q=${encodeURIComponent(q)}`)),
+    ]);
+
+    if (profiles.status === 'fulfilled') {
+      (profiles.value || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
+    }
+    if (latestBoosts.status === 'fulfilled') {
+      (latestBoosts.value || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
+    }
+    if (topBoosts.status === 'fulfilled') {
+      (topBoosts.value || [])
+        .filter(p => p.chainId === 'pulsechain' && p.tokenAddress)
+        .forEach(p => profileAddresses.push(p.tokenAddress));
     }
 
-    // Step 2: Merge with hardcoded known tokens (de-duplicated by token address)
-    const seen = new Set();
+    // Collect direct pair objects from search results (PulseChain only).
+    // Keyed by baseToken address; keep the most-liquid pair per token.
+    const searchPairs = new Map();
+    for (const result of searchResults) {
+      if (result.status !== 'fulfilled') continue;
+      for (const p of (result.value?.pairs || [])) {
+        if (p.chainId !== 'pulsechain' || !p.baseToken?.address) continue;
+        const addr = p.baseToken.address.toLowerCase();
+        const existing = searchPairs.get(addr);
+        const liq = Number(p.liquidity?.usd || 0);
+        if (!existing || liq > Number(existing.liquidity?.usd || 0)) {
+          searchPairs.set(addr, p);
+        }
+      }
+    }
+
+    // Step 2: Merge with hardcoded known tokens (de-duplicated by token address),
+    // skipping tokens already retrieved from search results.
+    const seen = new Set(searchPairs.keys());
     const allAddresses = [];
     for (const addr of [...profileAddresses, ...KNOWN_TOKENS.map(t => t.address)]) {
       const lower = addr.toLowerCase();
@@ -728,6 +751,12 @@ const API = (() => {
 
     // Step 3: Fetch pair data for all addresses (getPairsByAddresses deduplicates by token address)
     const rawMap = await getPairsByAddresses(allAddresses);
+
+    // Merge search results: rawMap is authoritative for core/known tokens (CORE_PAIR_OVERRIDES
+    // applied inside); search results fill in any extra tokens not in rawMap.
+    for (const [addr, pair] of searchPairs) {
+      if (!rawMap.has(addr)) rawMap.set(addr, pair);
+    }
 
     // Step 3.5: For KNOWN_TOKENS pairs that have a price but lack both marketCap
     // and fdv (DexScreener omits these when it doesn't know the token's total
@@ -763,7 +792,7 @@ const API = (() => {
       );
     }
 
-    // Step 4: Sort by 24h volume descending – no additional filters, dedup is the only constraint
+    // Sort by 24h volume descending – no additional filters, dedup is the only constraint
     return [...rawMap.values()].sort(
       (a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0)
     );
