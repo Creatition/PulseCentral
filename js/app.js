@@ -1017,7 +1017,7 @@ function renderTicker(pairs) {
 async function loadTicker() {
   try {
     const pairs = await API.getTrendingPairs();
-    renderTicker(pairs);
+    renderTicker(pairs.filter(p => (p.marketCap || p.fdv || 0) >= 5000));
   } catch (err) {
     console.warn('[PulseCentral] Ticker load failed:', err);
     const track = $('ticker-track');
@@ -1686,7 +1686,7 @@ function renderTop50() {
   };
 
   const sorted = allMarketPairs
-    .filter(p => (p.marketCap || p.fdv) > 0 || Number(p.priceUsd || 0) > 0)
+    .filter(p => (p.marketCap || p.fdv || 0) >= 5000)
     .slice()
     .sort((a, b) => top50SortDir === 'desc'
       ? getValue(b) - getValue(a)
