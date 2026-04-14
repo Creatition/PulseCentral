@@ -112,7 +112,40 @@ const API = (() => {
     { symbol: 'TRIO',         address: '0xf55c9850C528bA2533d53A5D980C8A5D7A5c3308' },
     { symbol: 'Whale',        address: '0x03B1A1B10151733bcEfa52178aadf9d7239407b4', pairAddress: '0x944a98723B506f7350A2F9D6505F22503Ac1d5DE' },
     { symbol: 'BullX',        address: '0x35B5F0Bd6264FfE48a848809Bb44583ed25CDd18', pairAddress: '0xa3be5A792Bf5934F0B858739aA53c4F9558F9f92' },
+    { symbol: '',             address: '0x27557d148293d1C8e8f8c5DEEAb93545B1Eb8410' },
+    { symbol: '',             address: '0xf034ddFeC9492b2D69BcABE6e8375A20C3697A8C' },
+    { symbol: '',             address: '0x3a90E3e4aE060E14695440346f2B20C2B850Cb86' },
+    { symbol: '',             address: '0xCEc5dDF67B77243d5004032E336d5454DD1A89DD' },
+    { symbol: '',             address: '0xb31cA779511Ffb3546aeCCcaB0133AC091285F9f' },
+    { symbol: '',             address: '0x03bb886995f4F699dE817582859686388aCB1D56' },
+    { symbol: '',             address: '0xe98250BB335f5662edcA64C76C37c95a3334f358' },
+    { symbol: '',             address: '0x547d2D9Eb1493c8DE0a64Bb34DAA4aD8060fcB3a' },
+    { symbol: '',             address: '0xA5533dD99a4D0129ccFd747350c7D844F08b43Fb' },
+    { symbol: '',             address: '0x5f3109A32B1c3298156B82f184d8071245D9Ea0c' },
+    { symbol: '',             address: '0x2921c412A387f504C007A80B2D6008916Ca5D5DF' },
+    { symbol: '',             address: '0x71423f29f8376eF8EFdB9207343a5ff32604C2E3' },
+    { symbol: '',             address: '0x615CfD552E98eB97e5557B03aa41D0E85e98167B' },
+    { symbol: '',             address: '0xE1d2bdbA58D34109c547883dC9c2f9E01cebB003' },
+    { symbol: '',             address: '0xFf1eFdf60A84268cB5CDB310f05ff47b242EBc20' },
+    { symbol: '',             address: '0x0a022e7591749B0ed0D9e3b7B978f26978440DC7' },
+    { symbol: '',             address: '0x02f7EeD5950c81d7b7C23aa03004828F26B5e651' },
+    { symbol: '',             address: '0x8B60F1dBc4AAFfA220C24395921C1625af5B70c1' },
+    { symbol: '',             address: '0x82684c2A4FCa3BCFDD1eA116401Cb7A23D0dac72' },
+    { symbol: '',             address: '0xD8836E8975A6BBeafBDe651E4D1fF59Dc99D45c0' },
   ];
+
+  /**
+   * Token addresses that are permanently excluded from all feeds and listings.
+   * Tokens are identified by their lowercase contract address.
+   */
+  const DENYLIST = new Set([
+    '0x710420e9e2ceaae2b56ee389a2fb7f8c8435181a', // buck rogers
+    '0x2b4b29bce9e3ed4913b8031e93ecaf4c15fa6bf5', // lambo
+    '0xaa46fa6cf4f81b087ec3a968946fb2e705c6b89e', // mule
+    '0xf1f402518b025194eeb14ec00124160fd0db7a0c', // nananax
+    '0xee67825ef27588faee39cfefb465eb0a242a740c', // loan
+    '0x6800be3dcafdaaca28007007a0589e01a982048b', // buhbye
+  ]);
 
   /**
    * The 6 core coins shown on the Home landing page (in display order).
@@ -793,9 +826,9 @@ const API = (() => {
     }
 
     // Sort by 24h volume descending – no additional filters, dedup is the only constraint
-    return [...rawMap.values()].sort(
-      (a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0)
-    );
+    return [...rawMap.values()]
+      .filter(p => !DENYLIST.has((p.baseToken?.address || '').toLowerCase()))
+      .sort((a, b) => Number(b.volume?.h24 || 0) - Number(a.volume?.h24 || 0));
   }
 
   /**
@@ -876,11 +909,13 @@ const API = (() => {
     }
 
     // Sort by 6-hour transaction count (buys + sells) as trendingScoreH6 proxy
-    return [...rawMap.values()].sort((a, b) => {
-      const aScore = Number(a.txns?.h6?.buys || 0) + Number(a.txns?.h6?.sells || 0);
-      const bScore = Number(b.txns?.h6?.buys || 0) + Number(b.txns?.h6?.sells || 0);
-      return bScore - aScore;
-    });
+    return [...rawMap.values()]
+      .filter(p => !DENYLIST.has((p.baseToken?.address || '').toLowerCase()))
+      .sort((a, b) => {
+        const aScore = Number(a.txns?.h6?.buys || 0) + Number(a.txns?.h6?.sells || 0);
+        const bScore = Number(b.txns?.h6?.buys || 0) + Number(b.txns?.h6?.sells || 0);
+        return bScore - aScore;
+      });
   }
 
   /**
