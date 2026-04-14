@@ -999,12 +999,12 @@ function renderTicker(pairs) {
 
   // Measure content width, compute a fixed-speed duration, and (re)start the
   // animation from the beginning so the seamless loop works regardless of prior
-  // state.  Targeting 320 px/s keeps the scroll readable without a minimum-
+  // state.  Targeting 160 px/s keeps the scroll readable without a minimum-
   // duration floor, which stabilises the visual speed regardless of how many
   // tokens are loaded (trending or watchlist).
   requestAnimationFrame(() => {
     const totalWidth = track.scrollWidth / 2;
-    const speed = totalWidth / 320;
+    const speed = totalWidth / 160;
     _tickerDuration = speed;
     // Force a reflow so the browser registers the animation = none above,
     // then start fresh with the correct duration.
@@ -2048,19 +2048,19 @@ const MEME_TOKENS = [
   { address: '0x1B71505D95Ab3e7234ed2239b8EC7aa65b94ae7B', symbol: 'PEPE'  },
   { address: '0xf598cB1D27Fb2c5C731F535AD6c1D0ec5EfE1320', symbol: 'DAI'   },
   { address: '0x9Ff4f187D1a41DCD05d6a80c060c6489C132e372', symbol: 'XRP'   },
-  { address: '0x873301F2B4B83FeaFF04121B68eC9231B29Ce0df', symbol: 'SOL'   },
-  { address: '0x260e5dA7eF6E30e0A647d1aDF47628198DCb0709', symbol: 'PLS'   },
+  { address: '0x873301F2B4B83FeaFF04121B68eC9231B29Ce0df', symbol: 'SOL',  pairAddress: '0x30fe90B1ad644970C48a6B5886EC39B1e3df97Ee' },
+  { address: '0x260e5dA7eF6E30e0A647d1aDF47628198DCb0709', symbol: 'PLS',  pairAddress: '0x9b6efc2c2858dec2889ecA2Ce887C57099076bBF' },
   { address: '0x4774e075c16989be68C26cC146fE707Ef4393661', symbol: 'ADA'   },
-  { address: '0xF7bf2A938f971D7e4811A1170C43d651d21A0F81', symbol: 'BTC'   },
-  { address: '0xDDe9164E7E0DA7ae48b58F36B42c1c9f80e7245F', symbol: 'DOGE'  },
-  { address: '0x35Cf97eC047F93660C27c21FdD846dEa72bc66D7', symbol: 'XRP2'  },
-  { address: '0xd73731bDA87C3464e76268c094D959c1B35b9bF1', symbol: 'PLSX'  },
-  { address: '0xBFcfA52225Baa5feec5fbb54E6458957D53ddD94', symbol: 'ETH'   },
-  { address: '0x080f7A005834c84240F25B2Df4AED8236bd57812', symbol: 'USDC'  },
-  { address: '0x435363A7C8C63057aAD5d9903c154b4d43E00093', symbol: 'ELON'  },
+  { address: '0xF7bf2A938f971D7e4811A1170C43d651d21A0F81', symbol: 'BTC',  pairAddress: '0x605CAB033E430924eB5c72E130f0981c15f2f256' },
+  { address: '0xDDe9164E7E0DA7ae48b58F36B42c1c9f80e7245F', symbol: 'DOGE', pairAddress: '0x56AECe39050608a7944908a1754d0397067aA435' },
+  { address: '0x35Cf97eC047F93660C27c21FdD846dEa72bc66D7', symbol: 'XRP2', pairAddress: '0xb8cB1b8B4631010e41C81A9039a4B2157e15d369' },
+  { address: '0xd73731bDA87C3464e76268c094D959c1B35b9bF1', symbol: 'PLSX', pairAddress: '0x95BeD91461218D01EEC4005b5101C89f0ea77640' },
+  { address: '0xBFcfA52225Baa5feec5fbb54E6458957D53ddD94', symbol: 'ETH',  pairAddress: '0x77E4e36E9aB013E6d48B34836b61441C328B1738' },
+  { address: '0x080f7A005834c84240F25B2Df4AED8236bd57812', symbol: 'USDC', pairAddress: '0x0B3D01Dfd8B45C43695ba11547b459D55714f2a4' },
+  { address: '0x435363A7C8C63057aAD5d9903c154b4d43E00093', symbol: 'ELON', pairAddress: '0x2dCEe3EBa5de855ad27e8BDfE39A0869761E7e72' },
   { address: '0x279d6564A78Cc9f126eC630e8a826DD55294f875', symbol: 'USDT', pairAddress: '0x562D6ce995f81871a2A81fB63B4B91D630ca38Cc' },
-  { address: '0x0392fBD58918E7ECBB2C68f4EBe4e2225C9a6468', symbol: 'TRX'   },
-  { address: '0x709e07230860FE0543DCBC359Fdf1D1b5eD13305', symbol: 'MARS'  },
+  { address: '0x0392fBD58918E7ECBB2C68f4EBe4e2225C9a6468', symbol: 'TRX',  pairAddress: '0x4e891A45B008F6423b595cEE5De6C3B12DDa54fb' },
+  { address: '0x709e07230860FE0543DCBC359Fdf1D1b5eD13305', symbol: 'MARS', pairAddress: '0x237c7e99D508B0026bB233B381b53c9207Ad9DeF' },
 ];
 
 let memesLoaded = false;
