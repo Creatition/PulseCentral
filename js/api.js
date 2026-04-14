@@ -110,6 +110,8 @@ const API = (() => {
     { symbol: 'TIME',         address: '0xCA35638A3fdDD02fEC597D8c1681198C06b23F58' },
     { symbol: 'IM',           address: '0xBBcF895BFCb57d0f457D050bb806d1499436c0CE' },
     { symbol: 'TRIO',         address: '0xf55c9850C528bA2533d53A5D980C8A5D7A5c3308' },
+    { symbol: 'Whale',        address: '0x03B1A1B10151733bcEfa52178aadf9d7239407b4', pairAddress: '0x944a98723B506f7350A2F9D6505F22503Ac1d5DE' },
+    { symbol: 'BullX',        address: '0x35B5F0Bd6264FfE48a848809Bb44583ed25CDd18', pairAddress: '0xa3be5A792Bf5934F0B858739aA53c4F9558F9f92' },
   ];
 
   /**

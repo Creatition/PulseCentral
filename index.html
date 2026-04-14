@@ -45,6 +45,9 @@
             <button class="tab-dropdown-item active" role="menuitem" data-markets-page="pls-top50">
               <span class="tab-dropdown-icon">💜</span> PLS Top 50
             </button>
+            <button class="tab-dropdown-item" role="menuitem" data-markets-page="memes">
+              <span class="tab-dropdown-icon">🐸</span> Memes
+            </button>
           </div>
         </div>
         <!-- Swap tab with hover dropdown -->
@@ -514,6 +517,47 @@
             <span id="top50-page-info-bottom" class="top50-page-info">Page 1</span>
             <button id="top50-next-btn-bottom" class="btn btn-secondary btn-sm" aria-label="Next page">Next →</button>
           </div>
+        </div>
+      </div>
+
+      <!-- ── Markets: Memes sub-page ── -->
+      <div id="markets-page-memes" class="hidden">
+        <div class="section-header">
+          <h1>RH Memes</h1>
+          <p class="section-subtitle">PulseChain meme tokens market data</p>
+        </div>
+
+        <div class="markets-toolbar top50-toolbar">
+          <div class="top50-toolbar-right">
+            <div class="search-wrap" id="memes-search-wrap">
+              <input id="memes-search-input" type="search" class="search-input" placeholder="Search all chains…" aria-label="Search all chains" autocomplete="off">
+              <div class="search-dropdown hidden" id="memes-search-dropdown" role="listbox" aria-label="Search results"></div>
+            </div>
+            <button id="memes-refresh-btn" class="btn btn-secondary" aria-label="Refresh Memes data">
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+
+        <div id="memes-error" class="error-banner hidden" role="alert"></div>
+
+        <div id="memes-loading" class="loading-wrap">
+          <div class="pulse-loader" aria-label="Loading meme token data"></div>
+          <p>Loading meme token data…</p>
+        </div>
+
+        <div id="memes-list" class="hidden">
+          <!-- header row -->
+          <div class="top50-header top50-row">
+            <span class="top50-col top50-rank">#</span>
+            <span class="top50-col top50-name">Name</span>
+            <span class="top50-col top50-price">Price</span>
+            <span class="top50-col top50-change">24h %</span>
+            <span class="top50-col top50-mcap">Market Cap</span>
+            <span class="top50-col top50-vol">Volume (24h)</span>
+            <span class="top50-col top50-liq">Liquidity</span>
+          </div>
+          <div id="memes-rows"></div>
         </div>
       </div>
 
