@@ -997,12 +997,14 @@ function renderTicker(pairs) {
   }
   track.appendChild(fragment);
 
-  // Measure content width, compute speed, and (re)start the animation from
-  // the beginning so the seamless loop works regardless of prior state.
-    // Targets ~960 px/s (3× the previous 320 px/s, 12× the original 80 px/s); minimum 5 s.
-    requestAnimationFrame(() => {
-      const totalWidth = track.scrollWidth / 2;
-      const speed = Math.max(5, totalWidth / 960);
+  // Measure content width, compute a fixed-speed duration, and (re)start the
+  // animation from the beginning so the seamless loop works regardless of prior
+  // state.  Targeting 320 px/s keeps the scroll readable without a minimum-
+  // duration floor, which stabilises the visual speed regardless of how many
+  // tokens are loaded (trending or watchlist).
+  requestAnimationFrame(() => {
+    const totalWidth = track.scrollWidth / 2;
+    const speed = totalWidth / 320;
     _tickerDuration = speed;
     // Force a reflow so the browser registers the animation = none above,
     // then start fresh with the correct duration.
@@ -2034,30 +2036,31 @@ document.addEventListener('click', e => {
 /* ── Memes Page ─────────────────────────────────────────── */
 
 /**
- * Fixed list of RH meme token addresses on PulseChain.
- * getPairsByAddresses will automatically pick the highest-liquidity pair for each.
+ * Fixed list of RH meme tokens on PulseChain.
+ * An optional `pairAddress` pins the exact DEX pair to use for tokens whose
+ * highest-liquidity pair is not reliably found by DexScreener's token search.
  */
 const MEME_TOKENS = [
-  '0xe33a5AE21F93aceC5CfC0b7b0FDBB65A0f0Be5cC', // Most
-  '0xec4252e62C6dE3D655cA9Ce3AfC12E553ebBA274', // Pump
-  '0x8cC6d99114Edd628249fAbc8a4d64F9A759a77Bf', // Trump
-  '0x55C50875e890c7eE5621480baB02511C380E12C6', // Hex
-  '0x1B71505D95Ab3e7234ed2239b8EC7aa65b94ae7B', // Pepe
-  '0xf598cB1D27Fb2c5C731F535AD6c1D0ec5EfE1320', // DAI
-  '0x9Ff4f187D1a41DCD05d6a80c060c6489C132e372', // XRP
-  '0x873301F2B4B83FeaFF04121B68eC9231B29Ce0df', // Sol
-  '0x260e5dA7eF6E30e0A647d1aDF47628198DCb0709', // PLS
-  '0x4774e075c16989be68C26cC146fE707Ef4393661', // Ada
-  '0xF7bf2A938f971D7e4811A1170C43d651d21A0F81', // Btc
-  '0xDDe9164E7E0DA7ae48b58F36B42c1c9f80e7245F', // Doge
-  '0x35Cf97eC047F93660C27c21FdD846dEa72bc66D7', // XRP (v2)
-  '0xd73731bDA87C3464e76268c094D959c1B35b9bF1', // Plsx
-  '0xBFcfA52225Baa5feec5fbb54E6458957D53ddD94', // Eth
-  '0x080f7A005834c84240F25B2Df4AED8236bd57812', // Usdc
-  '0x435363A7C8C63057aAD5d9903c154b4d43E00093', // elon
-  '0x279d6564A78Cc9f126eC630e8a826DD55294f875', // Usdt
-  '0x0392fBD58918E7ECBB2C68f4EBe4e2225C9a6468', // Trx
-  '0x709e07230860FE0543DCBC359Fdf1D1b5eD13305', // Mars
+  { address: '0xe33a5AE21F93aceC5CfC0b7b0FDBB65A0f0Be5cC', symbol: 'MOST'  },
+  { address: '0xec4252e62C6dE3D655cA9Ce3AfC12E553ebBA274', symbol: 'PUMP'  },
+  { address: '0x8cC6d99114Edd628249fAbc8a4d64F9A759a77Bf', symbol: 'TRUMP' },
+  { address: '0x55C50875e890c7eE5621480baB02511C380E12C6', symbol: 'HEX'   },
+  { address: '0x1B71505D95Ab3e7234ed2239b8EC7aa65b94ae7B', symbol: 'PEPE'  },
+  { address: '0xf598cB1D27Fb2c5C731F535AD6c1D0ec5EfE1320', symbol: 'DAI'   },
+  { address: '0x9Ff4f187D1a41DCD05d6a80c060c6489C132e372', symbol: 'XRP'   },
+  { address: '0x873301F2B4B83FeaFF04121B68eC9231B29Ce0df', symbol: 'SOL'   },
+  { address: '0x260e5dA7eF6E30e0A647d1aDF47628198DCb0709', symbol: 'PLS'   },
+  { address: '0x4774e075c16989be68C26cC146fE707Ef4393661', symbol: 'ADA'   },
+  { address: '0xF7bf2A938f971D7e4811A1170C43d651d21A0F81', symbol: 'BTC'   },
+  { address: '0xDDe9164E7E0DA7ae48b58F36B42c1c9f80e7245F', symbol: 'DOGE'  },
+  { address: '0x35Cf97eC047F93660C27c21FdD846dEa72bc66D7', symbol: 'XRP2'  },
+  { address: '0xd73731bDA87C3464e76268c094D959c1B35b9bF1', symbol: 'PLSX'  },
+  { address: '0xBFcfA52225Baa5feec5fbb54E6458957D53ddD94', symbol: 'ETH'   },
+  { address: '0x080f7A005834c84240F25B2Df4AED8236bd57812', symbol: 'USDC'  },
+  { address: '0x435363A7C8C63057aAD5d9903c154b4d43E00093', symbol: 'ELON'  },
+  { address: '0x279d6564A78Cc9f126eC630e8a826DD55294f875', symbol: 'USDT', pairAddress: '0x562D6ce995f81871a2A81fB63B4B91D630ca38Cc' },
+  { address: '0x0392fBD58918E7ECBB2C68f4EBe4e2225C9a6468', symbol: 'TRX'   },
+  { address: '0x709e07230860FE0543DCBC359Fdf1D1b5eD13305', symbol: 'MARS'  },
 ];
 
 let memesLoaded = false;
@@ -2072,10 +2075,31 @@ async function loadMemes() {
   setVisible($('memes-loading'), true);
 
   try {
-    const pairMap = await API.getPairsByAddresses(MEME_TOKENS);
+    const pairMap = await API.getPairsByAddresses(MEME_TOKENS.map(t => t.address));
+
+    // For tokens with an explicit pairAddress, fetch that pair directly from
+    // DexScreener and override whatever the token-address search returned.
+    // This ensures the highest-liquidity designated pair is always used.
+    const withExplicit = MEME_TOKENS.filter(t => t.pairAddress);
+    if (withExplicit.length > 0) {
+      const addrs = withExplicit.map(t => t.pairAddress).join(',');
+      try {
+        const data = await fetch(`/api/dex/latest/dex/pairs/pulsechain/${addrs}`)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+        for (const pair of (data.pairs || [])) {
+          const tokenAddr = pair.baseToken?.address?.toLowerCase();
+          if (tokenAddr) pairMap.set(tokenAddr, pair);
+        }
+      } catch (err) {
+        console.warn('[PulseCentral] Meme explicit pair fetch failed:', err);
+      }
+    }
+
+    // Only show tokens that have real DexScreener data with non-zero liquidity.
     memesPairs = MEME_TOKENS
-      .map(addr => pairMap.get(addr.toLowerCase()))
-      .filter(Boolean);
+      .map(token => pairMap.get(token.address.toLowerCase()))
+      .filter(pair => pair && Number(pair.liquidity?.usd || 0) > 0);
+
     renderMemes();
   } catch (err) {
     $('memes-error').textContent = `Error loading meme token data: ${err.message}`;
