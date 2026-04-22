@@ -671,6 +671,11 @@ app.get('/api/llama/protocol/:protocol', (req, res) => {
 
 
 
+// Serve debug page at /debug (development only — remove in production)
+app.get('/debug', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'debug.html'));
+});
+
 // Serve the entire repo root (index.html, js/, css/, assets/)
 app.use(express.static(path.join(__dirname, '..')));
 

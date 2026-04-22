@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PulseCentral API Debug</title>
+<style>
+  body { font-family: monospace; background: #0d0d14; color: #e6e6f0; padding: 2rem; }
+  h1 { color: #7b2fff; }
+  h2 { color: #00bcd4; margin-top: 2rem; border-bottom: 1px solid #2a2a40; padding-bottom: 0.5rem; }
+  .result { background: #13131e; border: 1px solid #2a2a40; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; white-space: pre-wrap; font-size: 0.8rem; max-height: 300px; overflow-y: auto; }
+  .ok    { border-color: #22c55e; }
+  .error { border-color: #ef4444; }
+  .warn  { border-color: #f59e0b; }
+  button { background: #7b2fff; color: #fff; border: none; border-radius: 6px; padding: 0.5rem 1.25rem; cursor: pointer; font-size: 0.9rem; margin: 0.25rem; }
+  button:hover { background: #5a1fcc; }
+  .label { color: #8888aa; font-size: 0.75rem; margin-bottom: 0.25rem; }
+  .status-ok    { color: #22c55e; font-weight: bold; }
+  .status-error { color: #ef4444; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>🔍 PulseCentral API Debug</h1>
+<p style="color:#8888aa">Run these tests to see exactly what each API returns. Open browser console (F12) for more detail.</p>
+<button onclick="runAll()">▶ Run All Tests</button>
+<button onclick="document.getElementById('output').innerHTML=''">Clear</button>
+
+<div id="output"></div>
+
+<script>
+const out = document.getElementById('output');
+
+function log(title, status, data) {
+  const cls = status === 'OK' ? 'ok' : status === 'WARN' ? 'warn' : 'error';
+  const sCls = status === 'OK' ? 'status-ok' : status === 'WARN' ? 'warn' : 'status-error';
+  const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  out.innerHTML += `
+    <h2>${title} <span class="${sCls}">[${status}]</span></h2>
+    <div class="label">Response:</div>
+    <div class="result ${cls}">${text.slice(0, 3000)}${text.length > 3000 ? '\n... (truncated)' : ''}</div>`;
+}
+
+async function test(title, url, options = {}) {
+  try {
+    const r = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+    if (!r.ok) {
+      log(title, 'ERROR', `HTTP ${r.status}: ${text.slice(0,500)}`);
+      return null;
+    }
+    log(title, 'OK', data);
+    return data;
+  } catch (e) {
+    log(title, 'ERROR', e.message);
+    return null;
+  }
+}
+
+async function testPost(title, url, body) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+    if (!r.ok) {
+      log(title, 'ERROR', `HTTP ${r.status}: ${text.slice(0,500)}`);
+      return null;
+    }
+    log(title, 'OK', data);
+    return data;
+  } catch (e) {
+    log(title, 'ERROR', e.message);
+    return null;
+  }
+}
+
+async function runAll() {
+  out.innerHTML = '<p style="color:#8888aa">Running tests...</p>';
+
+  // 1. BlockScout v2 stats
+  await test('1. BlockScout v2 /stats (total_transactions)', '/api/scan-v2/stats');
+
+  // 2. BlockScout v2 charts
+  await test('2. BlockScout v2 /stats/charts/transactions', '/api/scan-v2/stats/charts/transactions');
+
+  // 3. DexScreener pair (PLS/WPLS pair — should have imageUrl for logo)
+  const plsPair = await test('3. DexScreener PLS pair (logo + price)', '/api/dex/latest/dex/pairs/pulsechain/0xe56043671df55de5cdf8459710433c10324de0ae');
+  if (plsPair?.pairs?.[0]) {
+    const p = plsPair.pairs[0];
+    log('  3a. PLS logo URL', p.info?.imageUrl ? 'OK' : 'WARN',
+      `imageUrl: ${p.info?.imageUrl || 'MISSING — logo will use CDN fallback'}`);
+  }
+
+  // 4. DexScreener chart bars for PLS (the critical chart test)
+  const chartData = await test('4. DexScreener chart bars for PLS (res=W)', '/api/dex-io/dex/chart/amm/v2/pulsechain/0xe56043671df55de5cdf8459710433c10324de0ae?res=W&from=1683849600&cb=0');
+  if (chartData) {
+    const bars = chartData.bars || [];
+    const first = bars[0];
+    const last  = bars[bars.length - 1];
+    const isSecs = first && first.time < 1e10;
+    log('  4a. Chart bars analysis', bars.length >= 3 ? 'OK' : 'WARN',
+      `Total bars: ${bars.length}\n` +
+      `First bar time: ${first?.time} (${isSecs ? 'SECONDS — needs *1000' : 'MILLISECONDS — ok'})\n` +
+      `Last bar time: ${last?.time}\n` +
+      `First date: ${first ? new Date(isSecs ? first.time*1000 : first.time).toISOString() : 'n/a'}\n` +
+      `Last date: ${last ? new Date(isSecs ? last.time*1000 : last.time).toISOString() : 'n/a'}\n` +
+      `First close price: ${first?.close ?? first?.c ?? 'missing'}`);
+  }
+
+  // 5. PulseX subgraph (chart history source)
+  const subgraph = await testPost('5. PulseX subgraph (WPLS token day data)', '/api/graph/pulsex', {
+    query: `{ tokenDayDatas(first: 5, orderBy: date, orderDirection: desc, where: { token: "0xa1077a294dde1b09bb078844df40758a5d0f9a27" }) { date priceUSD dailyVolumeUSD } }`
+  });
+  if (subgraph) {
+    const rows = subgraph?.data?.tokenDayDatas || [];
+    log('  5a. Subgraph analysis', rows.length > 0 ? 'OK' : 'ERROR',
+      `Rows returned: ${rows.length}\n` +
+      (rows[0] ? `Most recent: date=${rows[0].date} (${new Date(rows[0].date*1000).toISOString().slice(0,10)}), price=${rows[0].priceUSD}` : 'NO DATA'));
+  }
+
+  // 6. PulseX factory stats
+  await test('6. PulseX factory stats (DEX metrics)', '/api/pulsex/factory');
+
+  // 7. DefiLlama bridge
+  const bridge = await test('7. DefiLlama pulsechain-bridge TVL', '/api/llama/protocol/pulsechain-bridge');
+  if (bridge) {
+    log('  7a. Bridge TVL analysis', 'OK',
+      `tvl (current): ${bridge.tvl}\n` +
+      `chainTvls keys: ${Object.keys(bridge.chainTvls || {}).join(', ')}\n` +
+      `PulseChain history rows: ${bridge.chainTvls?.PulseChain?.tvl?.length || 0}\n` +
+      `historicalChainTvls keys: ${Object.keys(bridge.historicalChainTvls || {}).join(', ')}`);
+  }
+
+  // 8. Token logo CDN test (WPLS)
+  log('8. Logo CDN test (WPLS)', 'OK', 'Testing image load below...');
+  const img = document.createElement('img');
+  img.src = 'https://dd.dexscreener.com/ds-data/tokens/pulsechain/0xa1077a294dde1b09bb078844df40758a5d0f9a27.png';
+  img.style.cssText = 'width:40px;height:40px;border-radius:50%;display:block;margin:0.5rem 0;';
+  img.onload  = () => out.querySelector('.result:last-child').insertAdjacentText('beforeend', '\n✅ CDN logo loaded OK');
+  img.onerror = () => out.querySelector('.result:last-child').insertAdjacentText('beforeend', '\n❌ CDN logo FAILED — will need scan.pulsechain.com fallback');
+  out.appendChild(img);
+
+  out.insertAdjacentHTML('beforeend', '<p style="color:#22c55e;margin-top:1rem">✅ All tests complete. Share these results to diagnose issues.</p>');
+}
+</script>
+</body>
+</html>
