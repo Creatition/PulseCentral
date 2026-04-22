@@ -14,11 +14,19 @@ const API = (() => {
 
   /**
    * DexScreener chart / OHLCV API base URLs — routed through local proxy.
-   * PulseX V1 is a Uniswap V2-style AMM (constant product).  Try v2 first
-   * and fall back to v3 in case the pair is on a concentrated-liquidity fork.
+   * NOTE: io.dexscreener.com returns 403 Forbidden for server-side requests.
+   * These are kept as a last-resort fallback but GeckoTerminal is preferred.
    */
   const DSX_CHART_BASE_V2 = '/api/dex-io/dex/chart/amm/v2/pulsechain';
   const DSX_CHART_BASE_V3 = '/api/dex-io/dex/chart/amm/v3/pulsechain';
+
+  /**
+   * GeckoTerminal OHLCV API — free, no auth, works server-side.
+   * Endpoint: /api/v2/networks/pulsechain/pools/{pairAddress}/ohlcv/{timeframe}
+   * timeframe: 'day' | 'hour' | 'minute'
+   * Returns timestamps in SECONDS — must multiply by 1000 for JS Date.
+   */
+  const GECKO_OHLCV_BASE = '/api/gecko/networks/pulsechain/pools';
 
   /** Unix timestamp (seconds) of PulseChain mainnet launch — 12 May 2023 */
   const PULSECHAIN_LAUNCH_TS = 1683849600;
@@ -948,62 +956,83 @@ const API = (() => {
    * @param {string} [tokenAddress] Token contract address — enables subgraph lookup
    * @returns {Promise<Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>>}
    */
+  /**
+   * Normalise a raw OHLCV bar from any source into our standard shape.
+   * Handles both second and millisecond timestamps automatically.
+   */
+  function normaliseBar(b, timeField = 'time') {
+    const rawTime = b[timeField] ?? b.time ?? b.t ?? 0;
+    const timeMs  = rawTime > 1e10 ? rawTime : rawTime * 1000; // seconds → ms
+    return {
+      time:   timeMs,
+      open:   Number(b.open   ?? b.o ?? 0),
+      high:   Number(b.high   ?? b.h ?? 0),
+      low:    Number(b.low    ?? b.l ?? 0),
+      close:  Number(b.close  ?? b.c ?? 0),
+      volume: Number(b.volume ?? b.v ?? 0),
+    };
+  }
+
+  /**
+   * Fetch OHLCV bars from GeckoTerminal (primary chart source).
+   * GeckoTerminal is free, requires no API key, and works from server-side.
+   * Returns daily bars for the last 1000 days (full PulseChain history).
+   * @param {string} pairAddress  DEX pair contract address
+   * @returns {Promise<Array>}
+   */
+  async function fetchGeckoTerminalBars(pairAddress) {
+    // GeckoTerminal daily OHLCV — limit 1000 bars (covers all PulseChain history)
+    const url = `${GECKO_OHLCV_BASE}/${pairAddress}/ohlcv/day?aggregate=1&limit=1000&currency=usd`;
+    const data = await fetchJSON(url, 15000);
+    const rawBars = data?.data?.attributes?.ohlcv_list || [];
+    // GeckoTerminal returns [timestamp_seconds, open, high, low, close, volume]
+    return rawBars
+      .map(b => ({
+        time:   b[0] > 1e10 ? b[0] : b[0] * 1000, // seconds → ms
+        open:   Number(b[1] || 0),
+        high:   Number(b[2] || 0),
+        low:    Number(b[3] || 0),
+        close:  Number(b[4] || 0),
+        volume: Number(b[5] || 0),
+      }))
+      .filter(b => b.time > 0 && b.close > 0)
+      .sort((a, b) => a.time - b.time);
+  }
+
   async function getCoreCoinChartBars(pairAddress, resolution, tokenAddress) {
-    // ── 1. PulseX subgraph (preferred — returns all available history) ───
-    // We use whatever data the subgraph has. The v2b subgraph may only index
-    // from ~2024 onward — that's still better than nothing. If we get >= 3 bars
-    // we use them; we never fall through just because data doesn't reach May 2023.
+    // ── 1. GeckoTerminal OHLCV (primary — free, works server-side, full history) ──
+    try {
+      const bars = await fetchGeckoTerminalBars(pairAddress);
+      if (bars.length >= 3) {
+        return { bars, resolution: 'D' };
+      }
+    } catch (err) {
+      console.warn('[getCoreCoinChartBars] GeckoTerminal failed:', err.message);
+    }
+
+    // ── 2. PulseX subgraph (fallback — may be unreachable) ────────────────
     if (tokenAddress) {
       try {
         const subgraphBars = await fetchPulseXTokenHistory(tokenAddress);
         if (subgraphBars.length >= 3) {
-          // Keep daily resolution so timeframe filters (7D, 30D, ALL) work correctly.
-          // Weekly aggregation was hiding short-term data when < 7 full weeks existed.
           return { bars: subgraphBars, resolution: 'D' };
         }
       } catch (err) {
-        console.warn('[getCoreCoinChartBars] subgraph failed, falling through:', err.message);
+        console.warn('[getCoreCoinChartBars] subgraph failed:', err.message);
       }
     }
 
-    // ── Helper: normalise a bars array from the DexScreener chart response ─
-    function normaliseDsxBars(rawBars) {
-      return rawBars
-        .map(b => {
-          const rawTime = b.time ?? b.t ?? 0;
-          // DexScreener io API returns timestamps in SECONDS.
-          // Multiply by 1000 to convert to milliseconds so timeframe filters
-          // (which use Date.now() in ms) and date labels (new Date(ms)) work correctly.
-          const timeMs = rawTime > 1e10 ? rawTime : rawTime * 1000;
-          return {
-            time:   timeMs,
-            open:   b.open   ?? b.o ?? 0,
-            high:   b.high   ?? b.h ?? 0,
-            low:    b.low    ?? b.l ?? 0,
-            close:  b.close  ?? b.c ?? 0,
-            volume: b.volume ?? b.v ?? 0,
-          };
-        })
-        .filter(b => b.time > 0);
-    }
-
-    // Build DexScreener chart URL — request all history from PulseChain launch.
-    // Use the caller-supplied resolution; fall back to 'W' (weekly) if not
-    // specified since weekly bars maximise the time span per API call.
+    // ── 3. DexScreener io chart API (last resort — often 403) ─────────────
     const res = resolution || 'W';
     const dsxParams = `?res=${res}&from=${PULSECHAIN_LAUNCH_TS}&cb=0`;
-
-    // ── 2. DexScreener amm/v2 (PulseX V1 = Uniswap V2 fork) ─────────────
     try {
       const data = await fetchJSON(`${DSX_CHART_BASE_V2}/${pairAddress}${dsxParams}`, 10000);
-      const bars = normaliseDsxBars(data?.bars || []);
+      const bars = (data?.bars || []).map(b => normaliseBar(b)).filter(b => b.time > 0);
       if (bars.length >= 2) return { bars, resolution: res };
     } catch { /* fall through */ }
-
-    // ── 3. DexScreener amm/v3 (concentrated-liquidity fallback) ──────────
     try {
       const data = await fetchJSON(`${DSX_CHART_BASE_V3}/${pairAddress}${dsxParams}`, 10000);
-      const bars = normaliseDsxBars(data?.bars || []);
+      const bars = (data?.bars || []).map(b => normaliseBar(b)).filter(b => b.time > 0);
       if (bars.length > 0) return { bars, resolution: res };
     } catch { /* fall through */ }
 
@@ -1241,10 +1270,17 @@ const API = (() => {
    * @returns {Promise<object|null>}
    */
   async function getNetworkStats() {
-    // BlockScout v2 /api/v2/stats is the correct endpoint for total tx count, etc.
+    // Try BlockScout v2 stats first
     try {
-      return await fetchJSON('/api/scan-v2/stats', 12000);
-    } catch { return null; }
+      const data = await fetchJSON('/api/scan-v2/stats', 10000);
+      if (data && !data.error) return data;
+    } catch { /* fall through */ }
+    // Fallback: BlockScout v1 ethsupply gives us at least the block count
+    try {
+      const data = await fetchJSON('/api/scan?module=stats&action=ethsupply', 8000);
+      if (data?.status === '1') return { total_transactions: null, _source: 'v1' };
+    } catch { /* ignore */ }
+    return null;
   }
 
   /**
@@ -1255,9 +1291,9 @@ const API = (() => {
    * @returns {Promise<Array<{date:string, tx_count:number}>>}
    */
   async function getDailyTxHistory() {
+    // Try BlockScout v2 charts endpoint
     try {
-      // Try BlockScout v2 charts endpoint first
-      const data = await fetchJSON('/api/scan-v2/stats/charts/transactions', 15000);
+      const data = await fetchJSON('/api/scan-v2/stats/charts/transactions', 12000);
       if (data?.chart_data?.length) {
         return data.chart_data.map(d => ({
           date:     d.date,
@@ -1266,24 +1302,22 @@ const API = (() => {
       }
     } catch { /* fall through */ }
 
-    // Fallback: use PulseX subgraph daily volume as a tx-count proxy
-    // (totalTransactions per day is not available from scan without the charts endpoint)
+    // Fallback: GeckoTerminal network stats via PulseChain network page
+    // We use the PulseX V1 pool volume as a tx-activity proxy since subgraph is down
     try {
-      const query = `{
-        uniswapDayDatas(first: 60, orderBy: date, orderDirection: desc) {
-          date
-          dailyTxns: txCount
-        }
-      }`;
-      const result = await postJSON('/api/graph/pulsex', { query }, 12000);
-      const rows = result?.data?.uniswapDayDatas || [];
-      return rows
-        .reverse()
-        .map(d => ({
-          date:     new Date(Number(d.date) * 1000).toISOString().slice(0, 10),
-          tx_count: Number(d.dailyTxns || 0),
-        }));
-    } catch { return []; }
+      const data = await fetchJSON('/api/gecko/networks/pulsechain/pools/0xe56043671df55de5cdf8459710433c10324de0ae/ohlcv/day?aggregate=1&limit=60&currency=usd', 12000);
+      const bars = data?.data?.attributes?.ohlcv_list || [];
+      if (bars.length > 0) {
+        return bars
+          .map(b => ({
+            date:     new Date(b[0] > 1e10 ? b[0] : b[0] * 1000).toISOString().slice(0, 10),
+            tx_count: Number(b[5] || 0), // volume as proxy for activity
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+      }
+    } catch { /* fall through */ }
+
+    return [];
   }
 
   /**
@@ -1305,9 +1339,31 @@ const API = (() => {
    * @returns {Promise<object|null>}
    */
   async function getPulseXStats() {
+    // Try PulseX subgraph factory stats first (may be unreachable)
     try {
-      return await fetchJSON('/api/pulsex/factory', 12000);
-    } catch { return null; }
+      const data = await fetchJSON('/api/pulsex/factory', 10000);
+      if (data?.data?.uniswapFactories) return data;
+    } catch { /* fall through */ }
+
+    // Fallback: use GeckoTerminal network stats for PulseChain DEX activity
+    try {
+      const data = await fetchJSON('/api/gecko/networks/pulsechain', 10000);
+      if (data?.data) {
+        const attrs = data.data.attributes || {};
+        return {
+          _source: 'geckoterminal',
+          data: {
+            uniswapFactories: [{
+              totalLiquidityUSD: attrs.total_liquidity_usd   || '0',
+              totalVolumeUSD:    attrs.total_volume_usd_24h  || '0',
+              totalTransactions: attrs.transactions_count_24h || '0',
+              pairCount:         attrs.pools_count            || '0',
+            }]
+          }
+        };
+      }
+    } catch { /* fall through */ }
+    return null;
   }
 
   /* ── Public API ─────────────────────────────────────────── */

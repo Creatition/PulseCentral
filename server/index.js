@@ -22,7 +22,7 @@ app.use((req, res, next) => {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://dd.dexscreener.com https://dexscreener.com https://libertyswap.finance https://9mm.pro https://swap.internetmoney.io https://app.piteas.io https://www.geckoterminal.com https://hex.com https://www.dextools.io https://scan.pulsechain.com",
       "frame-src https://dexscreener.com https://pulsex.mypinata.cloud",
-      "connect-src 'self'",
+      "connect-src 'self' https://api.geckoterminal.com",
       "font-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",
@@ -191,13 +191,17 @@ const REFRESH_INTERVAL_MS = 3_600_000; // 1 hour
 /**
  * The four core coins whose charts are served as weekly snapshots.
  * PLS is excluded — its chart stays live.
+ * pairAddress is the GeckoTerminal pool address for OHLCV data.
  */
 const SNAPSHOT_COINS = [
-  { symbol: 'PLSX', address: '0x95b303987a60c71504d99aa1b13b4da07b0790ab' },
-  { symbol: 'HEX',  address: '0x2b591e99afe9f32eaa6214f7b7629768c40eeb39' },
-  { symbol: 'INC',  address: '0x2fa878ab3f87cc1c9737fc071108f904c0b0c95d' },
-  { symbol: 'PRVX', address: '0xf6f8db0aba00007681f8faf16a0fda1c9b030b11' },
+  { symbol: 'PLSX', address: '0x95b303987a60c71504d99aa1b13b4da07b0790ab', pairAddress: '0x1b45b9148791d3a104184cd5dfe5ce57193a3ee9' },
+  { symbol: 'HEX',  address: '0x2b591e99afe9f32eaa6214f7b7629768c40eeb39', pairAddress: '0xf1f4ee610b2babb05c635f726ef8b0c568c8dc65' },
+  { symbol: 'INC',  address: '0x2fa878ab3f87cc1c9737fc071108f904c0b0c95d', pairAddress: '0xf808bb6265e9ca27002c0a04562bf50d4fe37eaa' },
+  { symbol: 'PRVX', address: '0xf6f8db0aba00007681f8faf16a0fda1c9b030b11', pairAddress: '0x7f681a5ad615238357ba148c281e2eaefd2de55a' },
 ];
+
+/** GeckoTerminal OHLCV base URL for pool data */
+const GECKO_OHLCV_BASE = 'https://api.geckoterminal.com/api/v2/networks/pulsechain/pools';
 
 /**
  * Return the Unix timestamp in milliseconds for 00:00:00 UTC on the most-recent
@@ -211,71 +215,36 @@ function getMondayMs() {
 }
 
 /**
- * Fetch all daily tokenDayData records from the PulseX subgraph for a single
- * token, from CHART_START_SEC onwards.  Paginates automatically.
- * @param {string} tokenAddress  Lowercase token contract address
- * @returns {Promise<Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>>}
- *   Each bar's `time` is in milliseconds (UTC midnight for that day).
+ * Fetch daily OHLCV bars from GeckoTerminal for a DEX pool.
+ * GeckoTerminal is free, public, and works server-side — replacing the dead PulseX subgraph.
+ * Returns bars with time in milliseconds, sorted ascending.
+ * @param {string} pairAddress  Pool/pair contract address
+ * @returns {Promise<Array<{time,open,high,low,close,volume}>>}
  */
-async function fetchSubgraphHistory(tokenAddress) {
-  // Validate address before interpolating into GraphQL query (injection defence)
-  if (!/^0x[0-9a-f]{40}$/i.test(tokenAddress)) {
-    throw new Error(`Invalid token address: ${tokenAddress}`);
-  }
-  const addr = tokenAddress.toLowerCase();
-  let allRows = [];
-  // Start query just before our desired window so the first included day is fetched
-  let lastDate = CHART_START_SEC - 86400;
-  let hasMore  = true;
-
-  while (hasMore) {
-    const query = `{
-      tokenDayDatas(
-        first: 1000
-        orderBy: date
-        orderDirection: asc
-        where: { token: "${addr}", date_gt: ${lastDate} }
-      ) {
-        date
-        priceUSD
-        dailyVolumeUSD
-      }
-    }`;
-
-    const r = await fetch(PULSEX_GRAPH, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept':       'application/json',
-        'User-Agent':   'Mozilla/5.0 (compatible; PulseCentral/1.0)',
-      },
-      body:   JSON.stringify({ query }),
-      signal: AbortSignal.timeout(SUBGRAPH_TIMEOUT_MS),
-    });
-
-    if (!r.ok) throw new Error(`Subgraph HTTP ${r.status}`);
-    const data = await r.json();
-    const rows = data?.data?.tokenDayDatas || [];
-    if (rows.length === 0) { hasMore = false; break; }
-
-    allRows   = allRows.concat(rows);
-    lastDate  = Number(rows[rows.length - 1].date);
-    if (rows.length < 1000) hasMore = false;
-  }
-
-  return allRows
-    .map(d => {
-      const price = Number(d.priceUSD || 0);
-      return {
-        time:   Number(d.date) * 1000,   // convert seconds → milliseconds
-        open:   price,
-        high:   price,
-        low:    price,
-        close:  price,
-        volume: Number(d.dailyVolumeUSD || 0),
-      };
-    })
-    .filter(b => b.time >= CHART_START_SEC * 1000 && b.close > 0);
+async function fetchGeckoOHLCV(pairAddress) {
+  const url = `${GECKO_OHLCV_BASE}/${pairAddress}/ohlcv/day?aggregate=1&limit=1000&currency=usd`;
+  const r = await fetch(url, {
+    headers: {
+      'Accept':     'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; PulseCentral/1.0)',
+    },
+    signal: AbortSignal.timeout(SUBGRAPH_TIMEOUT_MS),
+  });
+  if (!r.ok) throw new Error(`GeckoTerminal HTTP ${r.status}`);
+  const data = await r.json();
+  // GeckoTerminal returns [[timestamp_sec, open, high, low, close, volume], ...]
+  const rawBars = data?.data?.attributes?.ohlcv_list || [];
+  return rawBars
+    .map(b => ({
+      time:   b[0] > 1e10 ? b[0] : b[0] * 1000, // seconds → ms
+      open:   Number(b[1] || 0),
+      high:   Number(b[2] || 0),
+      low:    Number(b[3] || 0),
+      close:  Number(b[4] || 0),
+      volume: Number(b[5] || 0),
+    }))
+    .filter(b => b.time > 0 && b.close > 0)
+    .sort((a, b) => a.time - b.time);
 }
 
 /**
@@ -319,9 +288,9 @@ async function buildSnapshot() {
   const mondayMs = getMondayMs();
   const coins    = {};
 
-  await Promise.all(SNAPSHOT_COINS.map(async ({ symbol, address }) => {
+  await Promise.all(SNAPSHOT_COINS.map(async ({ symbol, pairAddress }) => {
     try {
-      const daily   = await fetchSubgraphHistory(address);
+      const daily   = await fetchGeckoOHLCV(pairAddress);
       coins[symbol] = aggregateDailyToWeekly(daily, mondayMs);
     } catch (err) {
       console.error(`[PulseCentral snapshot] Failed to fetch ${symbol}:`, err.message);
@@ -651,6 +620,14 @@ app.get('/api/pulsex/factory', async (req, res) => {
     console.error('[PulseCentral proxy] PulseX factory:', err.message);
     res.status(502).json({ error: 'Proxy request failed', detail: err.message });
   }
+});
+
+// GeckoTerminal OHLCV API (free, no auth required)
+// Frontend: /api/gecko/networks/pulsechain/pools/{pairAddr}/ohlcv/{timeframe}?aggregate=1&limit=1000
+app.get('/api/gecko/*', (req, res) => {
+  const subPath = sanitisePath(req.params[0]);
+  if (subPath === null) return res.status(400).json({ error: 'Invalid path' });
+  proxyJson(res, `https://api.geckoterminal.com/api/v2/${subPath}${qs(req)}`);
 });
 
 // DefiLlama TVL API — simple numeric TVL for a named protocol

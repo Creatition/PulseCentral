@@ -1096,35 +1096,29 @@ async function loadEcosystemStats() {
   }
 
   // ── Bridge TVL ────────────────────────────────────────────
-  // DefiLlama protocol endpoint returns:
-  //   { tvl: number (current), chainTvls: { PulseChain: { tvl: [{date, totalLiquidityUSD}] } } }
+  // Debug confirmed: DefiLlama protocol response structure:
+  //   bridge.tvl = ARRAY of {date, totalLiquidityUSD} (NOT a number)
+  //   bridge.chainTvls.Ethereum.tvl = same array (chain key is "Ethereum" not "PulseChain")
   const bridgeCard = $('stat-card-bridge');
   if (bridgeCard) {
     const bridge = bridgeData.status === 'fulfilled' ? bridgeData.value : null;
 
-    // Current TVL — top-level numeric field
-    const tvlNow = Number(bridge?.tvl || 0);
-
-    // Historical TVL array — look in several places DefiLlama may put it
+    // Collect the TVL history array — try all known locations
     let tvlHistory = [];
-    if (Array.isArray(bridge?.chainTvls?.PulseChain?.tvl)) {
+    if (Array.isArray(bridge?.tvl) && bridge.tvl.length > 0) {
+      tvlHistory = bridge.tvl; // top-level is the array
+    } else if (Array.isArray(bridge?.chainTvls?.Ethereum?.tvl)) {
+      tvlHistory = bridge.chainTvls.Ethereum.tvl;
+    } else if (Array.isArray(bridge?.chainTvls?.PulseChain?.tvl)) {
       tvlHistory = bridge.chainTvls.PulseChain.tvl;
-    } else if (Array.isArray(bridge?.tvl)) {
-      // Some protocols return tvl as array instead of number
-      tvlHistory = bridge.tvl;
-    } else if (Array.isArray(bridge?.historicalChainTvls?.PulseChain?.tvl)) {
-      tvlHistory = bridge.historicalChainTvls.PulseChain.tvl;
     }
 
-    // Each entry is { date: unixSeconds, totalLiquidityUSD: number }
+    // Each entry: { date: unixSeconds, totalLiquidityUSD: number }
     const tvlValues = tvlHistory
-      .slice(-90)
       .map(d => Number(d.totalLiquidityUSD || d.tvl || 0))
       .filter(v => v > 0);
 
-    // Use last known history value as "now" if the top-level tvl is 0
-    const effectiveTvlNow = tvlNow || (tvlValues.length > 0 ? tvlValues[tvlValues.length - 1] : 0);
-
+    const effectiveTvlNow = tvlValues.length > 0 ? tvlValues[tvlValues.length - 1] : 0;
     const tvl7dAgo  = tvlValues.length >= 7  ? tvlValues[tvlValues.length - 7]  : effectiveTvlNow;
     const tvl30dAgo = tvlValues.length >= 30 ? tvlValues[tvlValues.length - 30] : effectiveTvlNow;
 
@@ -1140,7 +1134,7 @@ async function loadEcosystemStats() {
 
     const bridgeChartEl = $('stat-bridge-chart');
     if (bridgeChartEl && tvlValues.length >= 2) {
-      bridgeChartEl.innerHTML = buildStatsMiniChart(tvlValues, '#00bcd4');
+      bridgeChartEl.innerHTML = buildStatsMiniChart(tvlValues.slice(-90), '#00bcd4');
     }
   }
 
