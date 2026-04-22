@@ -661,13 +661,21 @@ const API = (() => {
         const pairs = (data.pairs || []).filter(
           p => p.chainId === 'pulsechain'
         );
-        // Group by token address, keep the most liquid pair
+        // Group by token address, prefer WPLS/PLS quote pairs, then pick highest liquidity
+        const WPLS_ADDR = '0xa1077a294dde1b09bb078844df40758a5d0f9a27';
+        const PLS_ADDR  = '0x0000000000000000000000000000000000000000';
+        function pairScore(pair) {
+          const qt = (pair.quoteToken?.address || '').toLowerCase();
+          const isPlsPair = qt === WPLS_ADDR || qt === PLS_ADDR;
+          const liq = Number(pair.liquidity?.usd || 0);
+          // PLS-quoted pairs get a 10x score boost so they win ties against stablecoin pairs
+          return isPlsPair ? liq * 10 : liq;
+        }
         for (const pair of pairs) {
           const addr = pair.baseToken?.address?.toLowerCase();
           if (!addr) continue;
           const existing = pairMap.get(addr);
-          const liq = Number(pair.liquidity?.usd || 0);
-          if (!existing || liq > Number(existing.liquidity?.usd || 0)) {
+          if (!existing || pairScore(pair) > pairScore(existing)) {
             pairMap.set(addr, pair);
           }
         }
@@ -1167,6 +1175,73 @@ const API = (() => {
     }
   }
 
+  /* ── Logo resolution ───────────────────────────────────── */
+
+  /**
+   * Resolve the best available logo URL for a token.
+   * Priority:
+   *  1. pair.info.imageUrl  (DexScreener official profile image — highest quality)
+   *  2. DexScreener CDN fallback: dd.dexscreener.com/ds-data/tokens/pulsechain/{addr}.png
+   *     This CDN serves logos for most PulseChain tokens even without a full profile.
+   * @param {object|null} pair   DexScreener pair object
+   * @param {string}      addr   Token contract address (any casing)
+   * @returns {string|null}
+   */
+  function getTokenLogoUrl(pair, addr) {
+    if (pair?.info?.imageUrl) return pair.info.imageUrl;
+    if (addr) return `https://dd.dexscreener.com/ds-data/tokens/pulsechain/${addr.toLowerCase()}.png`;
+    return null;
+  }
+
+  /* ── Network / Ecosystem Stats API ─────────────────────── */
+
+  /**
+   * Fetch PulseChain network stats from BlockScout v2.
+   * Returns total transactions, average block time, gas prices, etc.
+   * @returns {Promise<object|null>}
+   */
+  async function getNetworkStats() {
+    try {
+      return await fetchJSON('/api/scan-v2/stats', 12000);
+    } catch { return null; }
+  }
+
+  /**
+   * Fetch daily transaction count history from BlockScout v2 chart endpoint.
+   * Returns array of { date, tx_count } objects.
+   * @returns {Promise<Array<{date:string, tx_count:number}>>}
+   */
+  async function getDailyTxHistory() {
+    try {
+      const data = await fetchJSON('/api/scan-v2/stats/charts/transactions', 15000);
+      return (data?.chart_data || []).map(d => ({
+        date:     d.date,
+        tx_count: Number(d.tx_count || 0),
+      }));
+    } catch { return []; }
+  }
+
+  /**
+   * Fetch PulseChain bridge TVL data from DefiLlama.
+   * Returns the protocol detail object with historical TVL.
+   * @returns {Promise<object|null>}
+   */
+  async function getBridgeStats() {
+    try {
+      return await fetchJSON('/api/llama/protocol/pulsechain', 12000);
+    } catch { return null; }
+  }
+
+  /**
+   * Fetch current PulseX DEX factory stats (total liquidity, volume, txns).
+   * @returns {Promise<object|null>}
+   */
+  async function getPulseXStats() {
+    try {
+      return await fetchJSON('/api/pulsex/factory', 12000);
+    } catch { return null; }
+  }
+
   /* ── Public API ─────────────────────────────────────────── */
   return {
     getPlsBalance,
@@ -1181,6 +1256,11 @@ const API = (() => {
     getTokenMetadata,
     getTokenTransferHistory,
     getTotalSupply,
+    getTokenLogoUrl,
+    getNetworkStats,
+    getDailyTxHistory,
+    getBridgeStats,
+    getPulseXStats,
     KNOWN_TOKENS,
     CORE_COINS,
   };

@@ -85,7 +85,7 @@
               </span>
               <div class="tab-dropdown-submenu-content" role="menu" aria-label="Analytics links">
                 <a class="tab-dropdown-item" role="menuitem" href="https://dexscreener.com/pulsechain" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://dexscreener.com/favicon.png" alt="DexScreener logo" loading="lazy"></span> DexScreener ↗</a>
-                <a class="tab-dropdown-item" role="menuitem" href="https://www.dextools.io/app/en/pulse/pairs" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon">📊</span> DexTools ↗</a>
+                <a class="tab-dropdown-item" role="menuitem" href="https://www.dextools.io/app/en/pulse/pairs" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://www.dextools.io/assets/favicon/favicon.ico" onerror="this.style.display='none'" alt="DexTools logo" loading="lazy"></span> DexTools ↗</a>
                 <a class="tab-dropdown-item" role="menuitem" href="https://www.geckoterminal.com/pulsechain/pools" target="_blank" rel="noopener noreferrer"><span class="tab-dropdown-icon"><img src="https://www.geckoterminal.com/favicon.ico" alt="GeckoTerminal logo" loading="lazy"></span> GeckoTerminal ↗</a>
               </div>
             </div>
@@ -277,6 +277,100 @@
         <span class="dex-attribution" style="margin:0">
           Data: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a>
         </span>
+      </div>
+
+      <!-- ── Ecosystem Stats ── -->
+      <div id="ecosystem-stats-section" class="ecosystem-stats-section hidden">
+        <h2 class="ecosystem-stats-title">PulseChain Ecosystem</h2>
+        <p class="ecosystem-stats-subtitle">Live on-chain data and ecosystem metrics</p>
+
+        <div class="ecosystem-stats-grid">
+
+          <!-- Daily Transactions -->
+          <div class="stat-card" id="stat-card-txns">
+            <div class="stat-card-header">
+              <span class="stat-card-icon">⛓</span>
+              <div>
+                <div class="stat-card-title">Network Transactions</div>
+                <div class="stat-card-desc">PulseChain on-chain activity</div>
+              </div>
+            </div>
+            <div class="stat-card-chart" id="stat-txns-chart"></div>
+            <div class="stat-card-metrics">
+              <div class="stat-metric">
+                <span class="stat-metric-label">Today</span>
+                <span class="stat-metric-value" id="stat-txns-today">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">7D Avg</span>
+                <span class="stat-metric-value" id="stat-txns-avg7d">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">All Time</span>
+                <span class="stat-metric-value" id="stat-txns-total">—</span>
+              </div>
+            </div>
+            <div class="stat-card-source">Source: <a href="https://scan.pulsechain.com" target="_blank" rel="noopener">PulseChain Scan</a></div>
+          </div>
+
+          <!-- Bridge TVL -->
+          <div class="stat-card" id="stat-card-bridge">
+            <div class="stat-card-header">
+              <span class="stat-card-icon">🌉</span>
+              <div>
+                <div class="stat-card-title">Bridge TVL</div>
+                <div class="stat-card-desc">Total funds bridged to PulseChain</div>
+              </div>
+            </div>
+            <div class="stat-card-chart" id="stat-bridge-chart"></div>
+            <div class="stat-card-metrics">
+              <div class="stat-metric">
+                <span class="stat-metric-label">Current TVL</span>
+                <span class="stat-metric-value" id="stat-bridge-current">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">7D Change</span>
+                <span class="stat-metric-value" id="stat-bridge-7d">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">30D Change</span>
+                <span class="stat-metric-value" id="stat-bridge-30d">—</span>
+              </div>
+            </div>
+            <div class="stat-card-source">Source: <a href="https://defillama.com/chain/PulseChain" target="_blank" rel="noopener">DefiLlama</a></div>
+          </div>
+
+          <!-- PulseX DEX -->
+          <div class="stat-card" id="stat-card-dex">
+            <div class="stat-card-header">
+              <span class="stat-card-icon">🔄</span>
+              <div>
+                <div class="stat-card-title">PulseX DEX</div>
+                <div class="stat-card-desc">PulseChain's native exchange</div>
+              </div>
+            </div>
+            <div class="stat-card-metrics stat-card-metrics-4">
+              <div class="stat-metric">
+                <span class="stat-metric-label">Total Liquidity</span>
+                <span class="stat-metric-value" id="stat-dex-tvl">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">Total Volume</span>
+                <span class="stat-metric-value" id="stat-dex-vol">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">Total Txns</span>
+                <span class="stat-metric-value" id="stat-dex-txns">—</span>
+              </div>
+              <div class="stat-metric">
+                <span class="stat-metric-label">Pairs</span>
+                <span class="stat-metric-value" id="stat-dex-pairs">—</span>
+              </div>
+            </div>
+            <div class="stat-card-source">Source: <a href="https://app.pulsex.com" target="_blank" rel="noopener">PulseX Subgraph</a></div>
+          </div>
+
+        </div>
       </div>
 
     </section>

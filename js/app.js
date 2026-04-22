@@ -580,6 +580,7 @@ function buildSparklineSvg(pair) {
 
 /**
  * Build a coin card DOM element for one core token.
+ * Full-width card for PLS with interactive chart and timeframe toggles.
  * @param {string}     symbol     Token symbol (e.g. 'WPLS')
  * @param {object|null} pair      DexScreener pair object, or null if unavailable
  * @param {object[]}   chartBars  OHLCV bar array from the chart API (may be empty)
@@ -690,21 +691,67 @@ function buildCoinCard(symbol, pair, chartBars = [], chartRes = 'D', tokenColor 
 
   headerBox.append(topRow, stats);
 
-  // ── DexScreener embedded chart ───────────────────────────
+  // ── Interactive SVG price chart with timeframe toggles ──
   const chartWrap = document.createElement('div');
-  chartWrap.className = 'coin-dex-chart';
+  chartWrap.className = 'coin-chart-wrap';
 
-  if (pairAddress) {
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://dexscreener.com/pulsechain/${pairAddress}?embed=1&theme=dark&trades=0&info=0`;
-    iframe.title = `${displaySymbol} / USD chart`;
-    iframe.setAttribute('allowfullscreen', '');
-    iframe.loading = 'lazy';
-    chartWrap.appendChild(iframe);
-  } else {
-    chartWrap.innerHTML = '<div class="coin-chart-unavailable">Chart unavailable</div>';
+  // Timeframe toggle buttons
+  const tfBar = document.createElement('div');
+  tfBar.className = 'coin-chart-tf-bar';
+  const timeframes = [
+    { label: '24H',  days: 1   },
+    { label: '7D',   days: 7   },
+    { label: '30D',  days: 30  },
+    { label: '90D',  days: 90  },
+    { label: 'ALL',  days: 9999 },
+  ];
+  let activeTf = 'ALL';
+
+  const svgWrap = document.createElement('div');
+  svgWrap.className = 'coin-chart-svg-wrap';
+
+  const dateRangeEl = document.createElement('div');
+  dateRangeEl.className = 'coin-chart-date-range';
+
+  function renderCoinChart(tfLabel) {
+    activeTf = tfLabel;
+    tfBar.querySelectorAll('.coin-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === tfLabel));
+
+    const tf = timeframes.find(t => t.label === tfLabel);
+    const cutoffMs = tf.days >= 9999 ? 0 : Date.now() - tf.days * 86_400_000;
+    const filtered = chartBars.filter(b => b.time >= cutoffMs);
+
+    if (filtered.length < 2) {
+      svgWrap.innerHTML = '<div class="coin-chart-unavailable">Not enough data</div>';
+      dateRangeEl.textContent = '';
+      return;
+    }
+
+    const { svg, dateLabel } = buildDetailedChartSvg(filtered, chartRes, tokenColor, pair);
+    svgWrap.innerHTML = svg;
+    dateRangeEl.textContent = dateLabel;
   }
 
+  timeframes.forEach(tf => {
+    const btn = document.createElement('button');
+    btn.className = 'coin-tf-btn';
+    btn.dataset.tf = tf.label;
+    btn.textContent = tf.label;
+    btn.addEventListener('click', () => renderCoinChart(tf.label));
+    tfBar.appendChild(btn);
+  });
+
+  renderCoinChart('ALL');
+
+  // DexScreener link
+  const dexLink = document.createElement('a');
+  dexLink.href = pairAddress ? `https://dexscreener.com/pulsechain/${pairAddress}` : 'https://dexscreener.com/pulsechain';
+  dexLink.target = '_blank';
+  dexLink.rel = 'noopener';
+  dexLink.className = 'coin-dex-link';
+  dexLink.textContent = '📈 Full chart on DexScreener ↗';
+
+  chartWrap.append(tfBar, svgWrap, dateRangeEl, dexLink);
   card.append(headerBox, chartWrap);
   return card;
 }
@@ -810,14 +857,66 @@ function buildSimpleCoinCard(symbol, pair, chartBars = [], chartRes = 'D', token
     </div>
   `;
 
-  // Click card to open DexScreener pair page
+  // ── Mini SVG chart ───────────────────────────────────────
+  const miniChartWrap = document.createElement('div');
+  miniChartWrap.className = 'coin-mini-chart-wrap';
+
+  if (chartBars.length >= 2) {
+    const { svg } = buildDetailedChartSvg(chartBars, chartRes, tokenColor, pair);
+    miniChartWrap.innerHTML = svg;
+  } else {
+    // Sparkline fallback from priceChange data
+    miniChartWrap.innerHTML = buildSparklineSvg(pair);
+  }
+
+  // Timeframe toggle for mini chart
+  const miniTfBar = document.createElement('div');
+  miniTfBar.className = 'coin-chart-tf-bar coin-chart-tf-bar-mini';
+  const miniTimeframes = [{ label: '7D', days: 7 }, { label: '30D', days: 30 }, { label: 'ALL', days: 9999 }];
+  let activeMiniTf = 'ALL';
+
+  const miniSvgSlot = document.createElement('div');
+  miniSvgSlot.className = 'coin-mini-svg-slot';
+  if (chartBars.length >= 2) {
+    const { svg } = buildDetailedChartSvg(chartBars, chartRes, tokenColor, pair);
+    miniSvgSlot.innerHTML = svg;
+  } else {
+    miniSvgSlot.innerHTML = buildSparklineSvg(pair);
+  }
+
+  function renderMiniChart(tfLabel) {
+    activeMiniTf = tfLabel;
+    miniTfBar.querySelectorAll('.coin-tf-btn').forEach(b => b.classList.toggle('active', b.dataset.tf === tfLabel));
+    const tf = miniTimeframes.find(t => t.label === tfLabel);
+    const cutoffMs = tf.days >= 9999 ? 0 : Date.now() - tf.days * 86_400_000;
+    const filtered = chartBars.filter(b => b.time >= cutoffMs);
+    if (filtered.length >= 2) {
+      const { svg } = buildDetailedChartSvg(filtered, chartRes, tokenColor, pair);
+      miniSvgSlot.innerHTML = svg;
+    } else {
+      miniSvgSlot.innerHTML = buildSparklineSvg(pair);
+    }
+  }
+
+  miniTimeframes.forEach(tf => {
+    const btn = document.createElement('button');
+    btn.className = 'coin-tf-btn';
+    btn.dataset.tf = tf.label;
+    btn.textContent = tf.label;
+    btn.addEventListener('click', e => { e.stopPropagation(); renderMiniChart(tf.label); });
+    miniTfBar.appendChild(btn);
+  });
+  renderMiniChart('ALL');
+
+  // Click card to open DexScreener
   if (pairAddress) {
+    card.style.cursor = 'pointer';
     card.addEventListener('click', () => {
       window.open(`https://dexscreener.com/pulsechain/${pairAddress}`, '_blank', 'noopener');
     });
   }
 
-  card.append(header, priceEl, stats);
+  card.append(header, priceEl, stats, miniTfBar, miniSvgSlot);
   return card;
 }
 
@@ -894,8 +993,135 @@ $('home-refresh-btn').addEventListener('click', () => {
   loadHomeTab();
 });
 
+/* ── Ecosystem Stats Section ─────────────────────────────── */
+
+/**
+ * Build a mini SVG line chart for the stats section.
+ * @param {number[]} values  Array of numeric values (oldest → newest)
+ * @param {string}   color   Stroke colour
+ * @returns {string}  SVG markup
+ */
+function buildStatsMiniChart(values, color = '#7b2fff') {
+  const W = 200, H = 48, pad = 4;
+  if (!values || values.length < 2) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || max * 0.1 || 1;
+  const pts = values.map((v, i) => [
+    pad + (i / (values.length - 1)) * (W - pad * 2),
+    H - pad - ((v - min) / range) * (H - pad * 2),
+  ]);
+  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${(W - pad).toFixed(1)},${H} L${pad},${H} Z`;
+  const gid = 'sg' + Math.random().toString(36).slice(2, 7);
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+  <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+    <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+  </linearGradient></defs>
+  <path d="${area}" fill="url(#${gid})"/>
+  <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+}
+
+/**
+ * Format a number for stat display.
+ */
+function fmtStat(n) {
+  if (!n || isNaN(n)) return '—';
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return Number(n).toLocaleString('en-US');
+}
+
+/**
+ * Load and render the PulseChain ecosystem stats section.
+ * Fetches: network stats, daily tx history, bridge TVL, PulseX factory stats.
+ */
+async function loadEcosystemStats() {
+  const section = $('ecosystem-stats-section');
+  if (!section) return;
+
+  const [networkStats, txHistory, bridgeData, pulseXData] = await Promise.allSettled([
+    API.getNetworkStats(),
+    API.getDailyTxHistory(),
+    API.getBridgeStats(),
+    API.getPulseXStats(),
+  ]);
+
+  // ── Daily Transactions ────────────────────────────────────
+  const txCard = $('stat-card-txns');
+  if (txCard) {
+    const txData = txHistory.status === 'fulfilled' ? txHistory.value : [];
+    const recentTx = txData.slice(-30); // last 30 days
+    const todayTx = txData[txData.length - 1]?.tx_count || 0;
+    const weekAvg = txData.slice(-7).reduce((s, d) => s + d.tx_count, 0) / Math.min(7, txData.length) || 0;
+    const totalTx = networkStats.status === 'fulfilled' ? Number(networkStats.value?.total_transactions || 0) : 0;
+
+    $('stat-txns-today').textContent   = fmtStat(todayTx);
+    $('stat-txns-avg7d').textContent   = fmtStat(Math.round(weekAvg));
+    $('stat-txns-total').textContent   = fmtStat(totalTx);
+
+    const txChartEl = $('stat-txns-chart');
+    if (txChartEl && recentTx.length >= 2) {
+      txChartEl.innerHTML = buildStatsMiniChart(recentTx.map(d => d.tx_count), '#7b2fff');
+    }
+  }
+
+  // ── Bridge TVL ────────────────────────────────────────────
+  const bridgeCard = $('stat-card-bridge');
+  if (bridgeCard) {
+    const bridge = bridgeData.status === 'fulfilled' ? bridgeData.value : null;
+    const currentTvl = bridge?.tvl || 0;
+    const tvlHistory = (bridge?.tvl !== undefined && Array.isArray(bridge?.chainTvls?.['PulseChain']?.tvl))
+      ? bridge.chainTvls['PulseChain'].tvl
+      : (Array.isArray(bridge?.tvl) ? bridge.tvl : []);
+
+    const tvlValues = tvlHistory.length > 0
+      ? tvlHistory.slice(-90).map(d => d.totalLiquidityUSD || d.tvl || 0)
+      : [];
+
+    const tvlNow   = typeof currentTvl === 'number' ? currentTvl : 0;
+    const tvl7dAgo = tvlValues.length >= 7  ? tvlValues[tvlValues.length - 7]  : tvlNow;
+    const tvl30dAgo= tvlValues.length >= 30 ? tvlValues[tvlValues.length - 30] : tvlNow;
+
+    function pctChange(now, then) {
+      if (!then) return '—';
+      const pct = ((now - then) / then) * 100;
+      return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+    }
+
+    $('stat-bridge-current').textContent = tvlNow ? fmt.large(tvlNow) : '—';
+    $('stat-bridge-7d').textContent      = pctChange(tvlNow, tvl7dAgo);
+    $('stat-bridge-30d').textContent     = pctChange(tvlNow, tvl30dAgo);
+
+    const bridgeChartEl = $('stat-bridge-chart');
+    if (bridgeChartEl && tvlValues.length >= 2) {
+      bridgeChartEl.innerHTML = buildStatsMiniChart(tvlValues, '#00bcd4');
+    }
+  }
+
+  // ── PulseX DEX Stats ──────────────────────────────────────
+  const dexCard = $('stat-card-dex');
+  if (dexCard) {
+    const factory = pulseXData.status === 'fulfilled'
+      ? pulseXData.value?.data?.uniswapFactories?.[0]
+      : null;
+    $('stat-dex-tvl').textContent    = factory ? fmt.large(Number(factory.totalLiquidityUSD || 0)) : '—';
+    $('stat-dex-vol').textContent    = factory ? fmt.large(Number(factory.totalVolumeUSD || 0))    : '—';
+    $('stat-dex-txns').textContent   = factory ? fmtStat(Number(factory.totalTransactions || 0))  : '—';
+    $('stat-dex-pairs').textContent  = factory ? fmtStat(Number(factory.pairCount || 0))          : '—';
+  }
+
+  // Show the section now that data is loaded
+  setVisible(section, true);
+}
+
 // Auto-load the home tab on first page load
 loadHomeTab();
+// Load ecosystem stats in parallel (non-blocking)
+loadEcosystemStats();
 
 /* ── Trending Ticker Bar ─────────────────────────────────── */
 
@@ -912,7 +1138,7 @@ function buildTickerItem(pair, rank) {
   const symbol   = pair.baseToken?.symbol || '?';
   const price    = Number(pair.priceUsd || 0);
   const change   = Number(pair.priceChange?.h24 || 0);
-  const logoUrl  = pair.info?.imageUrl || null;
+  const logoUrl  = API.getTokenLogoUrl(pair, pair.baseToken?.address);
   const pairAddr = pair.pairAddress || '';
   const { text: changeText, cls: changeCls } = fmt.change(change);
 
@@ -1383,7 +1609,7 @@ async function loadPortfolio(address) {
       const price = Number(pair?.priceUsd || 0);
       const change24h = Number(pair?.priceChange?.h24 || 0);
       const value = price * t.balance;
-      const logoUrl = pair?.info?.imageUrl || null;
+      const logoUrl = API.getTokenLogoUrl(pair, t.contractAddress);
       const pairAddress = pair?.pairAddress || null;
       const rawSupply = supplyResults[idx].status === 'fulfilled' ? supplyResults[idx].value : null;
       const totalSupply = rawSupply ? Number(rawSupply) / Math.pow(10, t.decimals) : null;
@@ -1397,7 +1623,7 @@ async function loadPortfolio(address) {
     // Compute total value (PLS value approximated from WPLS pair if available)
     const wplsPair  = pairMap.get(WPLS_ADDRESS.toLowerCase());
     const plsPrice  = Number(wplsPair?.priceUsd || 0);
-    const plsLogoUrl = wplsPair?.info?.imageUrl || WPLS_LOGO_FALLBACK;
+    const plsLogoUrl = API.getTokenLogoUrl(wplsPair, WPLS_ADDRESS) || WPLS_LOGO_FALLBACK;
     const plsPairAddress = wplsPair?.pairAddress || null;
     const plsValue  = plsBalance * plsPrice;
     const totalUsd  = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
@@ -1742,7 +1968,7 @@ function renderTop50() {
 
 function buildTop50Row(rank, pair) {
   const token   = pair.baseToken || {};
-  const logoUrl = pair.info?.imageUrl || null;
+  const logoUrl = API.getTokenLogoUrl(pair, token.address);
   const price   = pair.priceUsd;
   const change24h = pair.priceChange?.h24;
   const vol24h  = pair.volume?.h24;
@@ -1796,7 +2022,7 @@ function buildTop50Row(rank, pair) {
       starBtn.classList.remove('active');
       starBtn.title = 'Add to Watchlist';
     } else {
-      Watchlist.addToken({ address: tokenAddr, symbol: token.symbol || '', name: token.name || token.symbol || '', logoUrl });
+      Watchlist.addToken({ address: tokenAddr, symbol: token.symbol || '', name: token.name || token.symbol || '', logoUrl: API.getTokenLogoUrl(pair, tokenAddr) });
       starBtn.textContent = '★';
       starBtn.classList.add('active');
       starBtn.title = 'Remove from Watchlist';
@@ -1882,7 +2108,7 @@ function buildSearchDropdownItem(pair) {
   const name     = token.name   || symbol;
   const price    = Number(pair.priceUsd || 0);
   const change   = Number(pair.priceChange?.h24 || 0);
-  const logoUrl  = pair.info?.imageUrl || null;
+  const logoUrl  = API.getTokenLogoUrl(pair, token.address);
   const pairAddr = pair.pairAddress || '';
   const chainId  = pair.chainId || 'pulsechain';
   const liq      = pair.liquidity?.usd;
@@ -3136,7 +3362,7 @@ async function loadGroupPortfolio(group) {
       const price     = Number(pair?.priceUsd   || 0);
       const change24h = Number(pair?.priceChange?.h24 || 0);
       const value     = price * t.balance;
-      const logoUrl   = pair?.info?.imageUrl || null;
+      const logoUrl   = API.getTokenLogoUrl(pair, t.contractAddress);
       const pairAddress = pair?.pairAddress || null;
       const rawSupply = supplyResults[idx].status === 'fulfilled' ? supplyResults[idx].value : null;
       const totalSupply = rawSupply ? Number(rawSupply) / Math.pow(10, t.decimals) : null;
@@ -3148,7 +3374,7 @@ async function loadGroupPortfolio(group) {
 
     const wplsPair = pairMap.get(WPLS_ADDRESS.toLowerCase());
     const plsPrice = Number(wplsPair?.priceUsd || 0);
-    const plsLogoUrl = wplsPair?.info?.imageUrl || WPLS_LOGO_FALLBACK;
+    const plsLogoUrl = API.getTokenLogoUrl(wplsPair, WPLS_ADDRESS) || WPLS_LOGO_FALLBACK;
     const plsPairAddress = wplsPair?.pairAddress || null;
     const plsValue = totalPlsBalance * plsPrice;
     const totalUsd = enriched.reduce((s, t) => s + t.value, 0) + plsValue;
@@ -3520,7 +3746,7 @@ function renderWatchlistTokens(tokens, pairMap) {
     const vol24h    = pair?.volume?.h24;
     const mcap      = pair?.marketCap || pair?.fdv;
     const liq       = pair?.liquidity?.usd;
-    const logoUrl   = pair?.info?.imageUrl || token.logoUrl || null;
+    const logoUrl   = API.getTokenLogoUrl(pair, token.address) || token.logoUrl || null;
 
     const tr = document.createElement('tr');
 

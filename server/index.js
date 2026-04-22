@@ -20,7 +20,7 @@ app.use((req, res, next) => {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://dd.dexscreener.com https://dexscreener.com https://libertyswap.finance https://9mm.pro https://swap.internetmoney.io https://app.piteas.io https://www.geckoterminal.com https://hex.com",
+      "img-src 'self' data: https://dd.dexscreener.com https://dexscreener.com https://libertyswap.finance https://9mm.pro https://swap.internetmoney.io https://app.piteas.io https://www.geckoterminal.com https://hex.com https://www.dextools.io",
       "frame-src https://dexscreener.com https://pulsex.mypinata.cloud",
       "connect-src 'self'",
       "font-src 'self'",
@@ -475,6 +475,12 @@ app.get('/api/scan-v2/*', (req, res) => {
   if (subPath === null) return res.status(400).json({ error: 'Invalid path' });
   proxyJson(res, `https://scan.pulsechain.com/api/v2/${subPath}${qs(req)}`);
 });
+
+// PulseChain Scan v2 stats + chart endpoints (BlockScout v2 REST API)
+// Frontend: /api/scan-v2/stats   and   /api/scan-v2/stats/charts/transactions
+// These are separate from the token/transfer endpoints because they hit different
+// BlockScout v2 paths and deserve their own cache TTL.
+// (Already handled by the wildcard /api/scan-v2/* route above — no extra route needed.)
 
 // GoPlus Security API
 // Frontend: /api/goplus/api/v1/token_security/369?contract_addresses=<addr>
