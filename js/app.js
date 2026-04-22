@@ -1539,7 +1539,10 @@ function buildPortfolioRow(index, token, balance, price, change24h, pairAddress 
 
   // Symbol
   const tdSym = document.createElement('td');
-  tdSym.innerHTML = `<span class="token-symbol">${token.symbol}</span>`;
+  const symSpanPort = document.createElement('span');
+  symSpanPort.className = 'token-symbol';
+  symSpanPort.textContent = token.symbol || '';
+  tdSym.appendChild(symSpanPort);
 
   // Balance
   const tdBal = document.createElement('td');
@@ -4177,7 +4180,12 @@ function renderTokenSecurityContent(security, metadata, tokenAddr) {
     if (holderCount) {
       const stat = document.createElement('div');
       stat.className = 'td-stat';
-      stat.innerHTML = `<div class="td-stat-label">Holders</div><div class="td-stat-value">${Number(holderCount).toLocaleString('en-US')}</div>`;
+      const hStat = document.createElement('div');
+      hStat.className = 'td-stat';
+      const hLabel = document.createElement('div'); hLabel.className = 'td-stat-label'; hLabel.textContent = 'Holders';
+      const hVal = document.createElement('div'); hVal.className = 'td-stat-value'; hVal.textContent = Number(holderCount).toLocaleString('en-US');
+      hStat.append(hLabel, hVal);
+      grid.appendChild(hStat);
       grid.appendChild(stat);
     }
     if (rawSupply) {
@@ -4186,10 +4194,12 @@ function renderTokenSecurityContent(security, metadata, tokenAddr) {
                  : supply >= 1e9  ? (supply / 1e9 ).toFixed(2) + 'B'
                  : supply >= 1e6  ? (supply / 1e6 ).toFixed(2) + 'M'
                  : supply.toLocaleString('en-US', { maximumFractionDigits: 0 });
-      const stat = document.createElement('div');
-      stat.className = 'td-stat';
-      stat.innerHTML = `<div class="td-stat-label">Total Supply</div><div class="td-stat-value">${fmtd}</div>`;
-      grid.appendChild(stat);
+      const sStat = document.createElement('div');
+      sStat.className = 'td-stat';
+      const sLabel = document.createElement('div'); sLabel.className = 'td-stat-label'; sLabel.textContent = 'Total Supply';
+      const sVal = document.createElement('div'); sVal.className = 'td-stat-value'; sVal.textContent = fmtd;
+      sStat.append(sLabel, sVal);
+      grid.appendChild(sStat);
     }
     section.appendChild(grid);
     contentEl.appendChild(section);

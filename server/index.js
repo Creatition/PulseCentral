@@ -7,6 +7,78 @@ const fs       = require('fs');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+/* ── Security headers ───────────────────────────────────── */
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https://dd.dexscreener.com https://dexscreener.com https://libertyswap.finance https://9mm.pro https://swap.internetmoney.io https://app.piteas.io https://www.geckoterminal.com https://hex.com",
+      "frame-src https://dexscreener.com https://pulsex.mypinata.cloud",
+      "connect-src 'self'",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+    ].join('; ')
+  );
+  next();
+});
+
+/* ── CORS — restrict to same-origin requests ────────────── */
+
+app.use((req, res, next) => {
+  const origin  = req.headers.origin;
+  const allowed = process.env.ALLOWED_ORIGIN; // e.g. https://pulsecentral.io
+  if (origin && allowed && origin !== allowed) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+});
+
+/* ── In-memory rate limiter (per-IP, sliding window) ────── */
+
+const rateLimitWindows = new Map();
+const RATE_LIMIT_MAX    = parseInt(process.env.RATE_LIMIT_MAX    || '200',   10);
+const RATE_LIMIT_WINDOW = parseInt(process.env.RATE_LIMIT_WINDOW || '60000', 10); // ms
+
+function rateLimiter(req, res, next) {
+  const ip  = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+              || req.socket?.remoteAddress
+              || 'unknown';
+  const now = Date.now();
+  let entry = rateLimitWindows.get(ip);
+
+  if (!entry || now >= entry.resetAt) {
+    rateLimitWindows.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  }
+  next();
+}
+
+// Sweep expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, e] of rateLimitWindows) {
+    if (now >= e.resetAt) rateLimitWindows.delete(ip);
+  }
+}, 5 * 60_000).unref();
+
+// Apply rate limiting to all proxy routes
+app.use('/api/', rateLimiter);
+
 /* ── In-memory response cache ───────────────────────────────── */
 
 const cache     = new Map();
@@ -95,7 +167,9 @@ function qs(req) {
 
 /* ── Weekly chart snapshot (PLSX, HEX, INC, PRVX) ──────────── */
 
-/** Path to the persisted snapshot JSON file. */
+/** Path to the persisted snapshot JSON file.
+ *  The server/data/ directory is created automatically on first run.
+ *  It is listed in .gitignore — do not commit snapshot files. */
 const SNAPSHOT_FILE = path.join(__dirname, 'data', 'chart-snapshots.json');
 
 /** PulseX V1 subgraph endpoint. */
@@ -144,6 +218,10 @@ function getMondayMs() {
  *   Each bar's `time` is in milliseconds (UTC midnight for that day).
  */
 async function fetchSubgraphHistory(tokenAddress) {
+  // Validate address before interpolating into GraphQL query (injection defence)
+  if (!/^0x[0-9a-f]{40}$/i.test(tokenAddress)) {
+    throw new Error(`Invalid token address: ${tokenAddress}`);
+  }
   const addr = tokenAddress.toLowerCase();
   let allRows = [];
   // Start query just before our desired window so the first included day is fetched
@@ -588,6 +666,21 @@ app.use(express.static(path.join(__dirname, '..')));
 
 /* ── Start server ────────────────────────────────────────────── */
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`PulseCentral running at http://localhost:${PORT}`);
 });
+
+/* ── Graceful shutdown ───────────────────────────────────── */
+
+function shutdown(signal) {
+  console.log(`[PulseCentral] ${signal} received — shutting down gracefully`);
+  server.close(() => {
+    console.log('[PulseCentral] HTTP server closed.');
+    process.exit(0);
+  });
+  // Force exit after 10 s if still open
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
