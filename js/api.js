@@ -969,14 +969,21 @@ const API = (() => {
     // ── Helper: normalise a bars array from the DexScreener chart response ─
     function normaliseDsxBars(rawBars) {
       return rawBars
-        .map(b => ({
-          time:   b.time   ?? b.t ?? 0,
-          open:   b.open   ?? b.o ?? 0,
-          high:   b.high   ?? b.h ?? 0,
-          low:    b.low    ?? b.l ?? 0,
-          close:  b.close  ?? b.c ?? 0,
-          volume: b.volume ?? b.v ?? 0,
-        }))
+        .map(b => {
+          const rawTime = b.time ?? b.t ?? 0;
+          // DexScreener io API returns timestamps in SECONDS.
+          // Multiply by 1000 to convert to milliseconds so timeframe filters
+          // (which use Date.now() in ms) and date labels (new Date(ms)) work correctly.
+          const timeMs = rawTime > 1e10 ? rawTime : rawTime * 1000;
+          return {
+            time:   timeMs,
+            open:   b.open   ?? b.o ?? 0,
+            high:   b.high   ?? b.h ?? 0,
+            low:    b.low    ?? b.l ?? 0,
+            close:  b.close  ?? b.c ?? 0,
+            volume: b.volume ?? b.v ?? 0,
+          };
+        })
         .filter(b => b.time > 0);
     }
 
