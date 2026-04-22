@@ -175,20 +175,39 @@ const SOCIAL_LABELS = {
   whitepaper: '📄 Whitepaper',
 };
 
-/** Build a token logo element (img if URL available, placeholder otherwise) */
-function buildTokenLogo(logoUrl, symbol) {
-  if (logoUrl) {
-    const img = document.createElement('img');
-    img.src = logoUrl;
-    img.alt = symbol;
-    img.className = 'token-logo';
-    img.onerror = () => {
+/**
+ * Build a token logo element with a multi-URL fallback chain.
+ * Tries each URL in order; if all fail shows an initials placeholder.
+ * @param {string|null}   logoUrl   Primary logo URL (or null)
+ * @param {string}        symbol    Token symbol (for alt text + placeholder)
+ * @param {string[]}      [extras]  Additional fallback URLs to try after logoUrl
+ */
+function buildTokenLogo(logoUrl, symbol, extras = []) {
+  // Build the full ordered fallback list
+  const urls = [];
+  if (logoUrl) urls.push(logoUrl);
+  for (const u of extras) { if (u && !urls.includes(u)) urls.push(u); }
+
+  if (urls.length === 0) return buildPlaceholder(symbol);
+
+  const img = document.createElement('img');
+  img.alt = symbol || '';
+  img.className = 'token-logo';
+
+  let urlIdx = 0;
+  function tryNext() {
+    if (urlIdx < urls.length) {
+      img.src = urls[urlIdx++];
+    } else {
+      // All URLs exhausted — replace with placeholder
       const ph = buildPlaceholder(symbol);
       img.replaceWith(ph);
-    };
-    return img;
+    }
   }
-  return buildPlaceholder(symbol);
+
+  img.onerror = tryNext;
+  tryNext(); // load first URL immediately
+  return img;
 }
 
 function buildPlaceholder(symbol) {
@@ -1053,15 +1072,22 @@ async function loadEcosystemStats() {
   // ── Daily Transactions ────────────────────────────────────
   const txCard = $('stat-card-txns');
   if (txCard) {
-    const txData = txHistory.status === 'fulfilled' ? txHistory.value : [];
-    const recentTx = txData.slice(-30); // last 30 days
-    const todayTx = txData[txData.length - 1]?.tx_count || 0;
-    const weekAvg = txData.slice(-7).reduce((s, d) => s + d.tx_count, 0) / Math.min(7, txData.length) || 0;
-    const totalTx = networkStats.status === 'fulfilled' ? Number(networkStats.value?.total_transactions || 0) : 0;
+    const txData   = txHistory.status === 'fulfilled' ? (txHistory.value || []) : [];
+    const netStats = networkStats.status === 'fulfilled' ? (networkStats.value || {}) : {};
 
-    $('stat-txns-today').textContent   = fmtStat(todayTx);
-    $('stat-txns-avg7d').textContent   = fmtStat(Math.round(weekAvg));
-    $('stat-txns-total').textContent   = fmtStat(totalTx);
+    const recentTx  = txData.slice(-30);
+    const todayTx   = txData.length > 0 ? txData[txData.length - 1].tx_count : 0;
+    const last7     = txData.slice(-7);
+    const weekAvg   = last7.length > 0
+      ? last7.reduce((s, d) => s + d.tx_count, 0) / last7.length
+      : 0;
+
+    // BlockScout v2 /stats returns total_transactions as a string
+    const totalTx = Number(netStats.total_transactions || netStats.transactions_count || 0);
+
+    $('stat-txns-today').textContent  = todayTx  ? fmtStat(todayTx)          : '—';
+    $('stat-txns-avg7d').textContent  = weekAvg  ? fmtStat(Math.round(weekAvg)) : '—';
+    $('stat-txns-total').textContent  = totalTx  ? fmtStat(totalTx)          : '—';
 
     const txChartEl = $('stat-txns-chart');
     if (txChartEl && recentTx.length >= 2) {
@@ -1070,31 +1096,47 @@ async function loadEcosystemStats() {
   }
 
   // ── Bridge TVL ────────────────────────────────────────────
+  // DefiLlama protocol endpoint returns:
+  //   { tvl: number (current), chainTvls: { PulseChain: { tvl: [{date, totalLiquidityUSD}] } } }
   const bridgeCard = $('stat-card-bridge');
   if (bridgeCard) {
     const bridge = bridgeData.status === 'fulfilled' ? bridgeData.value : null;
-    const currentTvl = bridge?.tvl || 0;
-    const tvlHistory = (bridge?.tvl !== undefined && Array.isArray(bridge?.chainTvls?.['PulseChain']?.tvl))
-      ? bridge.chainTvls['PulseChain'].tvl
-      : (Array.isArray(bridge?.tvl) ? bridge.tvl : []);
 
-    const tvlValues = tvlHistory.length > 0
-      ? tvlHistory.slice(-90).map(d => d.totalLiquidityUSD || d.tvl || 0)
-      : [];
+    // Current TVL — top-level numeric field
+    const tvlNow = Number(bridge?.tvl || 0);
 
-    const tvlNow   = typeof currentTvl === 'number' ? currentTvl : 0;
-    const tvl7dAgo = tvlValues.length >= 7  ? tvlValues[tvlValues.length - 7]  : tvlNow;
-    const tvl30dAgo= tvlValues.length >= 30 ? tvlValues[tvlValues.length - 30] : tvlNow;
+    // Historical TVL array — look in several places DefiLlama may put it
+    let tvlHistory = [];
+    if (Array.isArray(bridge?.chainTvls?.PulseChain?.tvl)) {
+      tvlHistory = bridge.chainTvls.PulseChain.tvl;
+    } else if (Array.isArray(bridge?.tvl)) {
+      // Some protocols return tvl as array instead of number
+      tvlHistory = bridge.tvl;
+    } else if (Array.isArray(bridge?.historicalChainTvls?.PulseChain?.tvl)) {
+      tvlHistory = bridge.historicalChainTvls.PulseChain.tvl;
+    }
+
+    // Each entry is { date: unixSeconds, totalLiquidityUSD: number }
+    const tvlValues = tvlHistory
+      .slice(-90)
+      .map(d => Number(d.totalLiquidityUSD || d.tvl || 0))
+      .filter(v => v > 0);
+
+    // Use last known history value as "now" if the top-level tvl is 0
+    const effectiveTvlNow = tvlNow || (tvlValues.length > 0 ? tvlValues[tvlValues.length - 1] : 0);
+
+    const tvl7dAgo  = tvlValues.length >= 7  ? tvlValues[tvlValues.length - 7]  : effectiveTvlNow;
+    const tvl30dAgo = tvlValues.length >= 30 ? tvlValues[tvlValues.length - 30] : effectiveTvlNow;
 
     function pctChange(now, then) {
-      if (!then) return '—';
+      if (!then || !now) return '—';
       const pct = ((now - then) / then) * 100;
       return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
     }
 
-    $('stat-bridge-current').textContent = tvlNow ? fmt.large(tvlNow) : '—';
-    $('stat-bridge-7d').textContent      = pctChange(tvlNow, tvl7dAgo);
-    $('stat-bridge-30d').textContent     = pctChange(tvlNow, tvl30dAgo);
+    $('stat-bridge-current').textContent = effectiveTvlNow ? fmt.large(effectiveTvlNow) : '—';
+    $('stat-bridge-7d').textContent      = pctChange(effectiveTvlNow, tvl7dAgo);
+    $('stat-bridge-30d').textContent     = pctChange(effectiveTvlNow, tvl30dAgo);
 
     const bridgeChartEl = $('stat-bridge-chart');
     if (bridgeChartEl && tvlValues.length >= 2) {
@@ -1103,15 +1145,26 @@ async function loadEcosystemStats() {
   }
 
   // ── PulseX DEX Stats ──────────────────────────────────────
+  // The /api/pulsex/factory endpoint returns:
+  //   { data: { uniswapFactories: [{ totalLiquidityUSD, totalVolumeUSD, totalTransactions, pairCount }] } }
   const dexCard = $('stat-card-dex');
   if (dexCard) {
-    const factory = pulseXData.status === 'fulfilled'
-      ? pulseXData.value?.data?.uniswapFactories?.[0]
-      : null;
-    $('stat-dex-tvl').textContent    = factory ? fmt.large(Number(factory.totalLiquidityUSD || 0)) : '—';
-    $('stat-dex-vol').textContent    = factory ? fmt.large(Number(factory.totalVolumeUSD || 0))    : '—';
-    $('stat-dex-txns').textContent   = factory ? fmtStat(Number(factory.totalTransactions || 0))  : '—';
-    $('stat-dex-pairs').textContent  = factory ? fmtStat(Number(factory.pairCount || 0))          : '—';
+    const raw = pulseXData.status === 'fulfilled' ? pulseXData.value : null;
+    // Handle both possible response shapes
+    const factory = raw?.data?.uniswapFactories?.[0]
+                 || raw?.uniswapFactories?.[0]
+                 || null;
+
+    if (factory) {
+      $('stat-dex-tvl').textContent   = fmt.large(Number(factory.totalLiquidityUSD || 0));
+      $('stat-dex-vol').textContent   = fmt.large(Number(factory.totalVolumeUSD    || 0));
+      $('stat-dex-txns').textContent  = fmtStat(Number(factory.totalTransactions   || 0));
+      $('stat-dex-pairs').textContent = fmtStat(Number(factory.pairCount           || 0));
+    } else {
+      ['stat-dex-tvl','stat-dex-vol','stat-dex-txns','stat-dex-pairs'].forEach(id => {
+        const el = $(id); if (el) el.textContent = '—';
+      });
+    }
   }
 
   // Show the section now that data is loaded
@@ -1138,7 +1191,8 @@ function buildTickerItem(pair, rank) {
   const symbol   = pair.baseToken?.symbol || '?';
   const price    = Number(pair.priceUsd || 0);
   const change   = Number(pair.priceChange?.h24 || 0);
-  const logoUrl  = API.getTokenLogoUrl(pair, pair.baseToken?.address);
+  const logoUrl   = API.getTokenLogoUrl(pair, pair.baseToken?.address);
+  const logoExtra = API.getTokenLogoFallbacks(pair, pair.baseToken?.address).slice(1);
   const pairAddr = pair.pairAddress || '';
   const { text: changeText, cls: changeCls } = fmt.change(change);
 
@@ -1157,24 +1211,16 @@ function buildTickerItem(pair, rank) {
     item.appendChild(rankEl);
   }
 
-  // Logo
-  if (logoUrl) {
-    const img = document.createElement('img');
-    img.src = logoUrl;
-    img.alt = symbol;
-    img.className = 'ticker-item-logo';
-    img.onerror = () => {
-      const ph = document.createElement('div');
-      ph.className = 'ticker-item-logo-placeholder';
-      ph.textContent = symbol.slice(0, 3).toUpperCase();
-      img.replaceWith(ph);
-    };
-    item.appendChild(img);
-  } else {
-    const ph = document.createElement('div');
-    ph.className = 'ticker-item-logo-placeholder';
-    ph.textContent = symbol.slice(0, 3).toUpperCase();
-    item.appendChild(ph);
+  // Logo — use buildTokenLogo with fallback chain
+  {
+    const logoEl = buildTokenLogo(logoUrl, symbol, logoExtra);
+    // Ticker uses different class names for its logo elements
+    if (logoEl.tagName === 'IMG') {
+      logoEl.className = 'ticker-item-logo';
+    } else {
+      logoEl.className = 'ticker-item-logo-placeholder';
+    }
+    item.appendChild(logoEl);
   }
 
   const sym = document.createElement('span');
@@ -1737,7 +1783,15 @@ function buildPortfolioRow(index, token, balance, price, change24h, pairAddress 
   const tdToken = document.createElement('td');
   const tokenCell = document.createElement('div');
   tokenCell.className = 'token-cell';
-  tokenCell.appendChild(buildTokenLogo(token.logoUrl, token.symbol));
+  {
+    // Build fallback list: stored logoUrl + CDN pattern for the contract address
+    const contractAddr = token.contractAddress || token.address || '';
+    const extras = contractAddr
+      ? [`https://dd.dexscreener.com/ds-data/tokens/pulsechain/${contractAddr.toLowerCase()}.png`,
+         `https://scan.pulsechain.com/token-images/${contractAddr.toLowerCase()}.png`]
+      : [];
+    tokenCell.appendChild(buildTokenLogo(token.logoUrl, token.symbol, extras));
+  }
   const nameSpan = document.createElement('span');
   nameSpan.className = 'token-name';
   nameSpan.textContent = token.name || token.symbol;
@@ -1968,7 +2022,8 @@ function renderTop50() {
 
 function buildTop50Row(rank, pair) {
   const token   = pair.baseToken || {};
-  const logoUrl = API.getTokenLogoUrl(pair, token.address);
+  const logoUrl   = API.getTokenLogoUrl(pair, token.address);
+  const logoExtra = API.getTokenLogoFallbacks(pair, token.address).slice(1); // skip primary, rest are fallbacks
   const price   = pair.priceUsd;
   const change24h = pair.priceChange?.h24;
   const vol24h  = pair.volume?.h24;
@@ -1995,7 +2050,7 @@ function buildTop50Row(rank, pair) {
   // Name column: logo + name + symbol
   const nameCol = document.createElement('span');
   nameCol.className = 'top50-col top50-name';
-  const logoEl = buildTokenLogo(logoUrl, token.symbol);
+  const logoEl = buildTokenLogo(logoUrl, token.symbol, logoExtra);
   logoEl.classList.add('top50-logo');
   const nameWrap = document.createElement('span');
   nameWrap.className = 'top50-name-wrap';
@@ -2108,7 +2163,8 @@ function buildSearchDropdownItem(pair) {
   const name     = token.name   || symbol;
   const price    = Number(pair.priceUsd || 0);
   const change   = Number(pair.priceChange?.h24 || 0);
-  const logoUrl  = API.getTokenLogoUrl(pair, token.address);
+  const logoUrl   = API.getTokenLogoUrl(pair, token.address);
+  const logoExtra = API.getTokenLogoFallbacks(pair, token.address).slice(1);
   const pairAddr = pair.pairAddress || '';
   const chainId  = pair.chainId || 'pulsechain';
   const liq      = pair.liquidity?.usd;
@@ -2121,24 +2177,11 @@ function buildSearchDropdownItem(pair) {
   item.rel       = 'noopener noreferrer';
   item.setAttribute('role', 'option');
 
-  // Logo
-  if (logoUrl) {
-    const img = document.createElement('img');
-    img.src   = logoUrl;
-    img.alt   = symbol;
-    img.className = 'search-dropdown-logo';
-    img.onerror = () => {
-      const ph = document.createElement('div');
-      ph.className = 'search-dropdown-logo-ph';
-      ph.textContent = symbol.slice(0, 3).toUpperCase();
-      img.replaceWith(ph);
-    };
-    item.appendChild(img);
-  } else {
-    const ph = document.createElement('div');
-    ph.className = 'search-dropdown-logo-ph';
-    ph.textContent = symbol.slice(0, 3).toUpperCase();
-    item.appendChild(ph);
+  // Logo — with fallback chain
+  {
+    const logoEl = buildTokenLogo(logoUrl, symbol, logoExtra);
+    logoEl.className = logoEl.tagName === 'IMG' ? 'search-dropdown-logo' : 'search-dropdown-logo-ph';
+    item.appendChild(logoEl);
   }
 
   const info = document.createElement('div');
@@ -3779,7 +3822,11 @@ function renderWatchlistTokens(tokens, pairMap) {
     const tdToken = document.createElement('td');
     const cell    = document.createElement('div');
     cell.className = 'token-cell';
-    cell.appendChild(buildTokenLogo(logoUrl, token.symbol));
+    {
+      const extras = [`https://dd.dexscreener.com/ds-data/tokens/pulsechain/${token.address.toLowerCase()}.png`,
+                      `https://scan.pulsechain.com/token-images/${token.address.toLowerCase()}.png`];
+      cell.appendChild(buildTokenLogo(logoUrl, token.symbol, extras));
+    }
     const nameEl  = document.createElement('span');
     nameEl.className = 'token-name';
     nameEl.textContent = token.name || token.symbol;

@@ -949,19 +949,20 @@ const API = (() => {
    * @returns {Promise<Array<{time:number,open:number,high:number,low:number,close:number,volume:number}>>}
    */
   async function getCoreCoinChartBars(pairAddress, resolution, tokenAddress) {
-    // ── 1. PulseX subgraph (preferred — full history since May 2023) ──────
+    // ── 1. PulseX subgraph (preferred — returns all available history) ───
+    // We use whatever data the subgraph has. The v2b subgraph may only index
+    // from ~2024 onward — that's still better than nothing. If we get >= 3 bars
+    // we use them; we never fall through just because data doesn't reach May 2023.
     if (tokenAddress) {
-      const subgraphBars = await fetchPulseXTokenHistory(tokenAddress);
-      // Only trust subgraph data when it reaches back close to PulseChain
-      // launch (within 90 days).  If the subgraph is a fresh deployment with
-      // only a few recent days indexed, its oldest bar will be far from launch
-      // and we fall through to DexScreener which has the real long-term history.
-      const LAUNCH_WINDOW_END_MS = (PULSECHAIN_LAUNCH_TS + 90 * 86_400) * 1000;
-      const oldestBarTime = subgraphBars.length > 0 ? subgraphBars[0].time : Infinity;
-      if (subgraphBars.length >= 3 && oldestBarTime <= LAUNCH_WINDOW_END_MS) {
-        // Aggregate daily bars into weekly bars so charts display in weekly time frames.
-        const weeklyBars = aggregateDailyToWeekly(subgraphBars);
-        return { bars: weeklyBars, resolution: 'W' };
+      try {
+        const subgraphBars = await fetchPulseXTokenHistory(tokenAddress);
+        if (subgraphBars.length >= 3) {
+          // Keep daily resolution so timeframe filters (7D, 30D, ALL) work correctly.
+          // Weekly aggregation was hiding short-term data when < 7 full weeks existed.
+          return { bars: subgraphBars, resolution: 'D' };
+        }
+      } catch (err) {
+        console.warn('[getCoreCoinChartBars] subgraph failed, falling through:', err.message);
       }
     }
 
@@ -1053,7 +1054,8 @@ const API = (() => {
     const coinsNeedingLive = CORE_COINS.filter(c => {
       const isPls = c.symbol === 'PLS' || c.symbol === 'WPLS';
       if (isPls) return false;
-      return (snapshots.get(c.symbol) || []).length < 3;
+      // Use snapshot whenever it has any bars at all
+      return (snapshots.get(c.symbol) || []).length < 1;
     });
 
     const liveChartEntries = await Promise.all(
@@ -1080,7 +1082,7 @@ const API = (() => {
         resolution = plsChart.resolution;
       } else {
         const snapshotBars = snapshots.get(coin.symbol) || [];
-        if (snapshotBars.length >= 3) {
+        if (snapshotBars.length >= 1) {
           bars       = snapshotBars;
           resolution = 'W';
         } else {
@@ -1187,10 +1189,41 @@ const API = (() => {
    * @param {string}      addr   Token contract address (any casing)
    * @returns {string|null}
    */
+  /**
+   * Resolve the best available logo URL for a token.
+   * Priority:
+   *  1. pair.info.imageUrl  — DexScreener official profile image
+   *  2. DexScreener CDN     — dd.dexscreener.com serves logos for most PulseChain tokens
+   *  3. PulseChain Scan     — scan.pulsechain.com token icon (BlockScout serves these)
+   *
+   * All three URLs are returned as a fallback chain so the UI can try each in order.
+   * @param {object|null} pair  DexScreener pair object
+   * @param {string}      addr  Token contract address (any casing)
+   * @returns {string|null}  Best available logo URL
+   */
   function getTokenLogoUrl(pair, addr) {
     if (pair?.info?.imageUrl) return pair.info.imageUrl;
-    if (addr) return `https://dd.dexscreener.com/ds-data/tokens/pulsechain/${addr.toLowerCase()}.png`;
-    return null;
+    if (!addr) return null;
+    const lower = addr.toLowerCase();
+    // DexScreener CDN — works for most tokens that have been traded on DexScreener
+    return `https://dd.dexscreener.com/ds-data/tokens/pulsechain/${lower}.png`;
+  }
+
+  /**
+   * Return ordered list of logo URLs to try for a token (for use with onerror chains).
+   * @param {object|null} pair
+   * @param {string}      addr
+   * @returns {string[]}
+   */
+  function getTokenLogoFallbacks(pair, addr) {
+    const urls = [];
+    if (pair?.info?.imageUrl) urls.push(pair.info.imageUrl);
+    if (addr) {
+      const lower = addr.toLowerCase();
+      urls.push(`https://dd.dexscreener.com/ds-data/tokens/pulsechain/${lower}.png`);
+      urls.push(`https://scan.pulsechain.com/token-images/${lower}.png`);
+    }
+    return [...new Set(urls)]; // deduplicate
   }
 
   /* ── Network / Ecosystem Stats API ─────────────────────── */
@@ -1201,23 +1234,48 @@ const API = (() => {
    * @returns {Promise<object|null>}
    */
   async function getNetworkStats() {
+    // BlockScout v2 /api/v2/stats is the correct endpoint for total tx count, etc.
     try {
       return await fetchJSON('/api/scan-v2/stats', 12000);
     } catch { return null; }
   }
 
   /**
-   * Fetch daily transaction count history from BlockScout v2 chart endpoint.
-   * Returns array of { date, tx_count } objects.
+   * Fetch daily transaction count history.
+   * BlockScout v2 charts endpoint: /api/v2/stats/charts/transactions
+   * This endpoint exists on scan.pulsechain.com and returns { chart_data: [{date, tx_count}] }
+   * Falls back to an empty array if unavailable (endpoint only exists on newer BlockScout versions).
    * @returns {Promise<Array<{date:string, tx_count:number}>>}
    */
   async function getDailyTxHistory() {
     try {
+      // Try BlockScout v2 charts endpoint first
       const data = await fetchJSON('/api/scan-v2/stats/charts/transactions', 15000);
-      return (data?.chart_data || []).map(d => ({
-        date:     d.date,
-        tx_count: Number(d.tx_count || 0),
-      }));
+      if (data?.chart_data?.length) {
+        return data.chart_data.map(d => ({
+          date:     d.date,
+          tx_count: Number(d.tx_count || 0),
+        }));
+      }
+    } catch { /* fall through */ }
+
+    // Fallback: use PulseX subgraph daily volume as a tx-count proxy
+    // (totalTransactions per day is not available from scan without the charts endpoint)
+    try {
+      const query = `{
+        uniswapDayDatas(first: 60, orderBy: date, orderDirection: desc) {
+          date
+          dailyTxns: txCount
+        }
+      }`;
+      const result = await postJSON('/api/graph/pulsex', { query }, 12000);
+      const rows = result?.data?.uniswapDayDatas || [];
+      return rows
+        .reverse()
+        .map(d => ({
+          date:     new Date(Number(d.date) * 1000).toISOString().slice(0, 10),
+          tx_count: Number(d.dailyTxns || 0),
+        }));
     } catch { return []; }
   }
 
@@ -1227,8 +1285,11 @@ const API = (() => {
    * @returns {Promise<object|null>}
    */
   async function getBridgeStats() {
+    // Correct DefiLlama slug for the PulseChain canonical bridge is "pulsechain-bridge"
+    // See: https://defillama.com/protocol/pulsechain-bridge
     try {
-      return await fetchJSON('/api/llama/protocol/pulsechain', 12000);
+      const data = await fetchJSON('/api/llama/protocol/pulsechain-bridge', 12000);
+      return data || null;
     } catch { return null; }
   }
 
@@ -1257,6 +1318,7 @@ const API = (() => {
     getTokenTransferHistory,
     getTotalSupply,
     getTokenLogoUrl,
+    getTokenLogoFallbacks,
     getNetworkStats,
     getDailyTxHistory,
     getBridgeStats,

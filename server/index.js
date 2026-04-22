@@ -20,7 +20,7 @@ app.use((req, res, next) => {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://dd.dexscreener.com https://dexscreener.com https://libertyswap.finance https://9mm.pro https://swap.internetmoney.io https://app.piteas.io https://www.geckoterminal.com https://hex.com https://www.dextools.io",
+      "img-src 'self' data: https://dd.dexscreener.com https://dexscreener.com https://libertyswap.finance https://9mm.pro https://swap.internetmoney.io https://app.piteas.io https://www.geckoterminal.com https://hex.com https://www.dextools.io https://scan.pulsechain.com",
       "frame-src https://dexscreener.com https://pulsex.mypinata.cloud",
       "connect-src 'self'",
       "font-src 'self'",
@@ -372,9 +372,13 @@ async function refreshSnapshotIfNeeded() {
   // Check that every coin in the snapshot has at least 3 bars of real history.
   // If the initial build ran while the subgraph was unavailable, coins may have
   // empty arrays — in that case we must rebuild even if weekCutoff looks fresh.
+  // Consider snapshot adequate if each coin has at least 1 bar.
+  // The previous threshold of 3 bars caused unnecessary rebuilds when the subgraph
+  // only returned recent data. Any data is better than triggering a live fallback
+  // that may also fail.
   const hasAdequateData = current &&
     SNAPSHOT_COINS.every(({ symbol }) =>
-      Array.isArray(current.coins?.[symbol]) && current.coins[symbol].length >= 3
+      Array.isArray(current.coins?.[symbol]) && current.coins[symbol].length >= 1
     );
 
   // Already up-to-date for this Monday and has adequate data for every coin
